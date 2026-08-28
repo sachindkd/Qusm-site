@@ -3,7 +3,84 @@ import { cookies } from "next/headers";
 import { FBMRP_GUILD_ID, getAccessLevel, can, type Permission } from "@/lib/discord-roles";
 import { readContent, writeContent } from "@/lib/content-store";
 
-const sectionPermission:Record<string,Permission>={announcements:"announcements:manage",leadership:"leadership:edit",divisions:"divisions:edit",applications:"applications:manage",rules:"site:edit",government:"site:edit",ranks:"site:edit",news:"site:edit",media:"site:edit"};
-async function getAccess(){const raw=(await cookies()).get("fbmrp_discord_user")?.value;if(!raw||!process.env.DISCORD_BOT_TOKEN)return "member" as const;try{const s=JSON.parse(raw);if(!s.id)return "member" as const;const r=await fetch(`https://discord.com/api/guilds/${FBMRP_GUILD_ID}/members/${s.id}`,{headers:{Authorization:`Bot ${process.env.DISCORD_BOT_TOKEN}`},cache:"no-store"});if(!r.ok)return "member" as const;const m=await r.json();return getAccessLevel(s.id,m.roles||[])}catch{return "member" as const}}
-export async function GET(){try{return NextResponse.json(await readContent())}catch{return NextResponse.json({error:"Content store unavailable"},{status:503})}}
-export async function PUT(req:Request){const access=await getAccess();try{const body=await req.json();if(!body||typeof body!=="object")return NextResponse.json({error:"Invalid content"},{status:400});const section=req.headers.get("x-content-section");if(!section||!sectionPermission[section])return NextResponse.json({error:"Missing or invalid content section"},{status:400});if(!can(access,sectionPermission[section]))return NextResponse.json({error:"Unauthorized"},{status:403});const current=await readContent() as Record<string,unknown>;if(!Array.isArray(body[section]))return NextResponse.json({error:"Section must be an array"},{status:400});const next={...current,[section]:body[section]};await writeContent(next as any);return NextResponse.json({ok:true,section})}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Content persistence unavailable"},{status:503})}}
+const sectionPermission: Record<string, Permission> = {
+  announcements: "announcements:manage",
+  leadership: "leadership:edit",
+  divisions: "divisions:edit",
+  applications: "applications:manage",
+  rules: "site:edit",
+  government: "site:edit",
+  ranks: "site:edit",
+  news: "site:edit",
+  media: "site:edit",
+};
+
+async function getAccess() {
+  const raw = (await cookies()).get("fbmrp_discord_user")?.value;
+  if (!raw || !process.env.DISCORD_BOT_TOKEN) return "member" as const;
+  try {
+    const session = JSON.parse(raw);
+    if (!session.id) return "member" as const;
+    const response = await fetch(
+      `https://discord.com/api/guilds/${FBMRP_GUILD_ID}/members/${session.id}`,
+      {
+        headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` },
+        cache: "no-store",
+      },
+    );
+    if (!response.ok) return "member" as const;
+    const member = await response.json();
+    return getAccessLevel(session.id, member.roles || []);
+  } catch {
+    return "member" as const;
+  }
+}
+
+export async function GET() {
+  try {
+    const content = await readContent();
+    // Applications are private CMS data and must never be returned by the public API.
+    const { applications: _privateApplications, ...publicContent } = content;
+    return NextResponse.json(publicContent, {
+      headers: { "Cache-Control": "no-store" },
+    });
+  } catch {
+    return NextResponse.json({ error: "Content store unavailable" }, { status: 503 });
+  }
+}
+
+export async function PUT(req: Request) {
+  const access = await getAccess();
+
+  try {
+    const body = await req.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ error: "Invalid content" }, { status: 400 });
+    }
+
+    const section = req.headers.get("x-content-section");
+    if (!section || !sectionPermission[section]) {
+      return NextResponse.json({ error: "Missing or invalid content section" }, { status: 400 });
+    }
+
+    const permission = sectionPermission[section];
+    if (!can(access, permission)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    if (!Array.isArray(body[section])) {
+      return NextResponse.json({ error: "Section must be an array" }, { status: 400 });
+    }
+
+    const current = await readContent();
+    const next = { ...current, [section]: body[section] };
+    await writeContent(next);
+
+    return NextResponse.json({ ok: true, section });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Content persistence unavailable" },
+      { status: 503 },
+    );
+  }
+}

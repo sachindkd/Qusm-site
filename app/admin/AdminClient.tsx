@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Megaphone, Users, Shield, ScrollText, LogOut, Plus, Trash2, Landmark, BadgeCheck, Rss, Image as ImageIcon, ClipboardList, Lock, Settings, Save } from "lucide-react";
 import { signOut } from "next-auth/react";
@@ -51,6 +51,12 @@ export default function AdminClient({ initialContent, email, access, permissions
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("section");
+    if (requested && SECTIONS.some(s => s.id === requested)) setActive(requested);
+  }, []);
+
   const allowed = (p: string) => permissions.includes(p) || permissions.includes("admin:all");
   const section = SECTIONS.find(s => s.id === active)!;
 
@@ -78,7 +84,7 @@ export default function AdminClient({ initialContent, email, access, permissions
       </motion.div></AnimatePresence>
     </main>
     <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 max-w-[95vw] overflow-x-auto rounded-2xl border border-border bg-panel/95 backdrop-blur px-2 py-2 flex gap-1">
-      {SECTIONS.filter(s => allowed(s.permission)).map(s => { const I = s.icon; return <button key={s.id} onClick={() => { setActive(s.id); setError(""); setSaved(false); }} className={`px-3 py-2 rounded-xl text-[9px] font-mono uppercase whitespace-nowrap ${active === s.id ? "bg-gold text-black" : "text-textdim"}`}><I size={13} className="mx-auto mb-1"/>{s.label}</button>; })}
+      {SECTIONS.filter(s => allowed(s.permission)).map(s => { const I = s.icon; return <button key={s.id} onClick={() => { setActive(s.id); setError(""); setSaved(false); window.history.replaceState(null, "", `/admin?section=${s.id}`); }} className={`px-3 py-2 rounded-xl text-[9px] font-mono uppercase whitespace-nowrap ${active === s.id ? "bg-gold text-black" : "text-textdim"}`}><I size={13} className="mx-auto mb-1"/>{s.label}</button>; })}
       {SECTIONS.every(s => !allowed(s.permission)) && <span className="px-4 py-2 text-[9px] font-mono text-textfaint flex gap-2"><Lock size={13}/> No CMS permissions</span>}
     </nav>
     {allowed(section.permission) && <button onClick={save} disabled={saving} className="fixed right-5 bottom-5 bg-gold text-black px-5 py-3 rounded-full font-mono text-[10px] uppercase disabled:opacity-50 flex gap-2 items-center"><Save size={13}/>{saved ? "Saved" : saving ? "Saving…" : "Save changes"}</button>}

@@ -1,36 +1,14 @@
 "use client";
 
-import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { ReactNode, useEffect } from "react";
+import { motion } from "framer-motion";
+import { ReactNode } from "react";
 
 export default function MotionShell({ children }: { children: ReactNode }) {
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-  const smoothX = useSpring(x, { stiffness: 80, damping: 20 });
-  const smoothY = useSpring(y, { stiffness: 80, damping: 20 });
-  const rotate = useTransform(smoothX, [-1, 1], [-1.5, 1.5]);
-
-  useEffect(() => {
-    const onPointerMove = (event: PointerEvent) => {
-      x.set((event.clientX / window.innerWidth - 0.5) * 2);
-      y.set((event.clientY / window.innerHeight - 0.5) * 2);
-    };
-    window.addEventListener("pointermove", onPointerMove, { passive: true });
-    return () => window.removeEventListener("pointermove", onPointerMove);
-  }, [x, y]);
-
-  const motionStyle = {
-    "--pointer-x": smoothX,
-    "--pointer-y": smoothY,
-    rotate,
-  } as unknown as React.CSSProperties;
-
   return (
     <motion.div
-      style={motionStyle}
-      initial={{ opacity: 0 }}
+      initial={{ opacity: 1 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.5, ease: "easeOut" }}
+      style={{ willChange: "auto" }}
     >
       {children}
     </motion.div>

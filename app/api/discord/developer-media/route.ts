@@ -1,0 +1,3 @@
+import {NextResponse} from "next/server";
+const CHANNEL_ID="1506466679100801196";
+export async function GET(){const token=process.env.DISCORD_BOT_TOKEN;if(!token)return NextResponse.json({posts:[]},{status:503});const r=await fetch(`https://discord.com/api/v10/channels/${CHANNEL_ID}/messages?limit=25`,{headers:{Authorization:`Bot ${token}`},cache:'no-store'});if(!r.ok)return NextResponse.json({posts:[]},{status:502});const ms=await r.json();return NextResponse.json({posts:ms.map((m:any)=>({id:m.id,content:m.content,createdAt:m.timestamp,author:m.author?.global_name||m.author?.username,attachments:(m.attachments||[]).map((a:any)=>({url:a.url,name:a.filename,type:a.content_type}))}))});}

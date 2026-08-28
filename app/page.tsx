@@ -1,62 +1,220 @@
-import { getContent } from "@/lib/content";
-import ScrollReveal from "@/components/ScrollReveal";
-import MotionShell from "@/components/motion-shell";
-import { ArrowDown, ArrowUpRight, Command, Menu, Shield } from "lucide-react";
+"use client";
 
-export default async function HomePage() {
-  const content = await getContent();
-  const featuredAnnouncement = content.announcements[0];
-  const featuredMedia = content.media.slice(0, 3);
+import { motion, useScroll, useSpring, useTransform } from "framer-motion";
+import { ArrowDown, ArrowRight, ChevronDown, Menu, Play, Shield, X } from "lucide-react";
+import { useEffect, useState } from "react";
+
+const divisions = [
+  ["HLS", "Homeland Security", "Homeland security and protective operations."],
+  ["SS", "Secret Service", "Special security and executive protection."],
+  ["USMC", "Marine Corps", "United States Marine Corps roleplay division."],
+  ["NAVY", "United States Navy", "Temporarily disbanded."],
+  ["SOCOM", "Special Operations", "Special Operations Command."],
+  ["MED", "Medical", "Medical and emergency services."],
+  ["DOJ", "Justice", "Department of Justice."],
+  ["MP", "Military Police", "Military Police."],
+];
+
+const command = [
+  {
+    title: "Senior Leadership",
+    kicker: "STAFF COMMAND",
+    description: "The senior staff leadership structure, beginning with the General Manager and divisional leadership.",
+    items: [
+      "General Manager",
+      "Head of Community Affairs",
+      "Head of Development",
+      "Head of Divisional Operations",
+      "Head of Administrative Operations",
+      "Divisional Heads",
+    ],
+  },
+  {
+    title: "Staff Leadership",
+    kicker: "MANAGEMENT",
+    description: "The management chain, beginning with the Head of Management and continuing through staff roles.",
+    items: ["Head of Management", "Management", "Administration", "Moderation", "Intern"],
+  },
+  {
+    title: "Roleplay Leadership",
+    kicker: "ROLEPLAY COMMAND",
+    description: "The established roleplay chain of command from President through the cabinet and senior roleplay offices.",
+    items: [
+      "President",
+      "Vice President",
+      "Speaker of the House",
+      "President Pro Tempore",
+      "Secretary of Defense",
+      "Secretary of Homeland Security",
+      "Attorney General",
+    ],
+  },
+];
+
+function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 55 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.15 }}
+      transition={{ duration: 0.8, delay, ease: [0.16, 1, 0.3, 1] }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+export default function HomePage() {
+  const [open, setOpen] = useState<number | null>(0);
+  const [mobile, setMobile] = useState(false);
+  const { scrollYProgress } = useScroll();
+  const smooth = useSpring(scrollYProgress, { stiffness: 70, damping: 22, mass: 0.25 });
+  const heroY = useTransform(smooth, [0, 0.32], [0, -95]);
+  const heroScale = useTransform(smooth, [0, 0.3], [1.06, 1.18]);
+  const heroOpacity = useTransform(smooth, [0, 0.22], [1, 0.35]);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      document.documentElement.style.setProperty("--pointer-x", ((e.clientX / innerWidth) - 0.5).toFixed(3));
+      document.documentElement.style.setProperty("--pointer-y", ((e.clientY / innerHeight) - 0.5).toFixed(3));
+    };
+    const onScroll = () => document.documentElement.style.setProperty("--scroll-progress", String(scrollYProgress.get()));
+    addEventListener("mousemove", onMove);
+    addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => {
+      removeEventListener("mousemove", onMove);
+      removeEventListener("scroll", onScroll);
+    };
+  }, [scrollYProgress]);
 
   return (
-    <MotionShell>
-      <main className="site-shell">
-        <div className="site-progress" aria-hidden="true" />
-        <div className="ambient-lines" aria-hidden="true"><i /><i /><i /><i /></div>
-        <nav className="site-nav">
-          <a href="#top" className="brand-mark"><span className="brand-dot" />QUSM</a>
-          <div className="nav-links"><a href="#about">About</a><a href="#command">Command</a><a href="#news">Updates</a></div>
-          <a href="/login" className="nav-action">Staff <ArrowUpRight size={14} /></a>
-          <button className="mobile-menu" aria-label="Menu"><Menu size={20} /></button>
-        </nav>
+    <main className="site-shell">
+      <div className="site-progress" />
+      <div className="ambient-lines" aria-hidden="true"><i /><i /><i /><i /></div>
 
-        <section id="top" className="hero-section">
-          <div className="hero-grid" aria-hidden="true" /><div className="hero-noise" aria-hidden="true" />
-          <div className="hero-crosshair" aria-hidden="true"><span /><span /></div>
-          <div className="hero-rule hero-rule-a" aria-hidden="true" /><div className="hero-rule hero-rule-b" aria-hidden="true" />
-          <div className="hero-orbit orbit-one" aria-hidden="true" /><div className="hero-orbit orbit-two" aria-hidden="true" />
-          <div className="hero-glow hero-glow-one" aria-hidden="true" /><div className="hero-glow hero-glow-two" aria-hidden="true" />
+      <nav className="site-nav">
+        <a href="#top" className="brand-mark"><span className="brand-dot" /> FBMRP</a>
+        <div className={`nav-links ${mobile ? "mobile-open" : ""}`}>
+          <a href="#command" onClick={() => setMobile(false)}>COMMAND</a>
+          <a href="#divisions" onClick={() => setMobile(false)}>DIVISIONS</a>
+          <a href="#media" onClick={() => setMobile(false)}>MEDIA</a>
+          <a href="#recruitment" onClick={() => setMobile(false)}>RECRUITMENT</a>
+        </div>
+        <a href="#recruitment" className="nav-action"><Shield size={13} /> JOIN FBMRP <ArrowRight size={12} /></a>
+        <button className="mobile-menu" onClick={() => setMobile(!mobile)} aria-label="Menu">{mobile ? <X /> : <Menu />}</button>
+      </nav>
 
-          <div className="hero-copy hero-enter">
-            <div className="eyebrow"><span /> Official command portal <b>2026</b></div>
-            <h1 aria-label={content.org.fullName}><span className="hero-line hero-word hero-word-1">{content.org.fullName.split(" ").slice(0, 2).join(" ")}</span><span className="hero-line hero-outline hero-word hero-word-2">{content.org.fullName.split(" ").slice(2).join(" ") || "QUSM"}</span></h1>
-            <div className="hero-meta"><span>COMMAND</span><span>UAE / HQ</span><span>SCROLL ↓</span></div>
-            <p className="hero-description hero-fade-delay">A living command hub for people, divisions, announcements and the systems that keep QUSM moving.</p>
-            <div className="hero-actions hero-fade-delay"><a href="#command" className="button button-primary">Explore QUSM <ArrowDown size={16} /></a><a href="#news" className="button button-ghost">Latest updates <ArrowUpRight size={15} /></a></div>
+      <section id="top" className="hero-section">
+        <motion.div className="hero-grid" style={{ y: heroY, scale: heroScale }} />
+        <div className="hero-glow hero-glow-one" />
+        <div className="hero-glow hero-glow-two" />
+        <div className="hero-crosshair"><span /><span /></div>
+        <div className="hero-rule hero-rule-a" />
+        <div className="hero-rule hero-rule-b" />
+
+        <motion.div className="hero-copy" style={{ opacity: heroOpacity }}>
+          <div className="eyebrow"><span /> FORT BLISS MILITARY ROLEPLAY <b>EST. FBMRP</b></div>
+          <h1>
+            <span className="hero-line"><span className="hero-word hero-word-1">BUILT</span></span>
+            <span className="hero-line"><span className="hero-word hero-word-2 hero-outline">TO SERVE</span></span>
+          </h1>
+          <div className="hero-meta"><span>STRUCTURE</span><span>DISCIPLINE</span><span>IMMERSION</span><span>COMMUNITY</span></div>
+          <p className="hero-description">A structured military roleplay community built around organization, progression, leadership, and immersive operations.</p>
+          <div className="hero-actions">
+            <a className="button button-primary" href="#command">EXPLORE COMMAND <ArrowDown size={13} /></a>
+            <a className="button button-ghost" href="#recruitment"><Play size={12} /> RECRUITMENT</a>
           </div>
+        </motion.div>
 
-          <div className="hero-card-wrap"><div className="hero-card-shadow" /><article className="hero-card">
-            <div className="card-topbar"><span><span className="status-dot" /> LIVE</span><span>QUSM / 001</span></div>
-            <div className="card-symbol"><Shield size={30} strokeWidth={1.2} /></div><div className="card-big-number">01</div>
-            <div className="card-caption"><span>COMMAND</span><strong>{content.org.owner}</strong></div>
-            <div className="card-scanline" /><div className="card-corner card-corner-tl" /><div className="card-corner card-corner-br" /><div className="card-axis card-axis-x" /><div className="card-axis card-axis-y" />
-          </article></div>
-          <div className="scroll-cue"><span>Scroll to explore</span><ArrowDown size={14} /></div>
-        </section>
+        <motion.div className="hero-card-wrap" style={{ opacity: heroOpacity }}>
+          <div className="hero-card-shadow" />
+          <div className="hero-card">
+            <div className="card-topbar"><span><i className="status-dot" /> LIVE SYSTEM</span><span>FBMRP / 01</span></div>
+            <div className="card-symbol"><Shield size={28} /></div>
+            <div className="card-big-number">01</div>
+            <div className="card-axis card-axis-x" /><div className="card-axis card-axis-y" />
+            <div className="card-scanline" />
+            <div className="card-corner card-corner-tl" /><div className="card-corner card-corner-br" />
+            <div className="card-caption"><span>FORT BLISS</span><strong>MILITARY ROLEPLAY</strong><span>COMMAND // COMMUNITY // OPERATIONS</span></div>
+          </div>
+        </motion.div>
+        <div className="scroll-cue"><ArrowDown size={13} /> SCROLL TO ENTER</div>
+      </section>
 
-        <div className="ticker" aria-hidden="true"><div><span>QUSM</span><i>COMMAND / PEOPLE / PURPOSE</i><span>QUSM</span><i>COMMAND / PEOPLE / PURPOSE</i><span>QUSM</span><i>COMMAND / PEOPLE / PURPOSE</i></div></div>
+      <div className="ticker"><div><span>FORT BLISS MILITARY ROLEPLAY</span><i>STRUCTURED COMMUNITY</i><span>FBMRP</span><i>EST. FOR IMMERSION</i><span>COMMAND • DIVISIONS • OPERATIONS</span><i>JOIN THE RANKS</i><span>FORT BLISS MILITARY ROLEPLAY</span><i>STRUCTURED COMMUNITY</i></div></div>
 
-        <ScrollReveal><section id="about" className="statement-section section-pad"><div className="section-label">The organization</div><div className="statement-grid"><h2>Built like a <em>system.</em><br />Presented like a <em>statement.</em></h2><div className="statement-side"><p>{content.org.fullName} brings the entire command structure into one clear, accessible place.</p><div className="mini-stats"><div><strong>{content.divisions.length.toString().padStart(2, "0")}</strong><span>Divisions</span></div><div><strong>{content.leadership.length.toString().padStart(2, "0")}</strong><span>Leaders</span></div><div><strong>{content.ranks.length.toString().padStart(2, "0")}</strong><span>Ranks</span></div></div></div></div></section></ScrollReveal>
+      <section className="statement-section section-pad" id="about">
+        <Reveal>
+          <div className="eyebrow"><span /> 01 / THE COMMUNITY</div>
+          <div className="statement-grid">
+            <h2>More than a server.<br /><em>A structured world.</em></h2>
+            <div className="statement-side"><p>FBMRP brings together military roleplay, leadership, divisions, staff operations, and community progression in one organized experience.</p></div>
+          </div>
+          <div className="mini-stats"><div><strong>08</strong><span>Divisions</span></div><div><strong>03</strong><span>Command paths</span></div><div><strong>01</strong><span>Community</span></div></div>
+        </Reveal>
+      </section>
 
-        <ScrollReveal delay={0.05}><section id="command" className="command-section section-pad"><div className="section-label">Command structure</div><div className="section-heading-row"><h2>Meet the <span>command.</span></h2></div><div className="command-feature"><div className="feature-number">01</div><div className="feature-main"><div className="feature-kicker"><Command size={15} /> COMMAND</div><h3>{featuredAnnouncement?.title || "The command center"}</h3><p>{featuredAnnouncement?.body || "The latest information from QUSM command."}</p><a href="#news" className="text-link">View announcements <ArrowUpRight size={15} /></a></div><div className="feature-side"><span>OWNER</span><strong>{content.org.owner}</strong><span>CO-OWNER</span><strong>{content.org.coOwner}</strong></div></div><div className="division-grid">{content.divisions.slice(0, 4).map((d, index) => <article className="division-card" key={d.id}><div className="division-top"><span>0{index + 1}</span><ArrowUpRight size={16} /></div><h3>{d.name}</h3><p>{d.desc}</p><div className="division-head">HEAD — {d.head}</div></article>)}</div></section></ScrollReveal>
+      <section className="section-pad" id="command">
+        <Reveal>
+          <div className="section-heading-row"><div><div className="section-label">02 / CHAIN OF COMMAND</div><h2>Leadership<br /><span>DROP-DOWN.</span></h2></div><div className="heading-index">FBMRP / COC <ChevronDown className="heading-icon" /></div></div>
+        </Reveal>
+        <div className="command-feature">
+          <div className="feature-number">COC<br />SYS</div>
+          <div className="feature-main"><div className="feature-kicker"><Shield size={12} /> ORGANIZED LEADERSHIP</div><h3>Every level has a place.</h3><p>The website is designed so leadership information can be expanded, edited, and reorganized without rebuilding the visual system.</p></div>
+          <div className="feature-side"><span>STRUCTURE</span><strong>Three primary pathways</strong><span>STAFF / MANAGEMENT / ROLEPLAY</span></div>
+        </div>
+        <div className="command-grid">
+          {command.map((section, index) => (
+            <div className="command-row" key={section.title}>
+              <button className="command-button" onClick={() => setOpen(open === index ? null : index)} aria-expanded={open === index}>
+                <div className="command-title"><span>0{index + 1}</span><strong>{section.title}</strong></div>
+                <div className="command-open">{open === index ? "CLOSE" : "OPEN"} <ChevronDown size={15} style={{ transform: open === index ? "rotate(180deg)" : "none" }} /></div>
+              </button>
+              <motion.div initial={false} animate={{ height: open === index ? "auto" : 0, opacity: open === index ? 1 : 0 }} className="command-body-wrap">
+                <div className="command-body"><div className="role role-description">{section.description}</div>{section.items.map(item => <div className="role" key={item}>{item}</div>)}</div>
+              </motion.div>
+            </div>
+          ))}
+        </div>
+      </section>
 
-        <ScrollReveal><section id="news" className="news-section section-pad"><div className="section-label">Latest updates</div><div className="section-heading-row"><h2>What&apos;s <span>happening.</span></h2></div><div className="news-list">{content.news.slice(0, 5).map((n, index) => <article className="news-item" key={n.id}><span className="news-index">0{index + 1}</span><span className="news-date">{n.date}</span><div className="news-body"><span className="news-tag">{n.tag}</span><h3>{n.title}</h3><p>{n.body}</p></div><ArrowUpRight className="news-arrow" size={18} /></article>)}</div></section></ScrollReveal>
+      <section className="section-pad division-section" id="divisions">
+        <Reveal>
+          <div className="section-label">03 / DIVISIONS</div>
+          <div className="division-head"><h2>Choose your<br /><span>path.</span></h2><p>Divisional identities, descriptions, logos, status, leadership, and every detail are intended to be editable from the website.</p></div>
+        </Reveal>
+        <div className="division-grid">
+          {divisions.map(([code, name, description], i) => (
+            <Reveal key={code} delay={i * 0.04}>
+              <article className="division-card">
+                <div className="division-top"><span>DIV / 0{i + 1}</span><span>{code === "NAVY" ? "TEMP" : "ACTIVE"}</span></div>
+                <div className="division-logo-placeholder"><Shield size={24} /></div>
+                <h3>{name}</h3><p>{description}</p><div className="division-head">{code} <ArrowRight size={12} /></div>
+              </article>
+            </Reveal>
+          ))}
+        </div>
+      </section>
 
-        <ScrollReveal><section className="media-section section-pad"><div className="section-label">Visual archive</div><div className="media-intro"><h2>Inside<br /><em>QUSM.</em></h2><p>Selected moments, systems and visual records.</p></div><div className="media-grid">{featuredMedia.map((m, index) => <div className={`media-card media-${index + 1}`} key={m.id} style={m.imageUrl ? { backgroundImage: `url(${m.imageUrl})` } : undefined}><div className="media-overlay" /><span>{m.caption}</span></div>)}</div></section></ScrollReveal>
+      <section className="section-pad media-section" id="media">
+        <Reveal>
+          <div className="section-label">04 / MEDIA</div>
+          <div className="media-intro"><h2>Put the<br /><em>mission</em> in motion.</h2><p>Homepage video, division media, announcements, calendar content, logos, and visual assets can be replaced from the editable website system.</p></div>
+          <div className="media-frame"><div className="media-frame-inner"><Play size={32} /><span>HOMEPAGE VIDEO / ADD YOUR FOOTAGE</span></div></div>
+        </Reveal>
+      </section>
 
-        <ScrollReveal><section className="cta-section section-pad"><div className="cta-glow" /><div className="cta-ring" /><div className="section-label">QUSM</div><h2>Keep the<br /><span>mission moving.</span></h2><p>Stay close to the command structure, latest updates and everything QUSM.</p><a href="/login" className="button button-primary">Enter staff portal <ArrowUpRight size={16} /></a></section></ScrollReveal>
-        <footer className="site-footer"><div><span className="brand-dot" /> QUSM</div><span>© {new Date().getFullYear()} {content.org.fullName}</span><a href="/login">Staff access</a></footer>
-      </main>
-    </MotionShell>
+      <section className="cta-section section-pad" id="recruitment">
+        <Reveal>
+          <div className="eyebrow"><span /> 05 / RECRUITMENT</div>
+          <h2>Find your<br /><span>place.</span></h2>
+          <p>Ready to join Fort Bliss Military Roleplay? Start your path through the community recruitment process.</p>
+          <a className="button button-primary" href="https://discord.com" target="_blank" rel="noreferrer">ENTER DISCORD <ArrowRight size={14} /></a>
+        </Reveal>
+      </section>
+
+      <footer className="site-footer"><span>© FBMRP</span><span>FORT BLISS MILITARY ROLEPLAY</span><span>BUILT FOR IMMERSION</span></footer>
+    </main>
   );
 }

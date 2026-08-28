@@ -19,9 +19,15 @@ export default function MotionShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("pointermove", onPointerMove);
   }, [x, y]);
 
+  const motionStyle = {
+    "--pointer-x": smoothX,
+    "--pointer-y": smoothY,
+    rotate,
+  } as unknown as React.CSSProperties;
+
   return (
     <motion.div
-      style={{ "--pointer-x": smoothX, "--pointer-y": smoothY, rotate } as React.CSSProperties}
+      style={motionStyle}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5, ease: "easeOut" }}

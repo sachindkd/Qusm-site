@@ -1,186 +1,169 @@
 import { getContent } from "@/lib/content";
+import { ArrowDown, ArrowUpRight, Command, Menu, Shield, Sparkles } from "lucide-react";
 
 export default async function HomePage() {
   const content = await getContent();
 
+  const featuredAnnouncement = content.announcements[0];
+  const featuredDivision = content.divisions[0];
+  const featuredMedia = content.media.slice(0, 3);
+
   return (
-    <main className="min-h-screen bg-bg text-white px-6 py-12 sm:px-16 sm:py-20">
-      <div className="max-w-4xl mx-auto">
-        <header className="mb-14 pb-8 border-b border-border">
-          <div className="font-mono text-[10px] tracking-[2px] text-golddim uppercase mb-3">
-            Command Portal
-          </div>
-          <h1 className="font-serif text-4xl font-bold">{content.org.fullName}</h1>
-          <p className="text-textdim text-sm mt-3">
-            {content.org.owner} — Owner · {content.org.coOwner} — Co-Owner
+    <main className="site-shell">
+      <nav className="site-nav">
+        <a href="#top" className="brand-mark" aria-label="QUSM home">
+          <span className="brand-dot" />
+          QUSM
+        </a>
+        <div className="nav-links">
+          <a href="#about">About</a>
+          <a href="#command">Command</a>
+          <a href="#news">Updates</a>
+        </div>
+        <a href="/login" className="nav-action">Staff <ArrowUpRight size={14} /></a>
+        <button className="mobile-menu" aria-label="Menu"><Menu size={20} /></button>
+      </nav>
+
+      <section id="top" className="hero-section">
+        <div className="hero-glow hero-glow-one" />
+        <div className="hero-glow hero-glow-two" />
+        <div className="hero-grid" />
+        <div className="hero-orbit orbit-one" />
+        <div className="hero-orbit orbit-two" />
+
+        <div className="hero-copy">
+          <div className="eyebrow"><span /> Official command portal</div>
+          <h1>
+            <span className="hero-line">{content.org.fullName.split(" ").slice(0, 2).join(" ")}</span>
+            <span className="hero-line hero-outline">{content.org.fullName.split(" ").slice(2).join(" ") || "QUSM"}</span>
+          </h1>
+          <p className="hero-description">
+            A living command hub for people, divisions, announcements and the systems that keep QUSM moving.
           </p>
-        </header>
-
-        <section className="mb-14">
-          <div className="font-mono text-[10px] tracking-[2px] text-golddim uppercase mb-4">
-            Announcements
+          <div className="hero-actions">
+            <a href="#command" className="button button-primary">Explore QUSM <ArrowDown size={16} /></a>
+            <a href="#news" className="button button-ghost">Latest updates <ArrowUpRight size={15} /></a>
           </div>
-          <div className="border-t border-border">
-            {content.announcements.map((a) => (
-              <div key={a.id} className="grid grid-cols-[90px_1fr] gap-4 py-4 border-b border-border">
-                <div className="font-mono text-xs text-textfaint pt-0.5">{a.date}</div>
-                <div>
-                  <div className="font-semibold text-sm mb-1">{a.title}</div>
-                  <div className="text-sm text-textdim leading-relaxed">{a.body}</div>
-                </div>
+        </div>
+
+        <div className="hero-card-wrap">
+          <div className="hero-card-shadow" />
+          <article className="hero-card">
+            <div className="card-topbar">
+              <span><span className="status-dot" /> LIVE SYSTEM</span>
+              <span>QUSM / 001</span>
+            </div>
+            <div className="card-symbol"><Shield size={30} strokeWidth={1.4} /></div>
+            <div className="card-big-number">01</div>
+            <div className="card-caption">
+              <span>COMMAND</span>
+              <strong>{content.org.owner}</strong>
+            </div>
+            <div className="card-scanline" />
+          </article>
+        </div>
+
+        <div className="scroll-cue"><span>Scroll to explore</span><ArrowDown size={14} /></div>
+      </section>
+
+      <section id="about" className="statement-section section-pad">
+        <div className="section-label">/ 01 — The organization</div>
+        <div className="statement-grid">
+          <h2>Built like a <em>system.</em><br />Presented like a <em>statement.</em></h2>
+          <div className="statement-side">
+            <p>{content.org.fullName} brings the entire command structure into one clear, accessible place.</p>
+            <div className="mini-stats">
+              <div><strong>{content.divisions.length.toString().padStart(2, "0")}</strong><span>Divisions</span></div>
+              <div><strong>{content.leadership.length.toString().padStart(2, "0")}</strong><span>Leaders</span></div>
+              <div><strong>{content.ranks.length.toString().padStart(2, "0")}</strong><span>Ranks</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="command" className="command-section section-pad">
+        <div className="section-label">/ 02 — Command structure</div>
+        <div className="section-heading-row">
+          <h2>Meet the <span>command.</span></h2>
+          <span className="heading-index">01 / 03</span>
+        </div>
+
+        <div className="command-feature">
+          <div className="feature-number">01</div>
+          <div className="feature-main">
+            <div className="feature-kicker"><Command size={15} /> COMMAND</div>
+            <h3>{featuredAnnouncement?.title || "The command center"}</h3>
+            <p>{featuredAnnouncement?.body || "The latest information from QUSM command."}</p>
+            <a href="#news" className="text-link">View announcements <ArrowUpRight size={15} /></a>
+          </div>
+          <div className="feature-side">
+            <span>OWNER</span>
+            <strong>{content.org.owner}</strong>
+            <span>CO-OWNER</span>
+            <strong>{content.org.coOwner}</strong>
+          </div>
+        </div>
+
+        <div className="division-grid">
+          {content.divisions.slice(0, 4).map((d, index) => (
+            <article className="division-card" key={d.id}>
+              <div className="division-top"><span>0{index + 1}</span><ArrowUpRight size={16} /></div>
+              <h3>{d.name}</h3>
+              <p>{d.desc}</p>
+              <div className="division-head">HEAD — {d.head}</div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section id="news" className="news-section section-pad">
+        <div className="section-label">/ 03 — Signal</div>
+        <div className="section-heading-row">
+          <h2>What&apos;s <span>happening.</span></h2>
+          <Sparkles size={22} className="heading-icon" />
+        </div>
+        <div className="news-list">
+          {content.news.slice(0, 5).map((n, index) => (
+            <article className="news-item" key={n.id}>
+              <span className="news-index">0{index + 1}</span>
+              <span className="news-date">{n.date}</span>
+              <div className="news-body">
+                <span className="news-tag">{n.tag}</span>
+                <h3>{n.title}</h3>
+                <p>{n.body}</p>
               </div>
-            ))}
-          </div>
-        </section>
+              <ArrowUpRight className="news-arrow" size={18} />
+            </article>
+          ))}
+        </div>
+      </section>
 
-        <section className="mb-14">
-          <div className="font-mono text-[10px] tracking-[2px] text-golddim uppercase mb-4">
-            Government
-          </div>
-          <div className="grid sm:grid-cols-3 gap-4">
-            {content.government.map((g) => (
-              <div key={g.id} className="border border-border bg-panel p-5">
-                <div className="font-semibold text-sm">{g.name}</div>
-                <div className="font-mono text-[10px] text-gold uppercase tracking-wide mt-1 mb-2">{g.title}</div>
-                <div className="text-xs text-textdim leading-relaxed">{g.note}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="mb-14">
-          <div className="font-mono text-[10px] tracking-[2px] text-golddim uppercase mb-4">
-            Chain of Command
-          </div>
-          <div className="border-t border-border">
-            {content.leadership.map((l) => (
-              <div key={l.id} className="grid grid-cols-[70px_1fr] gap-4 items-center py-4 border-b border-border">
-                <div className="font-mono text-[11px] text-golddim">{l.rank}</div>
-                <div>
-                  <div className="font-semibold text-sm">{l.name}</div>
-                  <div className="text-xs text-textdim mt-0.5">{l.role}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="mb-14">
-          <div className="font-mono text-[10px] tracking-[2px] text-golddim uppercase mb-4">
-            Divisions
-          </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            {content.divisions.map((d) => (
-              <div key={d.id} className="border border-border bg-panel p-5">
-                <div className="font-serif font-semibold text-lg mb-1">{d.name}</div>
-                <div className="text-xs text-gold mb-2">Head — {d.head}</div>
-                <div className="text-xs text-textdim leading-relaxed">{d.desc}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="mb-14">
-          <div className="font-mono text-[10px] tracking-[2px] text-golddim uppercase mb-4">
-            Rank Structure
-          </div>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <th className="text-left font-mono text-[10px] uppercase tracking-wide text-textfaint pb-2 border-b border-borderhi">Code</th>
-                <th className="text-left font-mono text-[10px] uppercase tracking-wide text-textfaint pb-2 border-b border-borderhi">Rank</th>
-                <th className="text-left font-mono text-[10px] uppercase tracking-wide text-textfaint pb-2 border-b border-borderhi">Description</th>
-              </tr>
-            </thead>
-            <tbody>
-              {content.ranks.map((r) => (
-                <tr key={r.id}>
-                  <td className="py-3 border-b border-border font-mono text-xs text-gold">{r.code}</td>
-                  <td className="py-3 border-b border-border text-sm font-semibold">{r.name}</td>
-                  <td className="py-3 border-b border-border text-xs text-textdim">{r.desc}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-
-        <section className="mb-14">
-          <div className="font-mono text-[10px] tracking-[2px] text-golddim uppercase mb-4">
-            Rules &amp; Regulations
-          </div>
-          {content.rules.map((r) => (
-            <div key={r.id} className="py-5 border-b border-border">
-              <div className="font-semibold text-sm mb-1.5">{r.title}</div>
-              <div className="text-sm text-textdim leading-relaxed">{r.body}</div>
+      <section className="media-section section-pad">
+        <div className="section-label">/ Visual archive</div>
+        <div className="media-intro"><h2>Inside<br /><em>QUSM.</em></h2><p>Selected moments, systems and visual records.</p></div>
+        <div className="media-grid">
+          {featuredMedia.map((m, index) => (
+            <div className={`media-card media-${index + 1}`} key={m.id} style={m.imageUrl ? { backgroundImage: `url(${m.imageUrl})` } : undefined}>
+              <div className="media-overlay" />
+              <span>{m.caption}</span>
             </div>
           ))}
-        </section>
+        </div>
+      </section>
 
-        <section className="mb-14">
-          <div className="font-mono text-[10px] tracking-[2px] text-golddim uppercase mb-4">
-            News &amp; Updates
-          </div>
-          <div className="border-l border-border ml-1.5">
-            {content.news.map((n) => (
-              <div key={n.id} className="relative pl-6 pb-7 last:pb-0">
-                <div className="absolute -left-[5px] top-1 w-2 h-2 bg-golddim" />
-                <div className="font-mono text-[10px] text-textfaint tracking-wide mb-1.5">{n.date}</div>
-                <span className="inline-block font-mono text-[9px] uppercase tracking-wide border border-borderhi text-textdim px-2 py-0.5 mb-2">{n.tag}</span>
-                <div className="font-semibold text-sm mb-1.5">{n.title}</div>
-                <div className="text-xs text-textdim leading-relaxed">{n.body}</div>
-              </div>
-            ))}
-          </div>
-        </section>
+      <section className="cta-section section-pad">
+        <div className="cta-glow" />
+        <div className="section-label">/ End transmission</div>
+        <h2>Keep the<br /><span>mission moving.</span></h2>
+        <p>Stay close to the command structure, latest updates and everything QUSM.</p>
+        <a href="/login" className="button button-primary">Enter staff portal <ArrowUpRight size={16} /></a>
+      </section>
 
-        <section className="mb-14">
-          <div className="font-mono text-[10px] tracking-[2px] text-golddim uppercase mb-4">
-            Media
-          </div>
-          <div className="grid sm:grid-cols-3 gap-3">
-            {content.media.map((m) => (
-              <div
-                key={m.id}
-                className="aspect-[4/3] border border-border flex items-end p-3"
-                style={{
-                  background: m.imageUrl
-                    ? `url(${m.imageUrl}) center/cover`
-                    : "linear-gradient(135deg,#171C27,#0F131C)",
-                }}
-              >
-                <span className="font-mono text-[9px] text-textdim tracking-wide">{m.caption}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="mb-14">
-          <div className="font-mono text-[10px] tracking-[2px] text-golddim uppercase mb-4">
-            Applications
-          </div>
-          <div className="flex flex-col gap-3">
-            {content.applications.map((a) => (
-              <div key={a.id} className="border border-border bg-panel p-5 flex items-center justify-between gap-4">
-                <div>
-                  <div className="font-semibold text-sm">{a.name}</div>
-                  <div className="text-xs text-textdim mt-1">{a.desc}</div>
-                </div>
-                <span
-                  className={`font-mono text-[10px] uppercase tracking-wide px-3 py-1.5 border shrink-0 ${
-                    a.status === "open" ? "text-olive border-olive" : "text-red border-red"
-                  }`}
-                >
-                  {a.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <footer className="pt-8 font-mono text-[9px] text-textfaint tracking-wide">
-          <a href="/login" className="hover:text-textdim transition-colors">staff</a>
-        </footer>
-      </div>
+      <footer className="site-footer">
+        <div><span className="brand-dot" /> QUSM</div>
+        <span>© {new Date().getFullYear()} {content.org.fullName}</span>
+        <a href="/login">Staff access</a>
+      </footer>
     </main>
   );
 }

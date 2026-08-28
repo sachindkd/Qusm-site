@@ -2,13 +2,13 @@
 
 import { motion, useScroll, useSpring, useTransform } from "framer-motion";
 import { ArrowDown, ArrowRight, ChevronDown, Menu, Play, Shield, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 const divisions = [
   ["HLS", "Homeland Security", "Homeland security and protective operations."],
   ["SS", "Secret Service", "Special security and executive protection."],
   ["USMC", "Marine Corps", "United States Marine Corps roleplay division."],
-  ["NAVY", "United States Navy", "Temporarily disbanded.", "TEMPORARILY DISBANDED"],
+  ["NAVY", "United States Navy", "Temporarily disbanded."],
   ["SOCOM", "Special Operations", "Special Operations Command."],
   ["MED", "Medical", "Medical and emergency services."],
   ["DOJ", "Justice", "Department of Justice."],
@@ -16,92 +16,205 @@ const divisions = [
 ];
 
 const command = [
-  { title: "Senior Leadership", kicker: "STAFF COMMAND", items: ["General Manager", "Head of Community Affairs", "Head of Development", "Head of Divisional Operations", "Head of Administrative Operations", "Divisional Heads"] },
-  { title: "Staff Leadership", kicker: "MANAGEMENT", items: ["Head of Management", "Management", "Administration", "Moderation", "Intern"] },
-  { title: "Roleplay Leadership", kicker: "ROLEPLAY COMMAND", items: ["President", "Vice President", "Speaker of the House", "President Pro Tempore", "Secretary of Defense", "Secretary of Homeland Security", "Attorney General"] },
+  {
+    title: "Senior Leadership",
+    kicker: "STAFF COMMAND",
+    description: "The senior staff leadership structure, beginning with the General Manager and divisional leadership.",
+    items: [
+      "General Manager",
+      "Head of Community Affairs",
+      "Head of Development",
+      "Head of Divisional Operations",
+      "Head of Administrative Operations",
+      "Divisional Heads",
+    ],
+  },
+  {
+    title: "Staff Leadership",
+    kicker: "MANAGEMENT",
+    description: "The management chain, beginning with the Head of Management and continuing through staff roles.",
+    items: ["Head of Management", "Management", "Administration", "Moderation", "Intern"],
+  },
+  {
+    title: "Roleplay Leadership",
+    kicker: "ROLEPLAY COMMAND",
+    description: "The established roleplay chain of command from President through the cabinet and senior roleplay offices.",
+    items: [
+      "President",
+      "Vice President",
+      "Speaker of the House",
+      "President Pro Tempore",
+      "Secretary of Defense",
+      "Secretary of Homeland Security",
+      "Attorney General",
+    ],
+  },
 ];
 
-function Reveal({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <motion.div className={className} initial={{ opacity: 0, y: 70 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.18 }} transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}>{children}</motion.div>;
-}
-
-function ParticleField() {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const c = canvas.current;
-    if (!c) return;
-    const ctx = c.getContext("2d");
-    if (!ctx) return;
-    let raf = 0;
-    let w = 0, h = 0;
-    const dots = Array.from({ length: 95 }, (_, i) => ({ x: Math.random(), y: Math.random(), s: 0.35 + Math.random() * 1.4, v: 0.00025 + Math.random() * 0.0007, a: 0.12 + Math.random() * 0.42, p: i }));
-    const resize = () => { w = c.width = innerWidth * devicePixelRatio; h = c.height = innerHeight * devicePixelRatio; c.style.width = `${innerWidth}px`; c.style.height = `${innerHeight}px`; ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0); w = innerWidth; h = innerHeight; };
-    resize(); addEventListener("resize", resize);
-    const draw = (t: number) => { ctx.clearRect(0, 0, w, h); for (const d of dots) { d.y -= d.v; if (d.y < -0.03) d.y = 1.03; const pulse = d.a + Math.sin(t * 0.001 + d.p) * 0.08; ctx.fillStyle = `rgba(220,190,115,${Math.max(.04, pulse)})`; ctx.beginPath(); ctx.arc(d.x*w, d.y*h, d.s, 0, Math.PI*2); ctx.fill(); } raf = requestAnimationFrame(draw); };
-    raf = requestAnimationFrame(draw);
-    return () => { cancelAnimationFrame(raf); removeEventListener("resize", resize); };
-  }, []);
-  return <canvas ref={canvas} className="particles" aria-hidden="true" />;
+function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 55 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.15 }}
+      transition={{ duration: 0.8, delay, ease: [0.16, 1, 0.3, 1] }}
+    >
+      {children}
+    </motion.div>
+  );
 }
 
 export default function HomePage() {
-  const [open, setOpen] = useState<number | null>(null);
-  const [menu, setMenu] = useState(false);
+  const [open, setOpen] = useState<number | null>(0);
+  const [mobile, setMobile] = useState(false);
   const { scrollYProgress } = useScroll();
-  const smooth = useSpring(scrollYProgress, { stiffness: 80, damping: 20, mass: 0.2 });
-  const heroScale = useTransform(smooth, [0, .28], [1.08, 1.32]);
-  const heroY = useTransform(smooth, [0, .28], [0, 160]);
-  const heroOpacity = useTransform(smooth, [0, .22], [1, 0.18]);
-  const lineX = useTransform(smooth, [0, .5], ["0%", "100%"]);
+  const smooth = useSpring(scrollYProgress, { stiffness: 70, damping: 22, mass: 0.25 });
+  const heroY = useTransform(smooth, [0, 0.32], [0, -95]);
+  const heroScale = useTransform(smooth, [0, 0.3], [1.06, 1.18]);
+  const heroOpacity = useTransform(smooth, [0, 0.22], [1, 0.35]);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      document.documentElement.style.setProperty("--pointer-x", ((e.clientX / innerWidth) - 0.5).toFixed(3));
+      document.documentElement.style.setProperty("--pointer-y", ((e.clientY / innerHeight) - 0.5).toFixed(3));
+    };
+    const onScroll = () => document.documentElement.style.setProperty("--scroll-progress", String(scrollYProgress.get()));
+    addEventListener("mousemove", onMove);
+    addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => {
+      removeEventListener("mousemove", onMove);
+      removeEventListener("scroll", onScroll);
+    };
+  }, [scrollYProgress]);
 
   return (
-    <main className="site">
-      <style>{`
-        :root{--bg:#050606;--paper:#f4f1e8;--muted:#9a9a92;--gold:#d8b665;--gold2:#f3d58a;--line:rgba(216,182,101,.2)}
-        *{box-sizing:border-box}html{scroll-behavior:smooth;background:var(--bg)}body{margin:0;background:var(--bg);color:var(--paper);font-family:Arial,Helvetica,sans-serif}.site{background:#050606;overflow:hidden}.particles{position:fixed;inset:0;z-index:1;pointer-events:none;mix-blend-mode:screen}.grain{position:fixed;inset:0;z-index:30;pointer-events:none;opacity:.035;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.8'/%3E%3C/svg%3E")}.site a{text-decoration:none;color:inherit}.nav{position:fixed;top:0;left:0;right:0;height:82px;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:0 5vw;border-bottom:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(0,0,0,.72),transparent);backdrop-filter:blur(3px)}.brand{display:flex;align-items:center;gap:12px;font-weight:900;letter-spacing:.18em;font-size:13px}.brandmark{width:35px;height:35px;border:1px solid var(--gold);display:grid;place-items:center;transform:rotate(45deg)}.brandmark span{width:12px;height:12px;border:1px solid var(--gold)}.brandtext{display:flex;flex-direction:column;gap:3px}.brandtext small{font-size:7px;color:#7c7d76;letter-spacing:.22em;font-weight:500}.navlinks{display:flex;gap:32px;text-transform:uppercase;letter-spacing:.16em;font-size:10px;color:#aaa9a1}.navlinks a{transition:color .25s}.navlinks a:hover{color:var(--gold2)}.navbutton{display:flex;align-items:center;gap:10px;border:1px solid var(--gold);padding:12px 17px;font-size:9px;text-transform:uppercase;letter-spacing:.16em}.menub{display:none;border:0;background:none;color:white}
-        .hero{height:100svh;min-height:720px;position:relative;display:flex;align-items:center;padding:120px 7vw 80px;isolation:isolate}.hero-bg{position:absolute;inset:-10%;z-index:-3;background:radial-gradient(circle at 72% 48%,rgba(29,43,38,.9),transparent 34%),linear-gradient(120deg,#020303 0%,#07100e 48%,#020303 100%);overflow:hidden}.hero-bg:before{content:"";position:absolute;inset:-20%;background:conic-gradient(from 30deg at 68% 45%,transparent 0 23%,rgba(218,184,100,.1) 25%,transparent 29% 49%,rgba(91,137,125,.08) 51%,transparent 58%);animation:spin 24s linear infinite}.hero-bg:after{content:"";position:absolute;width:70vw;height:70vw;border:1px solid rgba(218,184,100,.13);border-radius:50%;right:-17vw;top:5vh;box-shadow:0 0 0 70px rgba(218,184,100,.025),0 0 0 140px rgba(218,184,100,.018);animation:slowPulse 8s ease-in-out infinite}.light{position:absolute;inset:auto -10% 15% -10%;height:2px;background:linear-gradient(90deg,transparent,rgba(220,194,126,.8),transparent);filter:blur(1px);transform:rotate(-13deg);animation:beam 7s ease-in-out infinite}.light.two{bottom:38%;animation-delay:2.7s;opacity:.45}.hero-content{position:relative;z-index:4;max-width:1000px}.eyebrow{display:flex;align-items:center;gap:12px;color:var(--gold);font-size:9px;letter-spacing:.3em;text-transform:uppercase;margin-bottom:24px}.eyebrow:before{content:"";width:46px;height:1px;background:var(--gold)}.hero h1{font-size:clamp(56px,10.5vw,160px);line-height:.8;letter-spacing:-.075em;margin:0;text-transform:uppercase;font-weight:900}.outline{color:transparent;-webkit-text-stroke:1px rgba(243,213,138,.8)}.hero-copy{max-width:500px;color:#a6a7a0;font-size:14px;line-height:1.8;margin:30px 0}.hero-actions{display:flex;gap:10px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;gap:12px;padding:15px 20px;border:1px solid rgba(255,255,255,.2);font-size:9px;text-transform:uppercase;letter-spacing:.16em;transition:transform .3s,background .3s,border-color .3s}.btn:hover{transform:translateY(-3px);border-color:var(--gold)}.btn.primary{background:var(--gold);color:#080807;border-color:var(--gold)}.hero-index{position:absolute;right:6vw;bottom:8vh;z-index:5;display:flex;flex-direction:column;align-items:flex-end;gap:8px;font-size:8px;color:#686b66;letter-spacing:.2em;text-transform:uppercase}.hero-index b{color:var(--gold);font-weight:500}.scrollhint{position:absolute;left:7vw;bottom:35px;display:flex;align-items:center;gap:10px;color:#777a74;font-size:8px;text-transform:uppercase;letter-spacing:.25em}.scrollhint span{display:block;width:1px;height:36px;background:linear-gradient(var(--gold),transparent)}.hero-vignette{position:absolute;inset:0;background:radial-gradient(circle,transparent 35%,rgba(0,0,0,.48) 100%),linear-gradient(90deg,rgba(0,0,0,.5),transparent 50%,rgba(0,0,0,.35));z-index:2;pointer-events:none}
-        .story{position:relative;z-index:5;background:linear-gradient(#050606,#080a09)}.story-section{min-height:95vh;padding:140px 7vw;position:relative;border-top:1px solid rgba(255,255,255,.07);display:flex;align-items:center}.story-number{position:absolute;top:42px;left:7vw;color:#5f625d;font-size:8px;letter-spacing:.25em}.story-number b{color:var(--gold);font-weight:400}.split{display:grid;grid-template-columns:1fr 1fr;gap:8vw;width:100%;align-items:center}.kicker{color:var(--gold);font-size:9px;letter-spacing:.3em;text-transform:uppercase;margin-bottom:24px}.big{font-size:clamp(46px,7vw,104px);line-height:.86;letter-spacing:-.06em;text-transform:uppercase;margin:0;font-weight:850}.big em{color:var(--gold);font-style:normal}.copy{color:#8e918b;line-height:1.85;font-size:14px;max-width:490px}.statrow{display:flex;gap:38px;margin-top:40px}.stat strong{font-size:34px;font-weight:500}.stat small{display:block;margin-top:7px;color:#686b65;text-transform:uppercase;font-size:8px;letter-spacing:.16em}.visual{height:520px;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.08);background:linear-gradient(135deg,#0b1210,#060807 55%,#12100b)}.visual:before{content:"";position:absolute;inset:-40%;background:repeating-linear-gradient(115deg,transparent 0 30px,rgba(216,182,101,.04) 31px 32px);animation:drift 13s linear infinite}.visual:after{content:"FBMRP";position:absolute;right:-4%;bottom:2%;font-size:18vw;font-weight:900;color:rgba(255,255,255,.025);letter-spacing:-.1em}.radar{position:absolute;width:360px;height:360px;border:1px solid rgba(216,182,101,.25);border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 70px rgba(216,182,101,.025),0 0 0 140px rgba(216,182,101,.015)}.radar:before{content:"";position:absolute;left:50%;top:50%;width:50%;height:1px;transform-origin:left;transform:rotate(-25deg);background:linear-gradient(90deg,rgba(216,182,101,.8),transparent);animation:radar 4s linear infinite}.radar:after{content:"";position:absolute;inset:14%;border:1px dashed rgba(216,182,101,.15);border-radius:50%}.scanline{position:absolute;left:0;right:0;height:1px;background:rgba(216,182,101,.45);animation:scan 4.5s ease-in-out infinite}.corner{position:absolute;width:55px;height:55px;border-left:1px solid var(--gold);border-top:1px solid var(--gold);top:20px;left:20px}.corner.r{left:auto;right:20px;transform:rotate(90deg)}.visual-label{position:absolute;bottom:20px;left:20px;color:#777a74;font-size:8px;letter-spacing:.2em;text-transform:uppercase}
-        .command{background:#060807}.command-head{display:flex;justify-content:space-between;align-items:flex-end;gap:30px}.command-grid{margin-top:70px;border-top:1px solid var(--line)}.command-row{border-bottom:1px solid rgba(255,255,255,.08);overflow:hidden}.command-button{width:100%;background:none;color:var(--paper);border:0;padding:30px 0;display:flex;justify-content:space-between;align-items:center;cursor:pointer;text-align:left}.command-title{display:flex;align-items:center;gap:22px}.command-title span{font-size:9px;color:var(--gold);letter-spacing:.18em}.command-title strong{font-size:clamp(22px,3vw,42px);text-transform:uppercase;letter-spacing:-.035em}.command-open{color:var(--gold);display:flex;align-items:center;gap:10px;font-size:8px;letter-spacing:.2em}.command-body{display:grid;grid-template-columns:repeat(2,1fr);gap:0 40px;padding:0 0 28px 68px}.role{padding:16px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px;color:#a5a69f;display:flex;align-items:center;gap:12px}.role:before{content:"";width:5px;height:5px;border-radius:50%;background:var(--gold)}
-        .division-section{background:#070908}.division-head{display:flex;justify-content:space-between;align-items:end;gap:40px}.division-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:65px}.division{height:360px;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.09);background:linear-gradient(145deg,#101512,#070908);padding:22px;transition:border-color .4s,transform .5s}.division:hover{border-color:rgba(216,182,101,.55);transform:translateY(-8px)}.division:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 80% 20%,rgba(216,182,101,.12),transparent 30%);opacity:0;transition:opacity .4s}.division:hover:before{opacity:1}.division-no{color:var(--gold);font-size:8px;letter-spacing:.2em}.division h3{position:absolute;left:22px;bottom:70px;margin:0;font-size:35px;letter-spacing:-.04em}.division p{position:absolute;left:22px;right:22px;bottom:22px;margin:0;color:#777b75;font-size:11px;line-height:1.5}.division .orbit{position:absolute;width:210px;height:210px;border:1px solid rgba(216,182,101,.11);border-radius:50%;right:-75px;top:35px;animation:spin 18s linear infinite}.division .orbit:after{content:"";position:absolute;width:6px;height:6px;background:var(--gold);border-radius:50%;left:50%;top:-3px;box-shadow:0 0 16px rgba(216,182,101,.8)}.division-status{position:absolute;top:22px;right:22px;font-size:7px;color:var(--gold);border:1px solid var(--line);padding:6px 7px;letter-spacing:.12em}.division-status.temp{color:#d9d9d0}
-        .announce{background:#050606}.announce-card{margin-top:60px;min-height:330px;border:1px solid rgba(255,255,255,.08);display:grid;grid-template-columns:.8fr 1.2fr;position:relative;overflow:hidden}.announce-card:before{content:"";position:absolute;inset:0;background:linear-gradient(110deg,rgba(216,182,101,.06),transparent 45%);pointer-events:none}.announce-side{padding:45px;border-right:1px solid rgba(255,255,255,.08)}.announce-main{padding:45px;display:flex;flex-direction:column;justify-content:center}.tag{display:inline-block;border:1px solid var(--line);color:var(--gold);padding:8px 10px;font-size:8px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:25px}.announce h3{font-size:36px;line-height:1;text-transform:uppercase;margin:0 0 16px}.announce-main p{color:#7d807a;line-height:1.8;font-size:13px;max-width:550px}.recruit{min-height:75vh;display:grid;place-items:center;text-align:center;background:radial-gradient(circle at 50% 45%,rgba(216,182,101,.11),transparent 30%),#060706}.recruit h2{font-size:clamp(55px,10vw,150px);line-height:.82;letter-spacing:-.08em;text-transform:uppercase;margin:0}.recruit p{color:#858882;max-width:470px;line-height:1.7;font-size:13px;margin:25px auto 30px}.footer{padding:32px 7vw;border-top:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;color:#646761;font-size:8px;letter-spacing:.2em;text-transform:uppercase}.footer b{color:var(--gold);font-weight:400}
-        @keyframes spin{to{transform:rotate(360deg)}}@keyframes slowPulse{0%,100%{transform:scale(1);opacity:.65}50%{transform:scale(1.06);opacity:1}}@keyframes beam{0%,100%{transform:translateX(-18%) rotate(-13deg);opacity:0}30%,70%{opacity:.8}50%{transform:translateX(18%) rotate(-13deg)}}@keyframes radar{to{transform:rotate(335deg)}}@keyframes scan{0%,100%{top:15%;opacity:0}20%{opacity:1}80%{opacity:1}50%{top:85%}}@keyframes drift{to{transform:translate3d(80px,0,0)}}
-        @media(max-width:900px){.nav{height:70px;padding:0 20px}.navlinks,.navbutton{display:none}.menub{display:block}.hero{min-height:100svh;padding:110px 22px 70px}.hero h1{font-size:clamp(52px,16vw,95px)}.hero-copy{font-size:12px;max-width:390px}.hero-index{display:none}.scrollhint{left:22px}.story-section{padding:95px 22px;min-height:auto}.split{grid-template-columns:1fr;gap:55px}.visual{height:380px}.command-head,.division-head{display:block}.command-grid{margin-top:40px}.command-button{padding:25px 0}.command-title{gap:12px}.command-title strong{font-size:23px}.command-body{grid-template-columns:1fr;padding-left:25px}.division-grid{grid-template-columns:1fr 1fr;margin-top:40px}.division{height:300px}.division h3{font-size:27px}.announce-card{grid-template-columns:1fr}.announce-side{border-right:0;border-bottom:1px solid rgba(255,255,255,.08);padding:30px}.announce-main{padding:30px}.recruit{min-height:65vh;padding:80px 22px}.footer{padding:28px 22px;gap:20px;flex-wrap:wrap}.brandtext{display:none}}
-        @media(max-width:520px){.division-grid{grid-template-columns:1fr}.division{height:260px}.division h3{font-size:30px}.radar{width:260px;height:260px}.hero{min-height:850px}.hero-content{margin-top:20px}}
-        @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}}
-      `}</style>
-      <ParticleField /><div className="grain" />
-      <nav className="nav">
-        <a className="brand" href="#top"><span className="brandmark"><span/></span><span className="brandtext">FBMRP<small>FORT BLISS MILITARY ROLEPLAY</small></span></a>
-        <div className="navlinks"><a href="#about">About</a><a href="#command">Command</a><a href="#divisions">Divisions</a><a href="#announcements">News</a></div>
-        <a className="navbutton" href="#join">Join FBMRP <ArrowRight size={12}/></a>
-        <button className="menub" onClick={() => setMenu(v => !v)} aria-label="Menu">{menu ? <X/> : <Menu/>}</button>
-      </nav>
-      {menu && <div style={{position:"fixed",zIndex:45,top:70,left:0,right:0,padding:"28px 22px",background:"rgba(5,6,6,.97)",borderBottom:"1px solid rgba(216,182,101,.25)",display:"grid",gap:20}}>{["about","command","divisions","announcements","join"].map(id => <a key={id} href={`#${id}`} onClick={() => setMenu(false)} style={{textTransform:"uppercase",letterSpacing:".2em",fontSize:11}}>{id}</a>)}</div>}
+    <main className="site-shell">
+      <div className="site-progress" />
+      <div className="ambient-lines" aria-hidden="true"><i /><i /><i /><i /></div>
 
-      <section id="top" className="hero">
-        <motion.div className="hero-bg" style={{scale: heroScale, y: heroY}}><div className="light"/><div className="light two"/></motion.div><div className="hero-vignette" />
-        <motion.div className="hero-content" style={{opacity: heroOpacity}} initial={{opacity:0,y:60}} animate={{opacity:1,y:0}} transition={{duration:1.1,ease:[.16,1,.3,1]}}>
-          <div className="eyebrow">Fort Bliss Military Roleplay / Command Portal</div>
-          <h1>FORT BLISS<br/><span className="outline">MILITARY<br/>ROLEPLAY</span></h1>
-          <p className="hero-copy">A living command platform for the FBMRP community — leadership, divisions, recruitment, announcements and operations brought together in one cinematic experience.</p>
-          <div className="hero-actions"><a className="btn primary" href="#about">Enter the community <ArrowRight size={13}/></a><a className="btn" href="#command"><Play size={12}/> Explore command</a></div>
+      <nav className="site-nav">
+        <a href="#top" className="brand-mark"><span className="brand-dot" /> FBMRP</a>
+        <div className={`nav-links ${mobile ? "mobile-open" : ""}`}>
+          <a href="#command" onClick={() => setMobile(false)}>COMMAND</a>
+          <a href="#divisions" onClick={() => setMobile(false)}>DIVISIONS</a>
+          <a href="#media" onClick={() => setMobile(false)}>MEDIA</a>
+          <a href="#recruitment" onClick={() => setMobile(false)}>RECRUITMENT</a>
+        </div>
+        <a href="#recruitment" className="nav-action"><Shield size={13} /> JOIN FBMRP <ArrowRight size={12} /></a>
+        <button className="mobile-menu" onClick={() => setMobile(!mobile)} aria-label="Menu">{mobile ? <X /> : <Menu />}</button>
+      </nav>
+
+      <section id="top" className="hero-section">
+        <motion.div className="hero-grid" style={{ y: heroY, scale: heroScale }} />
+        <div className="hero-glow hero-glow-one" />
+        <div className="hero-glow hero-glow-two" />
+        <div className="hero-crosshair"><span /><span /></div>
+        <div className="hero-rule hero-rule-a" />
+        <div className="hero-rule hero-rule-b" />
+
+        <motion.div className="hero-copy" style={{ opacity: heroOpacity }}>
+          <div className="eyebrow"><span /> FORT BLISS MILITARY ROLEPLAY <b>EST. FBMRP</b></div>
+          <h1>
+            <span className="hero-line"><span className="hero-word hero-word-1">BUILT</span></span>
+            <span className="hero-line"><span className="hero-word hero-word-2 hero-outline">TO SERVE</span></span>
+          </h1>
+          <div className="hero-meta"><span>STRUCTURE</span><span>DISCIPLINE</span><span>IMMERSION</span><span>COMMUNITY</span></div>
+          <p className="hero-description">A structured military roleplay community built around organization, progression, leadership, and immersive operations.</p>
+          <div className="hero-actions">
+            <a className="button button-primary" href="#command">EXPLORE COMMAND <ArrowDown size={13} /></a>
+            <a className="button button-ghost" href="#recruitment"><Play size={12} /> RECRUITMENT</a>
+          </div>
         </motion.div>
-        <div className="hero-index"><b>FBMRP / 001</b><span>FORT BLISS</span><span>EST. COMMAND PORTAL</span></div>
-        <div className="scrollhint"><span/> Scroll to enter</div>
+
+        <motion.div className="hero-card-wrap" style={{ opacity: heroOpacity }}>
+          <div className="hero-card-shadow" />
+          <div className="hero-card">
+            <div className="card-topbar"><span><i className="status-dot" /> LIVE SYSTEM</span><span>FBMRP / 01</span></div>
+            <div className="card-symbol"><Shield size={28} /></div>
+            <div className="card-big-number">01</div>
+            <div className="card-axis card-axis-x" /><div className="card-axis card-axis-y" />
+            <div className="card-scanline" />
+            <div className="card-corner card-corner-tl" /><div className="card-corner card-corner-br" />
+            <div className="card-caption"><span>FORT BLISS</span><strong>MILITARY ROLEPLAY</strong><span>COMMAND // COMMUNITY // OPERATIONS</span></div>
+          </div>
+        </motion.div>
+        <div className="scroll-cue"><ArrowDown size={13} /> SCROLL TO ENTER</div>
       </section>
 
-      <div className="story">
-        <section id="about" className="story-section"><span className="story-number"><b>01</b> / ORGANIZATION</span><div className="split"><Reveal><div className="kicker">The organization</div><h2 className="big">One command.<br/><em>One community.</em></h2><p className="copy">FBMRP is presented as a living organization rather than a collection of static pages. Every major area is designed to feel connected, deliberate and constantly in motion.</p><div className="statrow"><div className="stat"><strong>08</strong><small>Divisions</small></div><div className="stat"><strong>03</strong><small>Command tiers</small></div><div className="stat"><strong>∞</strong><small>Possibilities</small></div></div></Reveal><Reveal><div className="visual"><div className="corner"/><div className="corner r"/><div className="radar"/><div className="scanline"/><div className="visual-label">FBMRP // SYSTEM ACTIVE</div></div></Reveal></div></section>
+      <div className="ticker"><div><span>FORT BLISS MILITARY ROLEPLAY</span><i>STRUCTURED COMMUNITY</i><span>FBMRP</span><i>EST. FOR IMMERSION</i><span>COMMAND • DIVISIONS • OPERATIONS</span><i>JOIN THE RANKS</i><span>FORT BLISS MILITARY ROLEPLAY</span><i>STRUCTURED COMMUNITY</i></div></div>
 
-        <section id="command" className="story-section command"><span className="story-number"><b>02</b> / CHAIN OF COMMAND</span><div style={{width:"100%"}}><Reveal><div className="command-head"><div><div className="kicker">Leadership architecture</div><h2 className="big">Know the<br/><em>command.</em></h2></div><p className="copy">Three expandable command paths. Senior Leadership starts from the GM, Staff Leadership starts from the Head of Management, and Roleplay Leadership follows the roleplay hierarchy you provided.</p></div></Reveal><div className="command-grid">{command.map((group,i)=><motion.div className="command-row" key={group.title} layout><button className="command-button" onClick={()=>setOpen(open===i?null:i)}><div className="command-title"><span>0{i+1}</span><strong>{group.title}</strong></div><div className="command-open">{open===i?"CLOSE":"OPEN"}<ChevronDown size={16} style={{transform:open===i?"rotate(180deg)":"none",transition:"transform .35s"}}/></button>{open===i&&<motion.div className="command-body" initial={{height:0,opacity:0}} animate={{height:"auto",opacity:1}} exit={{height:0,opacity:0}} transition={{duration:.45}}>{group.items.map(item=><div className="role" key={item}>{item}</div>)}</motion.div>}</motion.div>)}</div></div></section>
+      <section className="statement-section section-pad" id="about">
+        <Reveal>
+          <div className="eyebrow"><span /> 01 / THE COMMUNITY</div>
+          <div className="statement-grid">
+            <h2>More than a server.<br /><em>A structured world.</em></h2>
+            <div className="statement-side"><p>FBMRP brings together military roleplay, leadership, divisions, staff operations, and community progression in one organized experience.</p></div>
+          </div>
+          <div className="mini-stats"><div><strong>08</strong><span>Divisions</span></div><div><strong>03</strong><span>Command paths</span></div><div><strong>01</strong><span>Community</span></div></div>
+        </Reveal>
+      </section>
 
-        <section id="divisions" className="story-section division-section"><span className="story-number"><b>03</b> / DIVISIONS</span><div style={{width:"100%"}}><Reveal><div className="division-head"><div><div className="kicker">Operational divisions</div><h2 className="big">Find your<br/><em>place.</em></h2></div><p className="copy">Division profiles are structured so their logos, descriptions, leadership and status can be edited later from the website administration system.</p></div></Reveal><div className="division-grid">{divisions.map(([code,name,desc,status],i)=><Reveal key={code}><article className="division"><span className="division-no">0{i+1} / {code}</span>{status&&<span className="division-status temp">{status}</span>}<div className="orbit"/><h3>{name}</h3><p>{desc}</p></article></Reveal>)}</div></div></section>
+      <section className="section-pad" id="command">
+        <Reveal>
+          <div className="section-heading-row"><div><div className="section-label">02 / CHAIN OF COMMAND</div><h2>Leadership<br /><span>DROP-DOWN.</span></h2></div><div className="heading-index">FBMRP / COC <ChevronDown className="heading-icon" /></div></div>
+        </Reveal>
+        <div className="command-feature">
+          <div className="feature-number">COC<br />SYS</div>
+          <div className="feature-main"><div className="feature-kicker"><Shield size={12} /> ORGANIZED LEADERSHIP</div><h3>Every level has a place.</h3><p>The website is designed so leadership information can be expanded, edited, and reorganized without rebuilding the visual system.</p></div>
+          <div className="feature-side"><span>STRUCTURE</span><strong>Three primary pathways</strong><span>STAFF / MANAGEMENT / ROLEPLAY</span></div>
+        </div>
+        <div className="command-grid">
+          {command.map((section, index) => (
+            <div className="command-row" key={section.title}>
+              <button className="command-button" onClick={() => setOpen(open === index ? null : index)} aria-expanded={open === index}>
+                <div className="command-title"><span>0{index + 1}</span><strong>{section.title}</strong></div>
+                <div className="command-open">{open === index ? "CLOSE" : "OPEN"} <ChevronDown size={15} style={{ transform: open === index ? "rotate(180deg)" : "none" }} /></div>
+              </button>
+              <motion.div initial={false} animate={{ height: open === index ? "auto" : 0, opacity: open === index ? 1 : 0 }} className="command-body-wrap">
+                <div className="command-body"><div className="role role-description">{section.description}</div>{section.items.map(item => <div className="role" key={item}>{item}</div>)}</div>
+              </motion.div>
+            </div>
+          ))}
+        </div>
+      </section>
 
-        <section id="announcements" className="story-section announce"><span className="story-number"><b>04</b> / INFORMATION</span><div style={{width:"100%"}}><Reveal><div className="kicker">Community intelligence</div><h2 className="big">Stay<br/><em>informed.</em></h2></Reveal><Reveal><div className="announce-card"><div className="announce-side"><span className="tag">Discord connected later</span><p className="copy">Announcements are currently prepared for the manual/automatic workflow you described. The live Discord feed can be connected without rebuilding the visual experience.</p></div><div className="announce-main"><h3>Command updates</h3><p>The announcement system is intentionally separated from the design. When your Discord bot is ready, this area can become live data while remaining editable through the admin dashboard.</p><a className="btn" href="#join" style={{width:"fit-content"}}>View community <ArrowRight size={13}/></a></div></div></Reveal></div></section>
+      <section className="section-pad division-section" id="divisions">
+        <Reveal>
+          <div className="section-label">03 / DIVISIONS</div>
+          <div className="division-head"><h2>Choose your<br /><span>path.</span></h2><p>Divisional identities, descriptions, logos, status, leadership, and every detail are intended to be editable from the website.</p></div>
+        </Reveal>
+        <div className="division-grid">
+          {divisions.map(([code, name, description], i) => (
+            <Reveal key={code} delay={i * 0.04}>
+              <article className="division-card">
+                <div className="division-top"><span>DIV / 0{i + 1}</span><span>{code === "NAVY" ? "TEMP" : "ACTIVE"}</span></div>
+                <div className="division-logo-placeholder"><Shield size={24} /></div>
+                <h3>{name}</h3><p>{description}</p><div className="division-head">{code} <ArrowRight size={12} /></div>
+              </article>
+            </Reveal>
+          ))}
+        </div>
+      </section>
 
-        <section id="join" className="recruit"><Reveal><div className="kicker">Recruitment / 1532347499212177438</div><h2>Serve.<br/><span className="outline">Lead.</span></h2><p>Join Fort Bliss Military Roleplay and find your place within the organization.</p><a className="btn primary" href="#top">Begin your journey <ArrowRight size={13}/></a></Reveal></section>
-        <footer className="footer"><span>FBMRP / Fort Bliss Military Roleplay</span><span><b>Command portal</b> / Preview</span></footer>
-      </div>
+      <section className="section-pad media-section" id="media">
+        <Reveal>
+          <div className="section-label">04 / MEDIA</div>
+          <div className="media-intro"><h2>Put the<br /><em>mission</em> in motion.</h2><p>Homepage video, division media, announcements, calendar content, logos, and visual assets can be replaced from the editable website system.</p></div>
+          <div className="media-frame"><div className="media-frame-inner"><Play size={32} /><span>HOMEPAGE VIDEO / ADD YOUR FOOTAGE</span></div></div>
+        </Reveal>
+      </section>
+
+      <section className="cta-section section-pad" id="recruitment">
+        <Reveal>
+          <div className="eyebrow"><span /> 05 / RECRUITMENT</div>
+          <h2>Find your<br /><span>place.</span></h2>
+          <p>Ready to join Fort Bliss Military Roleplay? Start your path through the community recruitment process.</p>
+          <a className="button button-primary" href="https://discord.com" target="_blank" rel="noreferrer">ENTER DISCORD <ArrowRight size={14} /></a>
+        </Reveal>
+      </section>
+
+      <footer className="site-footer"><span>© FBMRP</span><span>FORT BLISS MILITARY ROLEPLAY</span><span>BUILT FOR IMMERSION</span></footer>
     </main>
   );
 }

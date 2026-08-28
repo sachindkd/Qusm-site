@@ -23,7 +23,10 @@ export default async function AdminPage() {
   const guildRoles = await rolesRes.json() as DiscordGuildRole[];
   const access = getAccessLevel(session.id, member.roles || [], guildRoles);
   const permissions = getPermissions(access);
-  if (!permissions.includes("site:edit") && !permissions.includes("admin:all")) redirect("/staff");
+  const canOpenAdmin = permissions.some((permission) =>
+    ["site:edit", "announcements:manage", "calendar:manage", "media:manage", "admin:all"].includes(permission)
+  );
+  if (!canOpenAdmin) redirect("/staff");
 
   const content = await loadContent();
   return <AdminClient initialContent={content} email={session.username ?? "Discord user"} access={access} permissions={permissions} />;

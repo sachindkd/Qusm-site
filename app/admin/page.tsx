@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { getAccessLevel, FBMRP_GUILD_ID } from "@/lib/discord-roles";
-import { getContent } from "@/lib/content";
+import { loadContent } from "@/lib/content-store";
 import AdminClient from "./AdminClient";
 
 export default async function AdminPage() {
@@ -16,6 +16,6 @@ export default async function AdminPage() {
   const member = await res.json();
   const access = getAccessLevel(session.id, member.roles || []);
   if (access !== "owner" && access !== "management") redirect("/staff");
-  const content = await getContent();
+  const content = await loadContent();
   return <AdminClient initialContent={content} email={session.username ?? "Discord user"} />;
 }

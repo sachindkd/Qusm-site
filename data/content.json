@@ -1,0 +1,54 @@
+{
+  "org": {
+    "name": "QUSM",
+    "fullName": "Quavy's United States Military",
+    "owner": "Quavy",
+    "coOwner": "Mr. Dominion",
+    "status": "Active"
+  },
+  "announcements": [
+    { "id": "a1", "date": "2026-08-26", "title": "Navy OCS Cycle Finalized", "body": "Officer Candidate School staffing cycle complete — full 10-position hierarchy filled and effective immediately." },
+    { "id": "a2", "date": "2026-08-19", "title": "Fort Bliss Guard Policy Published", "body": "New Secret Service guard policy is now in effect at Fort Bliss Military Roleplay." },
+    { "id": "a3", "date": "2026-08-11", "title": "Divisional Database Live", "body": "QUSM-wide divisional headcount and quota tracking is now live across all 11 divisions." }
+  ],
+  "leadership": [
+    { "id": "l1", "rank": "OWN", "name": "Quavy", "role": "Owner — Final authority over all QUSM operations" },
+    { "id": "l2", "rank": "CO-OWN", "name": "Mr. Dominion", "role": "Co-Owner — Shared executive authority" },
+    { "id": "l3", "rank": "AO", "name": "Sachin", "role": "Administrative Officer — Divisional administration, policy, staffing, documentation" }
+  ],
+  "divisions": [
+    { "id": "d1", "name": "Navy", "head": "Position filled via OCS cycle", "desc": "Naval operations, fleet formation, and Officer Candidate School training pipeline." },
+    { "id": "d2", "name": "Army", "head": "TBD", "desc": "Ground force operations, infantry training, and field exercises." },
+    { "id": "d3", "name": "Air Force", "head": "TBD", "desc": "Air operations, transport, and aerial support for joint exercises." },
+    { "id": "d4", "name": "Military Police", "head": "TBD", "desc": "Base security, apprehension procedures, and internal enforcement of regulations." },
+    { "id": "d5", "name": "Secret Service", "head": "TBD", "desc": "Protective detail for government officials; guard operations at Fort Bliss." }
+  ],
+  "rules": [
+    { "id": "r1", "title": "Chain of Command", "body": "Requests requiring staff approval must be routed through the appropriate division head before action is taken." },
+    { "id": "r2", "title": "Conduct", "body": "Members are expected to maintain a respectful environment across all platforms, in-game and in Discord." },
+    { "id": "r3", "title": "Disciplinary Action", "body": "Violations are reviewed by High Command and may result in formal charges, demotion, or removal." }
+  ],
+  "government": [
+    { "id": "g1", "title": "President of the United States", "name": "Vacant", "note": "Head of the civilian government and Commander-in-Chief." },
+    { "id": "g2", "title": "Vice President", "name": "Vacant", "note": "Supports the President and oversees Cabinet coordination." },
+    { "id": "g3", "title": "Secretary of Defense", "name": "Vacant", "note": "Oversees military divisions on behalf of the government." }
+  ],
+  "ranks": [
+    { "id": "rk1", "code": "E-1", "name": "Recruit", "desc": "Entry-level, completed onboarding training." },
+    { "id": "rk2", "code": "E-2", "name": "Private", "desc": "Active member of a division, basic duties." },
+    { "id": "rk3", "code": "O-1", "name": "Lieutenant", "desc": "Junior officer, oversees small unit operations." },
+    { "id": "rk4", "code": "DIR", "name": "Division Head", "desc": "Full authority over an individual division." }
+  ],
+  "news": [
+    { "id": "n1", "date": "2026-08-26", "tag": "Staffing", "title": "Navy OCS Cycle Complete", "body": "Full 10-person Navy staff hierarchy finalized after a multi-stage grading and placement process." },
+    { "id": "n2", "date": "2026-08-19", "tag": "Policy", "title": "Fort Bliss Guard Policy", "body": "Formal Secret Service guard policy established for Fort Bliss Military Roleplay operations." }
+  ],
+  "media": [
+    { "id": "m1", "caption": "Formation — 08.26.26", "imageUrl": "" },
+    { "id": "m2", "caption": "Fort Bliss — 08.19.26", "imageUrl": "" }
+  ],
+  "applications": [
+    { "id": "ap1", "name": "General Enlistment", "desc": "Join QUSM and be placed into a division based on interest and availability.", "status": "open" },
+    { "id": "ap2", "name": "Officer Candidate School — Navy", "desc": "Selective officer training pipeline for the Navy division.", "status": "closed" }
+  ]
+}

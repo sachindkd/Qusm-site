@@ -6,6 +6,7 @@ import { readContent, writeContent } from "@/lib/content-store";
 const sectionPermission: Record<string, Permission> = {
   org: "site:edit",
   announcements: "announcements:manage",
+  calendar: "announcements:manage",
   leadership: "leadership:edit",
   divisions: "divisions:edit",
   applications: "applications:manage",
@@ -50,24 +51,14 @@ export async function PUT(req: Request) {
   const access = await getAccess();
   try {
     const body = await req.json();
-    if (!body || typeof body !== "object" || Array.isArray(body)) {
-      return NextResponse.json({ error: "Invalid content" }, { status: 400 });
-    }
+    if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Invalid content" }, { status: 400 });
     const section = req.headers.get("x-content-section");
-    if (!section || !sectionPermission[section]) {
-      return NextResponse.json({ error: "Missing or invalid content section" }, { status: 400 });
-    }
+    if (!section || !sectionPermission[section]) return NextResponse.json({ error: "Missing or invalid content section" }, { status: 400 });
     const permission = sectionPermission[section];
     if (!can(access, permission)) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-
     const value = body[section];
-    const valid = section === "org"
-      ? !!value && typeof value === "object" && !Array.isArray(value)
-      : Array.isArray(value);
-    if (!valid) {
-      return NextResponse.json({ error: section === "org" ? "Settings must be an object" : "Section must be an array" }, { status: 400 });
-    }
-
+    const valid = section === "org" ? !!value && typeof value === "object" && !Array.isArray(value) : Array.isArray(value);
+    if (!valid) return NextResponse.json({ error: section === "org" ? "Settings must be an object" : "Section must be an array" }, { status: 400 });
     const current = await readContent();
     await writeContent({ ...current, [section]: value });
     return NextResponse.json({ ok: true, section });

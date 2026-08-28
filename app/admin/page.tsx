@@ -1,14 +1,21 @@
-import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { authOptions } from "@/lib/auth";
+import { cookies } from "next/headers";
+import { getAccessLevel, FBMRP_GUILD_ID } from "@/lib/discord-roles";
 import { getContent } from "@/lib/content";
 import AdminClient from "./AdminClient";
 
 export default async function AdminPage() {
-  const session = await getServerSession(authOptions);
-  if (!session || !(session.user as any)?.isAdmin) {
-    redirect("/login");
-  }
+  const raw = (await cookies()).get("fbmrp_discord_user")?.value;
+  if (!raw) redirect("/staff");
+  let session: any;
+  try { session = JSON.parse(raw); } catch { redirect("/staff"); }
+  const token = process.env.DISCORD_BOT_TOKEN;
+  if (!token || !session?.id) redirect("/staff");
+  const res = await fetch(`https://discord.com/api/guilds/${FBMRP_GUILD_ID}/members/${session.id}`, { headers: { Authorization: `Bot ${token}` }, cache: "no-store" });
+  if (!res.ok) redirect("/staff");
+  const member = await res.json();
+  const access = getAccessLevel(session.id, member.roles || []);
+  if (access !== "owner" && access !== "management") redirect("/staff");
   const content = await getContent();
-  return <AdminClient initialContent={content} email={session.user?.email ?? ""} />;
+  return <AdminClient initialContent={content} email={session.username ?? "Discord user"} />;
 }

@@ -1,0 +1,34 @@
+export const FBMRP_GUILD_ID = process.env.DISCORD_GUILD_ID || "1426271681969655913";
+
+export const ROLE_IDS = {
+  owner: "1430245086930669579",
+  coOwner: "1530961653103853669",
+  chairman: "1501042310320881834",
+  headManagement: "1431171866680365097",
+  generalManager: "1535569347928658010",
+  headOperations: "1539579714841350235",
+  headAdministration: "1540038224431554633",
+  headDevelopment: "1478156027244314825",
+  communityAffairs: "1540038203959152650",
+  ceo: "1493982432276385812",
+  headDepartment: "1431617140674265129",
+  viceChairman: "716797005753483324",
+  aides: "1538911108788654160",
+  staff: "1496561403501219952",
+  seniorManagement: "1531899271614562314",
+  developerPosts: "1506466679100801196",
+} as const;
+
+export type AccessLevel = "owner" | "management" | "senior-leadership" | "developer" | "aide" | "staff" | "member";
+
+export function getAccessLevel(roleIds: string[]): AccessLevel {
+  const has = (id: string) => roleIds.includes(id);
+  if (has(ROLE_IDS.owner) || has(ROLE_IDS.coOwner) || has(ROLE_IDS.chairman)) return "owner";
+  if (has(ROLE_IDS.headManagement)) return "management";
+  if (has(ROLE_IDS.generalManager) || has(ROLE_IDS.headOperations) || has(ROLE_IDS.headAdministration) || has(ROLE_IDS.communityAffairs) || has(ROLE_IDS.ceo) || has(ROLE_IDS.headDepartment)) return "senior-leadership";
+  if (has(ROLE_IDS.developerPosts) || has(ROLE_IDS.headDevelopment)) return "developer";
+  if (has(ROLE_IDS.aides)) return "aide";
+  if (has(ROLE_IDS.seniorManagement)) return "senior-leadership";
+  if (has(ROLE_IDS.staff)) return "staff";
+  return "member";
+}

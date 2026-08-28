@@ -6,25 +6,21 @@ import { Megaphone, Users, Shield, ScrollText, LogOut, Plus, Trash2, Landmark, B
 import { signOut } from "next-auth/react";
 
 type Field = { key: string; label: string; type?: "text" | "textarea" | "url" | "date" | "select"; options?: string[] };
-
 type Section = { id: string; label: string; icon: any; permission: string; fields?: Field[] };
 
 const SECTIONS: Section[] = [
   { id: "org", label: "Site", icon: Settings, permission: "site:edit", fields: [
-    { key: "name", label: "Short name" }, { key: "fullName", label: "Full name" }, { key: "owner", label: "Owner" },
-    { key: "coOwner", label: "Co-owner" }, { key: "status", label: "Status", type: "select", options: ["active", "maintenance", "closed"] },
+    { key: "name", label: "Short name" }, { key: "fullName", label: "Full name" }, { key: "owner", label: "Owner" }, { key: "coOwner", label: "Co-owner" },
+    { key: "status", label: "Status", type: "select", options: ["active", "maintenance", "closed"] },
   ] },
   { id: "announcements", label: "News", icon: Megaphone, permission: "announcements:manage", fields: [
-    { key: "title", label: "Title" }, { key: "body", label: "Announcement", type: "textarea" }, { key: "date", label: "Date", type: "date" },
-    { key: "status", label: "Status", type: "select", options: ["draft", "published"] },
+    { key: "title", label: "Title" }, { key: "body", label: "Announcement", type: "textarea" }, { key: "date", label: "Date", type: "date" }, { key: "status", label: "Status", type: "select", options: ["draft", "published"] },
   ] },
   { id: "leadership", label: "Command", icon: Users, permission: "leadership:edit", fields: [
-    { key: "name", label: "Name" }, { key: "rank", label: "Rank" }, { key: "role", label: "Position" }, { key: "division", label: "Division" },
-    { key: "bio", label: "Biography", type: "textarea" }, { key: "avatarUrl", label: "Photo URL", type: "url" },
+    { key: "name", label: "Name" }, { key: "rank", label: "Rank" }, { key: "role", label: "Position" }, { key: "division", label: "Division" }, { key: "bio", label: "Biography", type: "textarea" }, { key: "avatarUrl", label: "Photo URL", type: "url" },
   ] },
   { id: "divisions", label: "Divisions", icon: Shield, permission: "divisions:edit", fields: [
-    { key: "name", label: "Division name" }, { key: "commander", label: "Commander" }, { key: "description", label: "Description", type: "textarea" },
-    { key: "imageUrl", label: "Image URL", type: "url" }, { key: "status", label: "Status", type: "select", options: ["active", "inactive"] },
+    { key: "name", label: "Division name" }, { key: "commander", label: "Commander" }, { key: "description", label: "Description", type: "textarea" }, { key: "imageUrl", label: "Image URL", type: "url" }, { key: "status", label: "Status", type: "select", options: ["active", "inactive"] },
   ] },
   { id: "rules", label: "Rules", icon: ScrollText, permission: "site:edit", fields: [
     { key: "title", label: "Rule title" }, { key: "category", label: "Category" }, { key: "body", label: "Rule", type: "textarea" },
@@ -36,16 +32,13 @@ const SECTIONS: Section[] = [
     { key: "name", label: "Rank" }, { key: "level", label: "Level" }, { key: "description", label: "Description", type: "textarea" }, { key: "insigniaUrl", label: "Insignia URL", type: "url" },
   ] },
   { id: "news", label: "Bulletin", icon: Rss, permission: "site:edit", fields: [
-    { key: "title", label: "Headline" }, { key: "excerpt", label: "Summary", type: "textarea" }, { key: "body", label: "Article", type: "textarea" },
-    { key: "date", label: "Date", type: "date" }, { key: "imageUrl", label: "Image URL", type: "url" },
+    { key: "title", label: "Headline" }, { key: "excerpt", label: "Summary", type: "textarea" }, { key: "body", label: "Article", type: "textarea" }, { key: "date", label: "Date", type: "date" }, { key: "imageUrl", label: "Image URL", type: "url" },
   ] },
   { id: "media", label: "Media", icon: ImageIcon, permission: "site:edit", fields: [
-    { key: "title", label: "Title" }, { key: "caption", label: "Caption", type: "textarea" }, { key: "imageUrl", label: "Image URL", type: "url" },
-    { key: "category", label: "Category" },
+    { key: "title", label: "Title" }, { key: "caption", label: "Caption", type: "textarea" }, { key: "imageUrl", label: "Image URL", type: "url" }, { key: "category", label: "Category" },
   ] },
   { id: "applications", label: "Apps", icon: ClipboardList, permission: "applications:manage", fields: [
-    { key: "name", label: "Applicant" }, { key: "discordId", label: "Discord ID" }, { key: "email", label: "Email" }, { key: "position", label: "Position" },
-    { key: "motivation", label: "Motivation", type: "textarea" }, { key: "status", label: "Status", type: "select", options: ["open", "reviewing", "accepted", "rejected"] },
+    { key: "name", label: "Applicant" }, { key: "discordId", label: "Discord ID" }, { key: "email", label: "Email" }, { key: "position", label: "Position" }, { key: "motivation", label: "Motivation", type: "textarea" }, { key: "status", label: "Status", type: "select", options: ["open", "reviewing", "accepted", "rejected"] },
   ] },
 ];
 
@@ -72,8 +65,6 @@ export default function AdminClient({ initialContent, email, access, permissions
     finally { setSaving(false); }
   };
 
-  const updateSection = (value: any) => setContent((c: any) => ({ ...c, [active]: value }));
-
   return <div className="min-h-screen bg-bg text-white pb-28">
     <header className="border-b border-border px-6 sm:px-16 py-6 flex justify-between items-center">
       <div><div className="font-mono text-[10px] tracking-[2px] text-golddim uppercase">FBMRP Administration</div><h1 className="font-serif text-xl font-bold">Website Control</h1><div className="font-mono text-[9px] text-textfaint uppercase mt-1">{access} · {permissions.length} permissions</div></div>
@@ -83,8 +74,7 @@ export default function AdminClient({ initialContent, email, access, permissions
       <div className="mb-8"><span className="font-mono text-[10px] text-textfaint">SIGNED IN · {email}</span><h2 className="font-serif text-4xl font-bold mt-2">Content Command</h2><p className="text-textdim text-sm mt-2">Structured editors with server-side Discord authorization and persistent storage.</p></div>
       {error && <div className="mb-5 border border-red-500/40 bg-red-500/10 text-red-200 rounded-xl p-3 text-sm">{error}</div>}
       <AnimatePresence mode="wait"><motion.div key={active} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-        {section.id === "org" ? <SettingsEditor value={content.org || {}} setValue={(v) => setContent((c: any) => ({ ...c, org: v }))} fields={section.fields!} /> :
-          <CollectionEditor fields={section.fields!} items={Array.isArray(content[active]) ? content[active] : []} setItems={updateSection} />}
+        {section.id === "org" ? <SettingsEditor value={content.org || {}} setValue={v => setContent((c: any) => ({ ...c, org: v }))} fields={section.fields!} /> : <CollectionEditor fields={section.fields!} items={Array.isArray(content[active]) ? content[active] : []} setItems={v => setContent((c: any) => ({ ...c, [active]: v }))} />}
       </motion.div></AnimatePresence>
     </main>
     <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 max-w-[95vw] overflow-x-auto rounded-2xl border border-border bg-panel/95 backdrop-blur px-2 py-2 flex gap-1">
@@ -106,7 +96,7 @@ function CollectionEditor({ fields, items, setItems }: { fields: Field[]; items:
   const add = () => setItems([...items, blank(fields)]);
   const update = (index: number, key: string, value: string) => { const next = [...items]; next[index] = { ...next[index], [key]: value }; setItems(next); };
   return <section><div className="flex justify-between items-center mb-5"><div><h3 className="font-serif text-2xl font-bold">Manage records</h3><p className="text-textfaint text-xs mt-1">{items.length} record{items.length === 1 ? "" : "s"}</p></div><button onClick={add} className="border border-golddim px-3 py-2 text-gold font-mono text-[10px] uppercase flex gap-1 rounded-lg"><Plus size={12}/> Add record</button></div>
-    {items.map((item, i) => <article key={item.id || i} className="border border-border bg-panel p-5 mb-4 rounded-xl"><div className="flex justify-between items-center mb-4"><span className="font-mono text-[9px] uppercase text-textfaint">Record {i + 1}</span><button onClick={() => setItems(items.filter((_, n) => n !== i))} className="text-textfaint hover:text-red-300" aria-label="Delete record"><Trash2 size={15}/></button></div><div className="grid md:grid-cols-2 gap-4">{fields.map(field => <label key={field.key} className="font-mono text-[9px] uppercase text-textfaint md:col-span-{field.type === 'textarea' ? 2 : 1}">{field.label}<FieldInput field={field} value={item[field.key]} onChange={v => update(i, field.key, v)} /></label>)}</div></article>)}
+    {items.map((item, i) => <article key={item.id || i} className="border border-border bg-panel p-5 mb-4 rounded-xl"><div className="flex justify-between items-center mb-4"><span className="font-mono text-[9px] uppercase text-textfaint">Record {i + 1}</span><button onClick={() => setItems(items.filter((_, n) => n !== i))} className="text-textfaint hover:text-red-300" aria-label="Delete record"><Trash2 size={15}/></button></div><div className="grid md:grid-cols-2 gap-4">{fields.map(field => <label key={field.key} className={`font-mono text-[9px] uppercase text-textfaint ${field.type === "textarea" ? "md:col-span-2" : ""}`}>{field.label}<FieldInput field={field} value={item[field.key]} onChange={v => update(i, field.key, v)} /></label>)}</div></article>)}
     {!items.length && <div className="border border-dashed border-border rounded-xl p-12 text-center text-textfaint text-sm">No records yet. Add the first one.</div>}
   </section>;
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { FBMRP_GUILD_ID, getAccessLevel, can, type Permission } from "@/lib/discord-roles";
+import { FBMRP_GUILD_ID, getAccessLevel, can, type Permission, type DiscordGuildRole } from "@/lib/discord-roles";
 import { readContent, writeContent } from "@/lib/content-store";
 
 const sectionPermission: Record<string, Permission> = {
@@ -22,13 +22,15 @@ async function getAccess() {
   try {
     const session = JSON.parse(raw);
     if (!session.id) return "member" as const;
-    const response = await fetch(`https://discord.com/api/guilds/${FBMRP_GUILD_ID}/members/${session.id}`, {
-      headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` },
-      cache: "no-store",
-    });
-    if (!response.ok) return "member" as const;
-    const member = await response.json();
-    return getAccessLevel(session.id, member.roles || []);
+    const headers = { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` };
+    const [memberResponse, rolesResponse] = await Promise.all([
+      fetch(`https://discord.com/api/guilds/${FBMRP_GUILD_ID}/members/${session.id}`, { headers, cache: "no-store" }),
+      fetch(`https://discord.com/api/guilds/${FBMRP_GUILD_ID}/roles`, { headers, cache: "no-store" }),
+    ]);
+    if (!memberResponse.ok || !rolesResponse.ok) return "member" as const;
+    const member = await memberResponse.json();
+    const guildRoles = (await rolesResponse.json()) as DiscordGuildRole[];
+    return getAccessLevel(session.id, member.roles || [], guildRoles);
   } catch {
     return "member" as const;
   }

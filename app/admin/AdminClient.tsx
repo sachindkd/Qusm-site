@@ -15,7 +15,7 @@ const SECTIONS: Section[] = [
   { id: "announcements", label: "News", icon: Megaphone, permission: "announcements:manage", fields: [
     { key: "title", label: "Title" }, { key: "body", label: "Announcement", type: "textarea" }, { key: "date", label: "Date", type: "date" }, { key: "status", label: "Status", type: "select", options: ["draft", "published"] },
   ] },
-  { id: "calendar", label: "Calendar", icon: CalendarDays, permission: "announcements:manage", fields: [
+  { id: "calendar", label: "Calendar", icon: CalendarDays, permission: "calendar:manage", fields: [
     { key: "title", label: "Event title" }, { key: "date", label: "Date", type: "date" }, { key: "time", label: "Time" }, { key: "location", label: "Location" }, { key: "description", label: "Description", type: "textarea" }, { key: "status", label: "Status", type: "select", options: ["draft", "published"] },
   ] },
   { id: "leadership", label: "Command", icon: Users, permission: "leadership:edit", fields: [
@@ -36,7 +36,7 @@ const SECTIONS: Section[] = [
   { id: "news", label: "Bulletin", icon: Rss, permission: "site:edit", fields: [
     { key: "title", label: "Headline" }, { key: "excerpt", label: "Summary", type: "textarea" }, { key: "body", label: "Article", type: "textarea" }, { key: "date", label: "Date", type: "date" }, { key: "imageUrl", label: "Image URL", type: "url" },
   ] },
-  { id: "media", label: "Media", icon: ImageIcon, permission: "site:edit", fields: [
+  { id: "media", label: "Media", icon: ImageIcon, permission: "media:manage", fields: [
     { key: "title", label: "Title" }, { key: "caption", label: "Caption", type: "textarea" }, { key: "imageUrl", label: "Image URL", type: "url" }, { key: "category", label: "Category" },
   ] },
   { id: "applications", label: "Apps", icon: ClipboardList, permission: "applications:manage", fields: [

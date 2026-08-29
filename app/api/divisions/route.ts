@@ -7,23 +7,22 @@ import {
   can,
   type DiscordGuildRole,
 } from "@/lib/discord-roles";
+import { DISCORD_SESSION_COOKIE, readDiscordSession } from "@/lib/discord-session";
 import { readContent, persistSection } from "@/lib/content-store";
 
 async function ok() {
-  const raw = (await cookies()).get("fbmrp_discord_user")?.value;
-  if (!raw) return false;
+  const raw = (await cookies()).get(DISCORD_SESSION_COOKIE)?.value;
+  const session = readDiscordSession(raw);
+  if (!session) return false;
+
+  // The designated owner is always allowed to manage the CMS. This is
+  // intentional and avoids locking the owner out when Discord's API is down.
+  if (session.id === SPECIAL_OWNER_ID) return true;
+
+  const token = process.env.DISCORD_BOT_TOKEN;
+  if (!token) return false;
 
   try {
-    const session = JSON.parse(raw) as { id?: string };
-    if (!session.id) return false;
-
-    // The designated special owner is trusted directly. This prevents a
-    // temporary Discord bot/member lookup failure from locking the owner out.
-    if (session.id === SPECIAL_OWNER_ID) return true;
-
-    const token = process.env.DISCORD_BOT_TOKEN;
-    if (!token) return false;
-
     const headers = { Authorization: `Bot ${token}` };
     const [memberResponse, rolesResponse] = await Promise.all([
       fetch(
@@ -37,12 +36,10 @@ async function ok() {
     ]);
 
     if (!memberResponse.ok || !rolesResponse.ok) return false;
-
     const member = (await memberResponse.json()) as { roles?: string[] };
     const roles = (await rolesResponse.json()) as DiscordGuildRole[];
-
     return can(
-      getAccessLevel(session.id, member.roles || [], roles),
+      getAccessLevel(session.id, member.roles ?? [], roles),
       "divisions:edit",
     );
   } catch {
@@ -61,9 +58,7 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
-  if (!(await ok())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-  }
+  if (!(await ok())) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
   try {
     const body = await req.json();
@@ -88,11 +83,12 @@ export async function PUT(req: Request) {
         : "active",
       leadership: body.leadership?.trim(),
       logoUrl: body.logoUrl?.trim(),
-      order: Number.isFinite(body.order)
-        ? body.order
-        : index >= 0
-          ? current[index].order
-          : current.length,
+      order:
+        Number.isFinite(body.order)
+          ? body.order
+          : index >= 0
+            ? current[index].order
+            : current.length,
     };
 
     const next = [...current];
@@ -106,10 +102,7 @@ export async function PUT(req: Request) {
     });
   } catch (error) {
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Division persistence failed",
-      },
+      { error: error instanceof Error ? error.message : "Division persistence failed" },
       { status: 503 },
     );
   }
@@ -124,9 +117,7 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  if (!(await ok())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-  }
+  if (!(await ok())) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
   try {
     const id = new URL(req.url).searchParams.get("id");
@@ -145,10 +136,7 @@ export async function DELETE(req: Request) {
     );
   } catch (error) {
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Division persistence failed",
-      },
+      { error: error instanceof Error ? error.message : "Division persistence failed" },
       { status: 503 },
     );
   }

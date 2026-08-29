@@ -3,39 +3,48 @@ import { readDbContent, writeDbContent, writeDbSection } from "./db";
 import { cached, invalidateCache } from "./cache";
 
 const CONTENT_CACHE_KEY = "cms-content";
-const CONTENT_CACHE_TTL = 10_000;
+const CONTENT_CACHE_TTL = 2_000;
+
+const useDatabase = () => Boolean(process.env.DATABASE_URL);
 
 export async function loadContent(): Promise<Content> {
   return cached(CONTENT_CACHE_KEY, CONTENT_CACHE_TTL, async () => {
-    if (process.env.DATABASE_URL) {
-      const stored = await readDbContent();
-      if (stored) return stored;
-      const initial = await getFileContent();
-      await writeDbContent(initial);
-      return initial;
-    }
-    return getFileContent();
+    if (!useDatabase()) return getFileContent();
+
+    const stored = await readDbContent();
+    if (stored) return stored;
+
+    // First deployment: seed the persistent database from the existing content source.
+    const initial = await getFileContent();
+    await writeDbContent(initial);
+    return initial;
   });
 }
 
 export async function persistContent(content: Content): Promise<void> {
-  if (process.env.DATABASE_URL) await writeDbContent(content);
-  else await saveContentFile(content);
+  if (useDatabase()) await writeDbContent(content);
+  else await saveFileContent(content);
   invalidateCache(CONTENT_CACHE_KEY);
-}
-
-async function saveContentFile(content: Content) {
-  await saveFileContent(content);
 }
 
 export async function persistSection<K extends keyof Content>(section: K, value: Content[K]): Promise<Content> {
   let next: Content;
-  if (process.env.DATABASE_URL) next = await writeDbSection(String(section), value);
-  else {
+
+  if (useDatabase()) {
+    const current = await readDbContent();
+    if (!current) {
+      const initial = await getFileContent();
+      next = { ...initial, [section]: value } as Content;
+      await writeDbContent(next);
+    } else {
+      next = await writeDbSection(String(section), value);
+    }
+  } else {
     const current = await getFileContent();
-    next = { ...current, [section]: value };
+    next = { ...current, [section]: value } as Content;
     await saveFileContent(next);
   }
+
   invalidateCache(CONTENT_CACHE_KEY);
   return next;
 }

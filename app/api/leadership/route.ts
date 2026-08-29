@@ -7,7 +7,6 @@ async function ok() {
   const raw = (await cookies()).get("fbmrp_discord_user")?.value;
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!raw || !token) return false;
-
   try {
     const session = JSON.parse(raw);
     if (!session.id) return false;
@@ -64,6 +63,16 @@ export async function PUT(req: Request) {
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Leadership persistence failed" }, { status: 503 });
   }
+}
+
+// The admin client uses REST-style POST/PATCH for collection create/update.
+// Keep PUT as the canonical implementation while accepting those methods too.
+export async function POST(req: Request) {
+  return PUT(req);
+}
+
+export async function PATCH(req: Request) {
+  return PUT(req);
 }
 
 export async function DELETE(req: Request) {

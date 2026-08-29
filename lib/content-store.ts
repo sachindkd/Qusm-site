@@ -30,9 +30,8 @@ async function saveContentFile(content: Content) {
 
 export async function persistSection<K extends keyof Content>(section: K, value: Content[K]): Promise<Content> {
   let next: Content;
-  if (process.env.DATABASE_URL) {
-    next = await writeDbSection(String(section), value);
-  } else {
+  if (process.env.DATABASE_URL) next = await writeDbSection(String(section), value);
+  else {
     const current = await getFileContent();
     next = { ...current, [section]: value };
     await saveFileContent(next);

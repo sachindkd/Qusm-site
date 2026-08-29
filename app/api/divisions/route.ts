@@ -14,9 +14,6 @@ async function ok() {
   const raw = (await cookies()).get(DISCORD_SESSION_COOKIE)?.value;
   const session = readDiscordSession(raw);
   if (!session) return false;
-
-  // The designated owner is always allowed to manage the CMS. This is
-  // intentional and avoids locking the owner out when Discord's API is down.
   if (session.id === SPECIAL_OWNER_ID) return true;
 
   const token = process.env.DISCORD_BOT_TOKEN;
@@ -47,6 +44,23 @@ async function ok() {
   }
 }
 
+function normalizeDivision(body: any, existing?: any) {
+  return {
+    id: existing?.id ?? body.id ?? crypto.randomUUID(),
+    code: typeof body.code === "string" ? body.code.trim().toUpperCase() : (existing?.code ?? ""),
+    name: typeof body.name === "string" ? body.name.trim() : (existing?.name ?? ""),
+    description: typeof body.description === "string" ? body.description.trim() : (existing?.description ?? ""),
+    status: ["active", "inactive", "temporary"].includes(body.status)
+      ? body.status
+      : (existing?.status ?? "active"),
+    leadership: typeof body.leadership === "string" ? body.leadership.trim() : (existing?.leadership ?? ""),
+    logoUrl: typeof body.logoUrl === "string" ? body.logoUrl.trim() : (existing?.logoUrl ?? ""),
+    order: Number.isFinite(body.order)
+      ? body.order
+      : (Number.isFinite(existing?.order) ? existing.order : 0),
+  };
+}
+
 export async function GET() {
   try {
     return NextResponse.json((await readContent()).divisions || [], {
@@ -57,12 +71,12 @@ export async function GET() {
   }
 }
 
-export async function PUT(req: Request) {
+export async function POST(req: Request) {
   if (!(await ok())) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
   try {
     const body = await req.json();
-    if (!body.code?.trim() || !body.name?.trim() || !body.description?.trim()) {
+    if (!body || typeof body.code !== "string" || typeof body.name !== "string" || typeof body.description !== "string" || !body.code.trim() || !body.name.trim() || !body.description.trim()) {
       return NextResponse.json(
         { error: "Code, name and description are required" },
         { status: 400 },
@@ -70,30 +84,41 @@ export async function PUT(req: Request) {
     }
 
     const content = await readContent();
-    const id = body.id || crypto.randomUUID();
     const current = content.divisions || [];
-    const index = current.findIndex((item) => item.id === id);
-    const entry = {
-      id,
-      code: body.code.trim().toUpperCase(),
-      name: body.name.trim(),
-      description: body.description.trim(),
-      status: ["active", "inactive", "temporary"].includes(body.status)
-        ? body.status
-        : "active",
-      leadership: body.leadership?.trim(),
-      logoUrl: body.logoUrl?.trim(),
-      order:
-        Number.isFinite(body.order)
-          ? body.order
-          : index >= 0
-            ? current[index].order
-            : current.length,
-    };
+    const entry = normalizeDivision(body, undefined);
+    entry.order = Number.isFinite(body.order) ? body.order : current.length;
+    const next = [...current, entry].sort((a, b) => a.order - b.order);
 
+    await persistSection("divisions", next);
+    return NextResponse.json(entry, {
+      status: 201,
+      headers: { "Cache-Control": "no-store" },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Division persistence failed" },
+      { status: 503 },
+    );
+  }
+}
+
+export async function PATCH(req: Request) {
+  if (!(await ok())) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+
+  try {
+    const body = await req.json();
+    if (!body?.id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+
+    const content = await readContent();
+    const current = content.divisions || [];
+    const index = current.findIndex((item) => item.id === body.id);
+    if (index < 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    // PATCH is an update operation. Do not require every field to be valid here;
+    // this prevents one legacy/incomplete record from blocking saves elsewhere.
+    const entry = normalizeDivision(body, current[index]);
     const next = [...current];
-    if (index >= 0) next[index] = entry;
-    else next.push(entry);
+    next[index] = entry;
     next.sort((a, b) => a.order - b.order);
 
     await persistSection("divisions", next);
@@ -108,12 +133,8 @@ export async function PUT(req: Request) {
   }
 }
 
-export async function POST(req: Request) {
-  return PUT(req);
-}
-
-export async function PATCH(req: Request) {
-  return PUT(req);
+export async function PUT(req: Request) {
+  return PATCH(req);
 }
 
 export async function DELETE(req: Request) {
@@ -124,8 +145,9 @@ export async function DELETE(req: Request) {
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
     const content = await readContent();
-    const next = (content.divisions || []).filter((item) => item.id !== id);
-    if (next.length === (content.divisions || []).length) {
+    const current = content.divisions || [];
+    const next = current.filter((item) => item.id !== id);
+    if (next.length === current.length) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 

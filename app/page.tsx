@@ -63,22 +63,28 @@ export default function HomePage() {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      const get = async <T,>(url: string): Promise<T | null> => {
-        try { const r = await fetch(url, { cache: "no-store" }); return r.ok ? await r.json() : null; } catch { return null; }
+      const get = async (url: string): Promise<unknown | null> => {
+        try {
+          const response = await fetch(url, { cache: "no-store" });
+          if (!response.ok) return null;
+          return await response.json();
+        } catch {
+          return null;
+        }
       };
       const [a, c, l, d] = await Promise.all([
-        get<Announcement[]>("/api/announcements"),
-        get<CalendarItem[]>("/api/calendar"),
-        get<LeadershipEntry[]>("/api/leadership"),
-        get<DivisionEntry[]>("/api/divisions"),
+        get("/api/announcements"),
+        get("/api/calendar"),
+        get("/api/leadership"),
+        get("/api/divisions"),
       ]);
       if (cancelled) return;
-      if (a) setAnnouncements(a.filter(x => x.published !== false));
-      if (c) setCalendar(c.filter(x => x.status !== "draft").sort((x, y) => `${x.date} ${x.time || ""}`.localeCompare(`${y.date} ${y.time || ""}`)));
-      if (l) setLeadership(l.filter(x => x.active !== false).sort((x, y) => (x.order || 0) - (y.order || 0)));
-      if (d) setDivisions(d.sort((x, y) => (x.order || 0) - (y.order || 0)));
+      if (Array.isArray(a)) setAnnouncements((a as Announcement[]).filter(x => x && x.published !== false));
+      if (Array.isArray(c)) setCalendar((c as CalendarItem[]).filter(x => x && x.status !== "draft").sort((x, y) => `${x.date} ${x.time || ""}`.localeCompare(`${y.date} ${y.time || ""}`)));
+      if (Array.isArray(l)) setLeadership((l as LeadershipEntry[]).filter(x => x && x.active !== false).sort((x, y) => (x.order || 0) - (y.order || 0)));
+      if (Array.isArray(d)) setDivisions((d as DivisionEntry[]).sort((x, y) => (x.order || 0) - (y.order || 0)));
     };
-    load();
+    void load();
     return () => { cancelled = true; };
   }, []);
 
@@ -114,7 +120,7 @@ export default function HomePage() {
           <p className="hero-description">A structured military roleplay community built around organization, progression, leadership, and immersive operations.</p>
           <div className="hero-actions"><a className="button button-primary" href="#announcements">VIEW UPDATES <ArrowDown size={13} /></a><a className="button button-ghost" href="/api/auth/signin/discord"><LogIn size={12} /> STAFF LOGIN</a></div>
         </motion.div>
-        <motion.div className="hero-card-wrap" style={{ opacity: heroOpacity }}><div className="hero-card-shadow" /><div className="hero-card"><div className="card-topbar"><span><i className="status-dot" /> LIVE SYSTEM</span><span>FBMRP / 01</span></div><div className="card-symbol"><Shield size={28} /></div><div className="card-big-number">01</div><div className="card-axis card-axis-x" /><div className="card-axis card-axis-y" /><div className="card-scanline" /><div className="card-corner card-corner-tl" /><div className="card-corner card-corner-br" /><div className="card-caption"><span>FORT BLISS</span><strong>MILITARY ROLEPLAY</strong><span>COMMAND // COMMUNITY // OPERATIONS</span></div></div></motion.div>
+        <motion.div className="hero-card-wrap" style={{ opacity: heroOpacity }}><div className="hero-card-shadow" /><div className="hero-card"><div className="card-topbar"><span><i className="status-dot" /> LIVE SYSTEM</span><span>FBMRP / 01</span></div><div className="card-symbol"><Shield size={28} /></div><div className="card-big-number">01</div><div className="card-axis card-axis-x" /><div className="card-axis card-axis-y" /><div className="card-scanline" /><div className="card-corner card-corner-tl" /><div className="card-corner card-corner-br" /><div className="card-caption"><span>FORT BLISS</span><strong>MILITARY ROLEPLAY</strong><span>COMMAND // COMMUNITY // OPERATIONS</span></div></div></div>
         <div className="scroll-cue"><ArrowDown size={13} /> SCROLL TO ENTER</div>
       </section>
 

@@ -64,6 +64,16 @@ export async function PUT(req: Request) {
   }
 }
 
+// The admin client uses REST-style POST/PATCH for collection create/update.
+// Keep PUT as the canonical implementation while accepting those methods too.
+export async function POST(req: Request) {
+  return PUT(req);
+}
+
+export async function PATCH(req: Request) {
+  return PUT(req);
+}
+
 export async function DELETE(req: Request) {
   if (!(await ok())) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   try {

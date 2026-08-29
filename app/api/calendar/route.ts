@@ -1,10 +1,102 @@
-import {NextResponse} from "next/server";
-import {cookies} from "next/headers";
-import {FBMRP_GUILD_ID,getAccessLevel,can,type DiscordGuildRole} from "@/lib/discord-roles";
-import {readContent,writeContent} from "@/lib/content-store";
-async function auth(){const raw=(await cookies()).get("fbmrp_discord_user")?.value,t=process.env.DISCORD_BOT_TOKEN;if(!raw||!t)return false;try{const s=JSON.parse(raw);if(!s.id)return false;const h={Authorization:`Bot ${t}`};const[m,r]=await Promise.all([fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/members/${s.id}`,{headers:h,cache:"no-store"}),fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/roles`,{headers:h,cache:"no-store"})]);if(!m.ok||!r.ok)return false;return can(getAccessLevel(s.id,(await m.json()).roles||[],await r.json() as DiscordGuildRole[]),"calendar:manage")}catch{return false}}
-function clean(b:any){const title=typeof b.title==="string"?b.title.trim():"",date=typeof b.date==="string"?b.date.trim():"",time=typeof b.time==="string"?b.time.trim():"";if(!title||!date)return null;if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return null;if(time&&!/^\d{2}:\d{2}$/.test(time))return null;return{title,date,time,location:typeof b.location==="string"?b.location.trim():"",description:typeof b.description==="string"?b.description.trim():"",status:b.status==="published"?"published":"draft"}}
-export async function GET(){try{return NextResponse.json((await readContent()).calendar||[])}catch{return NextResponse.json({error:"Calendar unavailable"},{status:503})}}
-export async function POST(req:Request){if(!(await auth()))return NextResponse.json({error:"Unauthorized"},{status:403});try{const b=await req.json(),e=clean(b);if(!e)return NextResponse.json({error:"Valid title and date are required; time must be HH:MM"},{status:400});const c=await readContent(),item={id:crypto.randomUUID(),...e,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};c.calendar=[...(c.calendar||[]),item];c.calendar.sort((a,b)=>`${a.date} ${a.time||""}`.localeCompare(`${b.date} ${b.time||""}`));await writeContent(c);return NextResponse.json(item,{status:201})}catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Calendar persistence unavailable"},{status:503})}}
-export async function PATCH(req:Request){if(!(await auth()))return NextResponse.json({error:"Unauthorized"},{status:403});try{const b=await req.json();if(!b.id)return NextResponse.json({error:"Missing id"},{status:400});const e=clean(b);if(!e)return NextResponse.json({error:"Valid title and date are required; time must be HH:MM"},{status:400});const c=await readContent(),i=(c.calendar||[]).findIndex((x:any)=>x.id===b.id);if(i<0)return NextResponse.json({error:"Not found"},{status:404});const item={...c.calendar[i],...e,updatedAt:new Date().toISOString()};c.calendar[i]=item;c.calendar.sort((a,b)=>`${a.date} ${a.time||""}`.localeCompare(`${b.date} ${b.time||""}`));await writeContent(c);return NextResponse.json(item)}catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Calendar persistence unavailable"},{status:503})}}
-export async function DELETE(req:Request){if(!(await auth()))return NextResponse.json({error:"Unauthorized"},{status:403});try{const id=new URL(req.url).searchParams.get("id");if(!id)return NextResponse.json({error:"Missing id"},{status:400});const c=await readContent(),before=c.calendar?.length||0;c.calendar=(c.calendar||[]).filter((x:any)=>x.id!==id);if(c.calendar.length===before)return NextResponse.json({error:"Not found"},{status:404});await writeContent(c);return NextResponse.json({ok:true})}catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Calendar persistence unavailable"},{status:503})}}
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { FBMRP_GUILD_ID, getAccessLevel, can, type DiscordGuildRole } from "@/lib/discord-roles";
+import { readContent, persistSection } from "@/lib/content-store";
+
+async function auth() {
+  const raw = (await cookies()).get("fbmrp_discord_user")?.value;
+  const token = process.env.DISCORD_BOT_TOKEN;
+  if (!raw || !token) return false;
+  try {
+    const session = JSON.parse(raw);
+    if (!session.id) return false;
+    const headers = { Authorization: `Bot ${token}` };
+    const [memberResponse, rolesResponse] = await Promise.all([
+      fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/members/${session.id}`, { headers, cache: "no-store" }),
+      fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/roles`, { headers, cache: "no-store" }),
+    ]);
+    if (!memberResponse.ok || !rolesResponse.ok) return false;
+    const member = await memberResponse.json();
+    const roles = await rolesResponse.json();
+    return can(getAccessLevel(session.id, member.roles || [], roles as DiscordGuildRole[]), "calendar:manage");
+  } catch {
+    return false;
+  }
+}
+
+function clean(body: any) {
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  const date = typeof body.date === "string" ? body.date.trim() : "";
+  const time = typeof body.time === "string" ? body.time.trim() : "";
+  if (!title || !date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || (time && !/^\d{2}:\d{2}$/.test(time))) return null;
+  return {
+    title,
+    date,
+    time,
+    location: typeof body.location === "string" ? body.location.trim() : "",
+    description: typeof body.description === "string" ? body.description.trim() : "",
+    status: body.status === "published" ? "published" : "draft",
+  };
+}
+
+export async function GET() {
+  try {
+    return NextResponse.json((await readContent()).calendar || [], { headers: { "Cache-Control": "no-store" } });
+  } catch {
+    return NextResponse.json({ error: "Calendar unavailable" }, { status: 503 });
+  }
+}
+
+export async function POST(req: Request) {
+  if (!(await auth())) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  try {
+    const body = await req.json();
+    const entry = clean(body);
+    if (!entry) return NextResponse.json({ error: "Valid title and date are required; time must be HH:MM" }, { status: 400 });
+    const content = await readContent();
+    const now = new Date().toISOString();
+    const item = { id: crypto.randomUUID(), ...entry, createdAt: now, updatedAt: now };
+    const next = [...(content.calendar || []), item].sort((a, b) => `${a.date} ${a.time || ""}`.localeCompare(`${b.date} ${b.time || ""}`));
+    await persistSection("calendar", next);
+    return NextResponse.json(item, { status: 201, headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Calendar persistence unavailable" }, { status: 503 });
+  }
+}
+
+export async function PATCH(req: Request) {
+  if (!(await auth())) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  try {
+    const body = await req.json();
+    if (!body.id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    const entry = clean(body);
+    if (!entry) return NextResponse.json({ error: "Valid title and date are required; time must be HH:MM" }, { status: 400 });
+    const content = await readContent();
+    const current = content.calendar || [];
+    const index = current.findIndex((item: any) => item.id === body.id);
+    if (index < 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const next = [...current];
+    next[index] = { ...next[index], ...entry, updatedAt: new Date().toISOString() };
+    next.sort((a, b) => `${a.date} ${a.time || ""}`.localeCompare(`${b.date} ${b.time || ""}`));
+    await persistSection("calendar", next);
+    return NextResponse.json(next.find((item) => item.id === body.id), { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Calendar persistence unavailable" }, { status: 503 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  if (!(await auth())) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  try {
+    const id = new URL(req.url).searchParams.get("id");
+    if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    const content = await readContent();
+    const current = content.calendar || [];
+    const next = current.filter((item: any) => item.id !== id);
+    if (next.length === current.length) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    await persistSection("calendar", next);
+    return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Calendar persistence unavailable" }, { status: 503 });
+  }
+}

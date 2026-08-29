@@ -77,3 +77,5 @@ Media currently takes an image URL (paste a link, or leave blank for a
 placeholder) — there's no file upload yet. Adding one means an upload API
 route plus swapping the "Image URL" field for a file input; same pattern,
 slightly more plumbing.
+
+<!-- Vercel deployment trigger: 2026-08-30 -->

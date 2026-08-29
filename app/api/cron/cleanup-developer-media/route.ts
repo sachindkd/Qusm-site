@@ -1,63 +1,92 @@
 import { NextResponse } from "next/server";
 
-const CHANNEL_ID = "1506466679100801196";
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const PAGE_SIZE = 100;
+const MAX_PAGES_PER_RUN = 10;
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request) {
-  const cronSecret = process.env.CRON_SECRET;
-  const authorization = req.headers.get("authorization");
+function isAuthorized(request: Request) {
+  const secret = process.env.CRON_SECRET;
+  return Boolean(secret) && request.headers.get("authorization") === `Bearer ${secret}`;
+}
 
-  if (!cronSecret || authorization !== `Bearer ${cronSecret}`) {
+export async function GET(request: Request) {
+  if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const token = process.env.DISCORD_BOT_TOKEN;
-  if (!token) {
-    return NextResponse.json({ error: "Discord bot is not configured" }, { status: 503 });
+  const channelId = process.env.DISCORD_DEVELOPER_MEDIA_CHANNEL_ID;
+
+  if (!token || !channelId) {
+    return NextResponse.json(
+      { error: "Developer media cleanup is not configured" },
+      { status: 503 },
+    );
   }
 
   const cutoff = Date.now() - RETENTION_MS;
   const headers = { Authorization: `Bot ${token}` };
   let before: string | undefined;
-  let deleted = 0;
   let scanned = 0;
+  let deleted = 0;
 
-  for (let page = 0; page < 10; page += 1) {
-    const url = new URL(`https://discord.com/api/v10/channels/${CHANNEL_ID}/messages`);
-    url.searchParams.set("limit", "100");
+  for (let page = 0; page < MAX_PAGES_PER_RUN; page += 1) {
+    const url = new URL(`https://discord.com/api/v10/channels/${channelId}/messages`);
+    url.searchParams.set("limit", String(PAGE_SIZE));
     if (before) url.searchParams.set("before", before);
 
     const response = await fetch(url, { headers, cache: "no-store" });
-    if (!response.ok) {
-      return NextResponse.json({ error: "Discord cleanup failed", deleted, scanned }, { status: 502 });
+
+    if (response.status === 429) {
+      return NextResponse.json({ error: "Discord rate limit", scanned, deleted }, { status: 429 });
     }
 
-    const messages = (await response.json()) as Array<{ id: string; timestamp: string }>;
-    if (!messages.length) break;
+    if (!response.ok) {
+      return NextResponse.json({ error: "Discord cleanup failed", scanned, deleted }, { status: 502 });
+    }
 
+    const messages = (await response.json()) as Array<{
+      id: string;
+      timestamp: string;
+      attachments?: Array<{ id: string }>;
+    }>;
+
+    if (messages.length === 0) break;
     scanned += messages.length;
-    let reachedCutoff = false;
 
     for (const message of messages) {
-      if (Date.parse(message.timestamp) >= cutoff) continue;
-      reachedCutoff = true;
+      const createdAt = Date.parse(message.timestamp);
+      if (!Number.isFinite(createdAt)) continue;
+
+      // Only messages with actual uploaded media are eligible for cleanup.
+      if (createdAt >= cutoff || !message.attachments?.length) continue;
 
       const remove = await fetch(
-        `https://discord.com/api/v10/channels/${CHANNEL_ID}/messages/${message.id}`,
+        `https://discord.com/api/v10/channels/${channelId}/messages/${message.id}`,
         { method: "DELETE", headers },
       );
 
-      if (remove.ok || remove.status === 404) deleted += 1;
-      if (remove.status === 429) {
-        return NextResponse.json({ error: "Discord rate limit", deleted, scanned }, { status: 429 });
+      if (remove.ok || remove.status === 404) {
+        deleted += 1;
+        continue;
       }
+
+      if (remove.status === 429) {
+        return NextResponse.json({ error: "Discord rate limit", scanned, deleted }, { status: 429 });
+      }
+
+      return NextResponse.json({ error: "Failed to delete developer media", scanned, deleted }, { status: 502 });
     }
 
     before = messages[messages.length - 1].id;
-    if (reachedCutoff && messages.length < 100) break;
+
+    // Discord returns newest-first; once the page is older than the cutoff,
+    // there is no reason to scan further unless the page was full.
+    const oldest = Date.parse(messages[messages.length - 1].timestamp);
+    if (Number.isFinite(oldest) && oldest < cutoff && messages.length < PAGE_SIZE) break;
   }
 
-  return NextResponse.json({ ok: true, deleted, scanned });
+  return NextResponse.json({ ok: true, scanned, deleted });
 }

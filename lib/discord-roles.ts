@@ -86,44 +86,24 @@ const permissions: Record<AccessLevel, Permission[]> = {
 };
 
 function accessForRole(roleId: string): AccessLevel {
-  if (roleId === ROLE_IDS.owner || roleId === ROLE_IDS.coOwner || roleId === ROLE_IDS.chairman) {
-    return "owner";
-  }
+  if (roleId === ROLE_IDS.owner || roleId === ROLE_IDS.coOwner || roleId === ROLE_IDS.chairman) return "owner";
   if (roleId === ROLE_IDS.headManagement) return "management";
-  if (
-    [
-      ROLE_IDS.generalManager,
-      ROLE_IDS.headOperations,
-      ROLE_IDS.headAdministration,
-      ROLE_IDS.communityAffairs,
-      ROLE_IDS.ceo,
-      ROLE_IDS.headDepartment,
-      ROLE_IDS.viceChairman,
-      ROLE_IDS.seniorManagement,
-    ].includes(roleId as never)
-  ) {
-    return "senior-leadership";
-  }
-  if (roleId === ROLE_IDS.headDevelopment || roleId === ROLE_IDS.developerPosts) {
-    return "developer";
-  }
+  if ([ROLE_IDS.generalManager, ROLE_IDS.headOperations, ROLE_IDS.headAdministration, ROLE_IDS.communityAffairs, ROLE_IDS.ceo, ROLE_IDS.headDepartment, ROLE_IDS.viceChairman, ROLE_IDS.seniorManagement].includes(roleId as never)) return "senior-leadership";
+  if (roleId === ROLE_IDS.headDevelopment || roleId === ROLE_IDS.developerPosts) return "developer";
   if (roleId === ROLE_IDS.aides) return "aide";
   if (roleId === ROLE_IDS.staff) return "staff";
   return "member";
 }
 
-export function getAccessLevel(
-  userId: string,
-  roleIds: string[],
-  roles?: DiscordGuildRole[],
-): AccessLevel {
+export function getAccessLevel(userId: string, roleIds: string[], roles?: DiscordGuildRole[]): AccessLevel {
+  // This account is the designated site owner. Do this check first so owner
+  // access never depends on Discord role lookup/API availability.
   if (userId === SPECIAL_OWNER_ID) return "owner";
 
   if (roles?.length) {
     const highestAssignedRole = roles
       .filter((role) => roleIds.includes(role.id) && !role.managed)
       .sort((a, b) => b.position - a.position)[0];
-
     return highestAssignedRole ? accessForRole(highestAssignedRole.id) : "member";
   }
 

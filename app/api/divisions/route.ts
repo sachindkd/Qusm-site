@@ -1,24 +1,50 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { FBMRP_GUILD_ID, getAccessLevel, can, type DiscordGuildRole } from "@/lib/discord-roles";
+import {
+  FBMRP_GUILD_ID,
+  SPECIAL_OWNER_ID,
+  getAccessLevel,
+  can,
+  type DiscordGuildRole,
+} from "@/lib/discord-roles";
 import { readContent, persistSection } from "@/lib/content-store";
 
 async function ok() {
   const raw = (await cookies()).get("fbmrp_discord_user")?.value;
-  const token = process.env.DISCORD_BOT_TOKEN;
-  if (!raw || !token) return false;
+  if (!raw) return false;
+
   try {
-    const session = JSON.parse(raw);
+    const session = JSON.parse(raw) as { id?: string };
     if (!session.id) return false;
+
+    // The designated special owner is trusted directly. This prevents a
+    // temporary Discord bot/member lookup failure from locking the owner out.
+    if (session.id === SPECIAL_OWNER_ID) return true;
+
+    const token = process.env.DISCORD_BOT_TOKEN;
+    if (!token) return false;
+
     const headers = { Authorization: `Bot ${token}` };
     const [memberResponse, rolesResponse] = await Promise.all([
-      fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/members/${session.id}`, { headers, cache: "no-store" }),
-      fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/roles`, { headers, cache: "no-store" }),
+      fetch(
+        `https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/members/${session.id}`,
+        { headers, cache: "no-store" },
+      ),
+      fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/roles`, {
+        headers,
+        cache: "no-store",
+      }),
     ]);
+
     if (!memberResponse.ok || !rolesResponse.ok) return false;
-    const member = await memberResponse.json();
-    const roles = await rolesResponse.json();
-    return can(getAccessLevel(session.id, member.roles || [], roles as DiscordGuildRole[]), "divisions:edit");
+
+    const member = (await memberResponse.json()) as { roles?: string[] };
+    const roles = (await rolesResponse.json()) as DiscordGuildRole[];
+
+    return can(
+      getAccessLevel(session.id, member.roles || [], roles),
+      "divisions:edit",
+    );
   } catch {
     return false;
   }
@@ -26,19 +52,28 @@ async function ok() {
 
 export async function GET() {
   try {
-    return NextResponse.json((await readContent()).divisions || [], { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json((await readContent()).divisions || [], {
+      headers: { "Cache-Control": "no-store" },
+    });
   } catch {
     return NextResponse.json({ error: "Divisions unavailable" }, { status: 503 });
   }
 }
 
 export async function PUT(req: Request) {
-  if (!(await ok())) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  if (!(await ok())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
+
   try {
     const body = await req.json();
     if (!body.code?.trim() || !body.name?.trim() || !body.description?.trim()) {
-      return NextResponse.json({ error: "Code, name and description are required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Code, name and description are required" },
+        { status: 400 },
+      );
     }
+
     const content = await readContent();
     const id = body.id || crypto.randomUUID();
     const current = content.divisions || [];
@@ -48,24 +83,38 @@ export async function PUT(req: Request) {
       code: body.code.trim().toUpperCase(),
       name: body.name.trim(),
       description: body.description.trim(),
-      status: ["active", "inactive", "temporary"].includes(body.status) ? body.status : "active",
+      status: ["active", "inactive", "temporary"].includes(body.status)
+        ? body.status
+        : "active",
       leadership: body.leadership?.trim(),
       logoUrl: body.logoUrl?.trim(),
-      order: Number.isFinite(body.order) ? body.order : index >= 0 ? current[index].order : current.length,
+      order: Number.isFinite(body.order)
+        ? body.order
+        : index >= 0
+          ? current[index].order
+          : current.length,
     };
+
     const next = [...current];
     if (index >= 0) next[index] = entry;
     else next.push(entry);
     next.sort((a, b) => a.order - b.order);
+
     await persistSection("divisions", next);
-    return NextResponse.json(entry, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(entry, {
+      headers: { "Cache-Control": "no-store" },
+    });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Division persistence failed" }, { status: 503 });
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error ? error.message : "Division persistence failed",
+      },
+      { status: 503 },
+    );
   }
 }
 
-// The admin client uses REST-style POST/PATCH for collection create/update.
-// Keep PUT as the canonical implementation while accepting those methods too.
 export async function POST(req: Request) {
   return PUT(req);
 }
@@ -75,16 +124,32 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  if (!(await ok())) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  if (!(await ok())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
+
   try {
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+
     const content = await readContent();
     const next = (content.divisions || []).filter((item) => item.id !== id);
-    if (next.length === (content.divisions || []).length) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (next.length === (content.divisions || []).length) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
     await persistSection("divisions", next);
-    return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(
+      { ok: true },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Division persistence failed" }, { status: 503 });
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error ? error.message : "Division persistence failed",
+      },
+      { status: 503 },
+    );
   }
 }

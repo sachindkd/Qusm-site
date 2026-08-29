@@ -4,7 +4,7 @@ import { default as handler } from "./.open-next/worker.js";
 export default {
   fetch: handler.fetch,
 
-  async scheduled(_event: ScheduledController, env: Record<string, string>, ctx: ExecutionContext) {
+  async scheduled(_event: any, env: Record<string, string>, ctx: any) {
     const secret = env.CRON_SECRET;
     if (!secret) throw new Error("CRON_SECRET is not configured");
 

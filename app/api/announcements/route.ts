@@ -1,17 +1,20 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { FBMRP_GUILD_ID, getAccessLevel, can, type DiscordGuildRole } from "@/lib/discord-roles";
+import { FBMRP_GUILD_ID, SPECIAL_OWNER_ID, getAccessLevel, can, type DiscordGuildRole } from "@/lib/discord-roles";
+import { DISCORD_SESSION_COOKIE, readDiscordSession } from "@/lib/discord-session";
 import { readContent, persistSection } from "@/lib/content-store";
 
 type Announcement = { id: string; title: string; body: string; published: boolean; createdAt: string; updatedAt: string; discordMessageId?: string };
 
 async function auth() {
-  const raw = (await cookies()).get("fbmrp_discord_user")?.value;
+  const raw = (await cookies()).get(DISCORD_SESSION_COOKIE)?.value;
+  const session = readDiscordSession(raw);
+  if (!session) return false;
+  if (session.id === SPECIAL_OWNER_ID) return true;
+
   const token = process.env.DISCORD_BOT_TOKEN;
-  if (!raw || !token) return false;
+  if (!token) return false;
   try {
-    const session = JSON.parse(raw);
-    if (!session.id) return false;
     const headers = { Authorization: `Bot ${token}` };
     const [memberResponse, rolesResponse] = await Promise.all([
       fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/members/${session.id}`, { headers, cache: "no-store" }),
@@ -44,11 +47,8 @@ async function publish(a: Announcement) {
 }
 
 export async function GET() {
-  try {
-    return NextResponse.json((await readContent()).announcements || [], { headers: { "Cache-Control": "no-store" } });
-  } catch {
-    return NextResponse.json({ error: "Announcements unavailable" }, { status: 503 });
-  }
+  try { return NextResponse.json((await readContent()).announcements || [], { headers: { "Cache-Control": "no-store" } }); }
+  catch { return NextResponse.json({ error: "Announcements unavailable" }, { status: 503 }); }
 }
 
 export async function POST(req: Request) {
@@ -62,9 +62,7 @@ export async function POST(req: Request) {
     const content = await readContent();
     await persistSection("announcements", [...(content.announcements || []), announcement]);
     return NextResponse.json(announcement, { status: 201, headers: { "Cache-Control": "no-store" } });
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || "Announcement persistence failed" }, { status: error?.status || 503 });
-  }
+  } catch (error: any) { return NextResponse.json({ error: error?.message || "Announcement persistence failed" }, { status: error?.status || 503 }); }
 }
 
 export async function PATCH(req: Request) {
@@ -80,13 +78,10 @@ export async function PATCH(req: Request) {
     const next = { ...old, title: typeof body.title === "string" ? body.title.trim() : old.title, body: typeof body.body === "string" ? body.body.trim() : old.body, published: typeof body.published === "boolean" ? body.published : old.published, updatedAt: new Date().toISOString() };
     if (!next.title || !next.body) return NextResponse.json({ error: "Title and body are required" }, { status: 400 });
     if (next.published && !old.published) next.discordMessageId = await publish(next);
-    const updated = [...current];
-    updated[index] = next;
+    const updated = [...current]; updated[index] = next;
     await persistSection("announcements", updated);
     return NextResponse.json(next, { headers: { "Cache-Control": "no-store" } });
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || "Announcement persistence failed" }, { status: error?.status || 503 });
-  }
+  } catch (error: any) { return NextResponse.json({ error: error?.message || "Announcement persistence failed" }, { status: error?.status || 503 }); }
 }
 
 export async function DELETE(req: Request) {
@@ -94,13 +89,10 @@ export async function DELETE(req: Request) {
   try {
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
-    const content = await readContent();
-    const current = content.announcements || [];
+    const content = await readContent(); const current = content.announcements || [];
     const next = current.filter((item: Announcement) => item.id !== id);
     if (next.length === current.length) return NextResponse.json({ error: "Not found" }, { status: 404 });
     await persistSection("announcements", next);
     return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || "Announcement persistence failed" }, { status: error?.status || 503 });
-  }
+  } catch (error: any) { return NextResponse.json({ error: error?.message || "Announcement persistence failed" }, { status: error?.status || 503 }); }
 }

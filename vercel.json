@@ -1,1 +1,7 @@
-{"rewrites":[{"source":"/","destination":"/live"}]}
+{
+  "rewrites": [{ "source": "/", "destination": "/live" }],
+  "crons": [{
+    "path": "/api/cron/cleanup-developer-media",
+    "schedule": "0 3 * * *"
+  }]
+}

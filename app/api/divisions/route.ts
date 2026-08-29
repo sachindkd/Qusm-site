@@ -1,8 +1,80 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { FBMRP_GUILD_ID,getAccessLevel,can,type DiscordGuildRole } from "@/lib/discord-roles";
-import { readContent,writeContent } from "@/lib/content-store";
-async function ok(){const raw=(await cookies()).get("fbmrp_discord_user")?.value,t=process.env.DISCORD_BOT_TOKEN;if(!raw||!t)return false;try{const s=JSON.parse(raw),h={Authorization:`Bot ${t}`};const[m,r]=await Promise.all([fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/members/${s.id}`,{headers:h,cache:"no-store"}),fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/roles`,{headers:h,cache:"no-store"})]);if(!m.ok||!r.ok)return false;return can(getAccessLevel(s.id,(await m.json()).roles||[],await r.json() as DiscordGuildRole[]),"divisions:edit")}catch{return false}}
-export async function GET(){return NextResponse.json((await readContent()).divisions||[])}
-export async function PUT(req:Request){if(!(await ok()))return NextResponse.json({error:"Unauthorized"},{status:403});const b=await req.json();if(!b.code?.trim()||!b.name?.trim()||!b.description?.trim())return NextResponse.json({error:"Code, name and description are required"},{status:400});const c=await readContent(),id=b.id||crypto.randomUUID(),i=(c.divisions||[]).findIndex(x=>x.id===id);const e={id,code:b.code.trim().toUpperCase(),name:b.name.trim(),description:b.description.trim(),status:["active","inactive","temporary"].includes(b.status)?b.status:"active",leadership:b.leadership?.trim(),logoUrl:b.logoUrl?.trim(),order:Number.isFinite(b.order)?b.order:(i>=0?c.divisions[i].order:c.divisions.length)};if(i>=0)c.divisions[i]=e;else c.divisions.push(e);c.divisions.sort((a,b)=>a.order-b.order);await writeContent(c);return NextResponse.json(e)}
-export async function DELETE(req:Request){if(!(await ok()))return NextResponse.json({error:"Unauthorized"},{status:403});const id=new URL(req.url).searchParams.get("id");const c=await readContent();c.divisions=(c.divisions||[]).filter(x=>x.id!==id);await writeContent(c);return NextResponse.json({ok:true})}
+import { FBMRP_GUILD_ID, getAccessLevel, can, type DiscordGuildRole } from "@/lib/discord-roles";
+import { readContent, persistSection } from "@/lib/content-store";
+
+async function ok() {
+  const raw = (await cookies()).get("fbmrp_discord_user")?.value;
+  const token = process.env.DISCORD_BOT_TOKEN;
+  if (!raw || !token) return false;
+  try {
+    const session = JSON.parse(raw);
+    if (!session.id) return false;
+    const headers = { Authorization: `Bot ${token}` };
+    const [memberResponse, rolesResponse] = await Promise.all([
+      fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/members/${session.id}`, { headers, cache: "no-store" }),
+      fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/roles`, { headers, cache: "no-store" }),
+    ]);
+    if (!memberResponse.ok || !rolesResponse.ok) return false;
+    const member = await memberResponse.json();
+    const roles = await rolesResponse.json();
+    return can(getAccessLevel(session.id, member.roles || [], roles as DiscordGuildRole[]), "divisions:edit");
+  } catch {
+    return false;
+  }
+}
+
+export async function GET() {
+  try {
+    return NextResponse.json((await readContent()).divisions || [], { headers: { "Cache-Control": "no-store" } });
+  } catch {
+    return NextResponse.json({ error: "Divisions unavailable" }, { status: 503 });
+  }
+}
+
+export async function PUT(req: Request) {
+  if (!(await ok())) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  try {
+    const body = await req.json();
+    if (!body.code?.trim() || !body.name?.trim() || !body.description?.trim()) {
+      return NextResponse.json({ error: "Code, name and description are required" }, { status: 400 });
+    }
+    const content = await readContent();
+    const id = body.id || crypto.randomUUID();
+    const current = content.divisions || [];
+    const index = current.findIndex((item) => item.id === id);
+    const entry = {
+      id,
+      code: body.code.trim().toUpperCase(),
+      name: body.name.trim(),
+      description: body.description.trim(),
+      status: ["active", "inactive", "temporary"].includes(body.status) ? body.status : "active",
+      leadership: body.leadership?.trim(),
+      logoUrl: body.logoUrl?.trim(),
+      order: Number.isFinite(body.order) ? body.order : index >= 0 ? current[index].order : current.length,
+    };
+    const next = [...current];
+    if (index >= 0) next[index] = entry;
+    else next.push(entry);
+    next.sort((a, b) => a.order - b.order);
+    await persistSection("divisions", next);
+    return NextResponse.json(entry, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Division persistence failed" }, { status: 503 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  if (!(await ok())) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  try {
+    const id = new URL(req.url).searchParams.get("id");
+    if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    const content = await readContent();
+    const next = (content.divisions || []).filter((item) => item.id !== id);
+    if (next.length === (content.divisions || []).length) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    await persistSection("divisions", next);
+    return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Division persistence failed" }, { status: 503 });
+  }
+}

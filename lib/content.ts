@@ -6,6 +6,7 @@ import { FBMRP_GUILD_ID } from "./discord-roles";
 export type LeadershipEntry = { id: string; title: string; name: string; discordId?: string; division?: string; rank?: string; description?: string; active: boolean; order: number };
 export type DivisionEntry = { id: string; code: string; name: string; description: string; status: "active" | "inactive" | "temporary"; leadership?: string; logoUrl?: string; order: number };
 export type CocEntry = { id: string; title: string; name?: string; description?: string; order: number; active: boolean };
+export type ShopEntry = { id: string; name: string; type: "faction" | "family"; description?: string; price?: string; gamepassUrl?: string; imageUrl?: string; status?: "active" | "inactive" | "sold-out"; order: number };
 export type Content = {
   org: any;
   announcements: any[];
@@ -21,6 +22,8 @@ export type Content = {
   cocLeadership: CocEntry[];
   cocStaff: CocEntry[];
   cocRoleplay: CocEntry[];
+  shop: ShopEntry[];
+  _schemaVersion?: number;
 };
 
 const filePath = path.join(process.cwd(), "data", "content.json");
@@ -37,7 +40,7 @@ const defaults: Content = {
     recruitmentUrl: "https://discord.com/channels/1426271681969655913/1532347499212177438",
     footerText: "COMMAND // COMMUNITY // OPERATIONS",
   },
-  announcements: [], calendar: [], leadership: [], divisions: [], rules: [], government: [], ranks: [], news: [], media: [], applications: [],
+  announcements: [], calendar: [], leadership: [], divisions: [], rules: [], government: [], ranks: [], news: [], media: [], applications: [], shop: [],
   cocLeadership: [
     { id: "coc-l-1", title: "Owner", order: 1, active: true },
     { id: "coc-l-2", title: "Co-Owner", order: 2, active: true },
@@ -78,7 +81,7 @@ async function writeRemote(c: Content) { const r = await d(`/guilds/${FBMRP_GUIL
 
 export async function getContent(): Promise<Content> {
   const remote = await readRemote();
-  if (remote) return { ...defaults, ...remote, org: { ...defaults.org, ...(remote.org || {}) }, calendar: remote.calendar || [], leadership: remote.leadership || [], divisions: remote.divisions || [], cocLeadership: remote.cocLeadership || defaults.cocLeadership, cocStaff: remote.cocStaff || defaults.cocStaff, cocRoleplay: remote.cocRoleplay || defaults.cocRoleplay };
-  try { const local = JSON.parse(await fs.readFile(filePath, "utf8")); return { ...defaults, ...local, org: { ...defaults.org, ...(local.org || {}) }, cocLeadership: local.cocLeadership || defaults.cocLeadership, cocStaff: local.cocStaff || defaults.cocStaff, cocRoleplay: local.cocRoleplay || defaults.cocRoleplay }; } catch { return defaults; }
+  if (remote) return { ...defaults, ...remote, org: { ...defaults.org, ...(remote.org || {}) }, calendar: remote.calendar || [], leadership: remote.leadership || [], divisions: remote.divisions || [], cocLeadership: remote.cocLeadership || defaults.cocLeadership, cocStaff: remote.cocStaff || defaults.cocStaff, cocRoleplay: remote.cocRoleplay || defaults.cocRoleplay, shop: remote.shop || [] };
+  try { const local = JSON.parse(await fs.readFile(filePath, "utf8")); return { ...defaults, ...local, org: { ...defaults.org, ...(local.org || {}) }, cocLeadership: local.cocLeadership || defaults.cocLeadership, cocStaff: local.cocStaff || defaults.cocStaff, cocRoleplay: local.cocRoleplay || defaults.cocRoleplay, shop: local.shop || [] }; } catch { return defaults; }
 }
 export async function saveContent(c: Content) { if (bot()) { await writeRemote(c); return; } await fs.mkdir(path.dirname(filePath), { recursive: true }); await fs.writeFile(filePath, JSON.stringify(c, null, 2), "utf8"); }

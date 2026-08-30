@@ -28,20 +28,39 @@ async function getGuildMembers() {
   return out;
 }
 
+async function getPresence(userId: string) {
+  try {
+    const r = await fetch(`https://api.lanyard.rest/v1/users/${userId}`, { next: { revalidate: 60 } });
+    if (!r.ok) return { status: "offline" };
+    const d = await r.json();
+    return { status: d?.data?.discord_status || "offline", activities: d?.data?.activities || [] };
+  } catch { return { status: "offline" }; }
+}
+
 export async function GET() {
   try {
     if (cache && Date.now() - cache.at < TTL) return NextResponse.json(cache.data);
     const members = await getGuildMembers();
-    const result = Object.fromEntries(Object.entries(ROLE_IDS).map(([key, roleId]) => {
-      if (!roleId) return [key, []];
-      return [key, members.filter((m: any) => m.roles?.includes(roleId)).map((m: any) => ({
-        id: m.user.id,
-        username: m.user.username,
-        displayName: m.nick || m.user.global_name || m.user.username,
-        avatar: m.avatar ? `https://cdn.discordapp.com/guilds/${process.env.DISCORD_GUILD_ID}/users/${m.user.id}/avatars/${m.avatar}.png?size=256` : `https://cdn.discordapp.com/embed/avatars/${parseInt(m.user.id, 10) % 5}.png`,
-        roleId,
-      }))];
-    }));
+    const result: any = {};
+    for (const [key, roleId] of Object.entries(ROLE_IDS)) {
+      if (!roleId) { result[key] = []; continue; }
+      const roleMembers = members.filter((m: any) => m.roles?.includes(roleId));
+      result[key] = await Promise.all(roleMembers.map(async (m: any) => {
+        const presence = await getPresence(m.user.id);
+        const avatar = m.avatar
+          ? `https://cdn.discordapp.com/guilds/${process.env.DISCORD_GUILD_ID}/users/${m.user.id}/avatars/${m.avatar}.png?size=256`
+          : `https://cdn.discordapp.com/embed/avatars/${Number(m.user.discriminator || 0) % 5}.png`;
+        return {
+          id: m.user.id,
+          username: m.user.username,
+          displayName: m.nick || m.user.global_name || m.user.username,
+          avatar,
+          roleId,
+          status: presence.status,
+          activities: presence.activities,
+        };
+      }));
+    }
     cache = { at: Date.now(), data: result };
     return NextResponse.json(result, { headers: { "Cache-Control": "public, max-age=60" } });
   } catch (e: any) {

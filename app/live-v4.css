@@ -1,0 +1,32 @@
+/* QUSM LIVE V4 — unmistakable production visual layer */
+.site-shell{background:#050505!important;overflow:hidden}
+.site-shell:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;background:radial-gradient(circle at 78% 12%,rgba(199,164,91,.13),transparent 26%),radial-gradient(circle at 12% 72%,rgba(199,164,91,.06),transparent 28%);animation:qV4Glow 12s ease-in-out infinite alternate}
+.site-shell>*{position:relative;z-index:2}
+.site-shell>nav{border-bottom:1px solid rgba(199,164,91,.22)!important;background:rgba(5,5,5,.78)!important;backdrop-filter:blur(18px)!important;box-shadow:0 12px 50px rgba(0,0,0,.45)!important}
+.site-shell>nav .brand-dot{background:#c7a45b!important;box-shadow:0 0 0 5px rgba(199,164,91,.1),0 0 22px rgba(199,164,91,.45)!important}
+.site-shell>nav a{transition:all .3s ease}
+.site-shell>nav a:hover{color:#c7a45b!important;transform:translateY(-2px)}
+.site-shell>header{min-height:88vh!important;display:flex;align-items:center;background:linear-gradient(135deg,#050505 0%,#0a0a09 55%,#11100d 100%);border-bottom:1px solid rgba(199,164,91,.18)!important;position:relative;overflow:hidden}
+.site-shell>header:before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(199,164,91,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(199,164,91,.055) 1px,transparent 1px);background-size:72px 72px;mask-image:linear-gradient(to bottom,black,transparent 85%);animation:qV4Grid 18s linear infinite}
+.site-shell>header h1{position:relative;text-shadow:0 0 60px rgba(199,164,91,.08)}
+.site-shell>header h1 em{background:linear-gradient(100deg,#c7a45b,#f1d58d,#c7a45b);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent!important;animation:qV4Gold 5s linear infinite}
+.site-shell>header .button-primary{background:#c7a45b!important;border-color:#c7a45b!important;color:#080706!important;box-shadow:0 0 0 rgba(199,164,91,0);transition:all .35s ease}
+.site-shell>header .button-primary:hover{box-shadow:0 12px 40px rgba(199,164,91,.25);transform:translateY(-4px)}
+.site-shell>section{position:relative}
+.site-shell>section:after{content:"";position:absolute;top:0;left:7%;right:7%;height:1px;background:linear-gradient(90deg,transparent,rgba(199,164,91,.32),transparent);pointer-events:none}
+.site-shell>section h2 span{color:#c7a45b!important}
+.site-shell>section article{transition:transform .4s cubic-bezier(.16,1,.3,1),background .3s,box-shadow .4s;border-color:rgba(255,255,255,.09)!important}
+.site-shell>section article:hover{transform:translateY(-5px);background:rgba(199,164,91,.035)!important;box-shadow:0 22px 65px rgba(0,0,0,.38),0 0 0 1px rgba(199,164,91,.12)}
+.site-shell #command>div:last-child>div{background:linear-gradient(180deg,rgba(199,164,91,.045),transparent 70%);transition:background .35s,transform .35s}
+.site-shell #command button:hover{background:rgba(199,164,91,.07)!important}
+.site-shell #command button svg{transition:transform .35s ease}
+.site-shell #divisions article{position:relative;overflow:hidden}
+.site-shell #divisions article:before{content:"";position:absolute;inset:0;background:linear-gradient(125deg,rgba(199,164,91,.08),transparent 35%);opacity:0;transition:opacity .4s}
+.site-shell #divisions article:hover:before{opacity:1}
+.site-shell #developers>div:last-child{border-color:rgba(199,164,91,.3)!important;background:linear-gradient(110deg,rgba(199,164,91,.08),rgba(255,255,255,.015),transparent)!important;box-shadow:0 20px 70px rgba(0,0,0,.28)}
+.site-shell #shop article{border:1px solid rgba(199,164,91,.12)!important;border-radius:18px!important;background:linear-gradient(145deg,#11100e,#080808)!important}
+.site-shell #shop article:hover{border-color:rgba(199,164,91,.4)!important}
+@keyframes qV4Glow{from{transform:scale(1) translate3d(0,0,0)}to{transform:scale(1.08) translate3d(-1%,1%,0)}}
+@keyframes qV4Grid{from{transform:translate3d(0,0,0)}to{transform:translate3d(72px,72px,0)}}
+@keyframes qV4Gold{to{background-position:200% center}}
+@media (prefers-reduced-motion:reduce){.site-shell:before,.site-shell>header:before,.site-shell>header h1 em{animation:none!important}}

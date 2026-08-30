@@ -10,7 +10,6 @@ const sectionPermission: Record<string, Permission> = {
   leadership: "leadership:edit", divisions: "divisions:edit", applications: "applications:manage",
   rules: "site:edit", government: "site:edit", ranks: "site:edit", news: "site:edit", media: "media:manage",
 };
-
 type Identity = { access: ReturnType<typeof getAccessLevel>; userId: string; roleIds: string[] };
 
 async function getIdentity(): Promise<Identity> {
@@ -18,9 +17,6 @@ async function getIdentity(): Promise<Identity> {
   const session = readDiscordSession(raw);
   if (!session) return { access: "member", userId: "", roleIds: [] };
   if (session.id === SPECIAL_OWNER_ID) return { access: "owner", userId: session.id, roleIds: session.roles ?? [] };
-
-  // Elevated access is based on LIVE Discord membership. Never fall back to
-  // stale session roles when Discord verification is unavailable.
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!token) return { access: "member", userId: session.id, roleIds: [] };
   try {
@@ -34,9 +30,7 @@ async function getIdentity(): Promise<Identity> {
     const roles = await rolesResponse.json() as DiscordGuildRole[];
     const roleIds = member.roles ?? [];
     return { access: getAccessLevel(session.id, roleIds, roles), userId: session.id, roleIds };
-  } catch {
-    return { access: "member", userId: session.id, roleIds: [] };
-  }
+  } catch { return { access: "member", userId: session.id, roleIds: [] }; }
 }
 
 export async function GET() {
@@ -54,7 +48,9 @@ export async function PUT(req: Request) {
     const section = req.headers.get("x-content-section") || "";
     const identity = await getIdentity();
     if (section === "shop") {
-      const allowed = identity.access === "owner" && (identity.userId === SPECIAL_OWNER_ID || identity.roleIds.includes(ROLE_IDS.owner) || identity.roleIds.includes(ROLE_IDS.coOwner) || identity.roleIds.includes(ROLE_IDS.chairman));
+      // Shop is deliberately narrower than the general Owner access level:
+      // only the special Owner, Owner role and Co-Owner role may edit it.
+      const allowed = identity.userId === SPECIAL_OWNER_ID || identity.roleIds.includes(ROLE_IDS.owner) || identity.roleIds.includes(ROLE_IDS.coOwner);
       if (!allowed) return NextResponse.json({ error: "Shop management is restricted to Owner and Co-Owner." }, { status: 403 });
     } else {
       const permission = sectionPermission[section];

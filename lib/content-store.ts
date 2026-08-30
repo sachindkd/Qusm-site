@@ -4,48 +4,54 @@ import { readDbContent, writeDbContent, writeDbSection } from "./db";
 const useDatabase = () => Boolean(process.env.DATABASE_URL);
 
 /**
- * Read the authoritative CMS state.
- *
- * CMS data must not use an in-memory cache: Vercel can serve different requests
- * from different serverless instances, so a process-local cache can make a
- * successful save appear to have disappeared on the public site.
+ * Database is the single source of truth. On an older installation the DB may
+ * contain the pre-CMS schema, so merge only genuinely missing sections from the
+ * current seed/default content and persist that migration once.
  */
 export async function loadContent(): Promise<Content> {
-  if (!useDatabase()) return getFileContent();
+  const seed = await getFileContent();
+  if (!useDatabase()) return seed;
 
   const stored = await readDbContent();
-  if (stored) return stored;
+  if (!stored) {
+    await writeDbContent(seed);
+    return seed;
+  }
 
-  // First deployment: seed the persistent database from the existing content source.
-  const initial = await getFileContent();
-  await writeDbContent(initial);
-  return initial;
+  const merged: any = { ...seed, ...stored, org: { ...(seed.org || {}), ...(stored.org || {}) } };
+  let changed = false;
+  for (const key of Object.keys(seed)) {
+    if (!(key in stored) || stored[key as keyof Content] === undefined || stored[key as keyof Content] === null) {
+      merged[key] = seed[key as keyof Content];
+      changed = true;
+    }
+  }
+  if (!("shop" in merged)) { merged.shop = []; changed = true; }
+
+  if (changed) await writeDbContent(merged as Content);
+  return merged as Content;
 }
 
 export async function persistContent(content: Content): Promise<void> {
-  if (useDatabase()) {
-    await writeDbContent(content);
-    return;
-  }
+  if (useDatabase()) { await writeDbContent(content); return; }
   await saveFileContent(content);
 }
 
 export async function persistSection<K extends keyof Content>(section: K, value: Content[K]): Promise<Content> {
   if (useDatabase()) {
-    const current = await readDbContent();
+    const current: any = await readDbContent();
     if (!current) {
-      const initial = await getFileContent();
-      const next = { ...initial, [section]: value } as Content;
-      await writeDbContent(next);
-      return next;
+      const initial: any = await getFileContent();
+      initial[section as string] = value;
+      await writeDbContent(initial as Content);
+      return initial as Content;
     }
     return writeDbSection(String(section), value);
   }
-
-  const current = await getFileContent();
-  const next = { ...current, [section]: value } as Content;
-  await saveFileContent(next);
-  return next;
+  const current: any = await getFileContent();
+  current[section as string] = value;
+  await saveFileContent(current as Content);
+  return current as Content;
 }
 
 export const readContent = loadContent;

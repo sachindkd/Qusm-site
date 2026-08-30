@@ -10,6 +10,7 @@ const sectionPermission: Record<string, Permission> = {
   leadership: "leadership:edit", divisions: "divisions:edit", applications: "applications:manage",
   rules: "site:edit", government: "site:edit", ranks: "site:edit", news: "site:edit", media: "media:manage",
 };
+
 type Identity = { access: ReturnType<typeof getAccessLevel>; userId: string; roleIds: string[] };
 
 async function getIdentity(): Promise<Identity> {
@@ -30,14 +31,16 @@ async function getIdentity(): Promise<Identity> {
     const roles = await rolesResponse.json() as DiscordGuildRole[];
     const roleIds = member.roles ?? [];
     return { access: getAccessLevel(session.id, roleIds, roles), userId: session.id, roleIds };
-  } catch { return { access: "member", userId: session.id, roleIds: [] }; }
+  } catch {
+    return { access: "member", userId: session.id, roleIds: [] };
+  }
 }
 
 export async function GET() {
   try {
     const c = await readContent();
     const { applications: _private, ...publicContent } = c;
-    return NextResponse.json(publicContent, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(publicContent, { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } });
   } catch { return NextResponse.json({ error: "Content store unavailable" }, { status: 503 }); }
 }
 
@@ -47,9 +50,10 @@ export async function PUT(req: Request) {
     if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Invalid content" }, { status: 400 });
     const section = req.headers.get("x-content-section") || "";
     const identity = await getIdentity();
+
+    // Shop is intentionally narrower than general Owner access: only the
+    // designated special owner or the actual Owner/Co-Owner Discord roles.
     if (section === "shop") {
-      // Shop is deliberately narrower than the general Owner access level:
-      // only the special Owner, Owner role and Co-Owner role may edit it.
       const allowed = identity.userId === SPECIAL_OWNER_ID || identity.roleIds.includes(ROLE_IDS.owner) || identity.roleIds.includes(ROLE_IDS.coOwner);
       if (!allowed) return NextResponse.json({ error: "Shop management is restricted to Owner and Co-Owner." }, { status: 403 });
     } else {
@@ -57,6 +61,7 @@ export async function PUT(req: Request) {
       if (!permission) return NextResponse.json({ error: "Missing or invalid content section" }, { status: 400 });
       if (!can(identity.access, permission)) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
+
     const value = body[section];
     const valid = section === "org" ? !!value && typeof value === "object" && !Array.isArray(value) : Array.isArray(value);
     if (!valid) return NextResponse.json({ error: section === "org" ? "Settings must be an object" : "Section must be an array" }, { status: 400 });

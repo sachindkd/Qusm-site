@@ -78,7 +78,11 @@ function avatarUrl(member: DiscordMember) {
     const ext = member.user.avatar.startsWith("a_") ? "gif" : "png";
     return `https://cdn.discordapp.com/avatars/${userId}/${member.user.avatar}.${ext}?size=256&quality=90`;
   }
-  const index = Number(BigInt(userId) % 6n);
+
+  // Discord snowflakes are too large for a normal JS Number. We only need a
+  // deterministic default-avatar index, so use the final six decimal digits.
+  const suffix = userId.slice(-6);
+  const index = Number.parseInt(suffix, 10) % 6;
   return `https://cdn.discordapp.com/embed/avatars/${index}.png`;
 }
 

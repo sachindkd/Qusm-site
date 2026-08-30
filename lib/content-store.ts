@@ -2,33 +2,35 @@ import { getContent as getFileContent, saveContent as saveFileContent, type Cont
 import { readDbContent, writeDbContent, writeDbSection } from "./db";
 
 const useDatabase = () => Boolean(process.env.DATABASE_URL);
+const CMS_SCHEMA_VERSION = 2;
 
-/**
- * Database is the single source of truth. On an older installation the DB may
- * contain the pre-CMS schema, so merge only genuinely missing sections from the
- * current seed/default content and persist that migration once.
- */
+/** Database is the single source of truth. Older DB records are migrated once. */
 export async function loadContent(): Promise<Content> {
-  const seed = await getFileContent();
-  if (!useDatabase()) return seed;
+  const seed: any = await getFileContent();
+  if (!useDatabase()) return seed as Content;
 
-  const stored = await readDbContent();
+  const stored: any = await readDbContent();
   if (!stored) {
-    await writeDbContent(seed);
-    return seed;
+    seed.shop = Array.isArray(seed.shop) ? seed.shop : [];
+    seed._schemaVersion = CMS_SCHEMA_VERSION;
+    await writeDbContent(seed as Content);
+    return seed as Content;
   }
 
+  const migrationNeeded = Number(stored._schemaVersion || 0) < CMS_SCHEMA_VERSION;
+  if (!migrationNeeded) return stored as Content;
+
+  // Import the records that were already visible in the legacy website/content
+  // source, while preserving any non-empty records staff have already created.
   const merged: any = { ...seed, ...stored, org: { ...(seed.org || {}), ...(stored.org || {}) } };
-  let changed = false;
-  for (const key of Object.keys(seed)) {
-    if (!(key in stored) || stored[key as keyof Content] === undefined || stored[key as keyof Content] === null) {
-      merged[key] = seed[key as keyof Content];
-      changed = true;
-    }
+  const arraySections = ["announcements","calendar","leadership","divisions","rules","government","ranks","news","media","applications","cocLeadership","cocStaff","cocRoleplay"];
+  for (const key of arraySections) {
+    const current = stored[key];
+    if (!Array.isArray(current) || (current.length === 0 && Array.isArray(seed[key]) && seed[key].length > 0)) merged[key] = seed[key];
   }
-  if (!("shop" in merged)) { merged.shop = []; changed = true; }
-
-  if (changed) await writeDbContent(merged as Content);
+  merged.shop = Array.isArray(stored.shop) ? stored.shop : [];
+  merged._schemaVersion = CMS_SCHEMA_VERSION;
+  await writeDbContent(merged as Content);
   return merged as Content;
 }
 
@@ -43,6 +45,7 @@ export async function persistSection<K extends keyof Content>(section: K, value:
     if (!current) {
       const initial: any = await getFileContent();
       initial[section as string] = value;
+      initial._schemaVersion = CMS_SCHEMA_VERSION;
       await writeDbContent(initial as Content);
       return initial as Content;
     }

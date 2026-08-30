@@ -20,33 +20,9 @@ export const ROLE_IDS = {
   developerPosts: "1506466679100801196",
 } as const;
 
-export type AccessLevel =
-  | "owner"
-  | "management"
-  | "senior-leadership"
-  | "developer"
-  | "aide"
-  | "staff"
-  | "member";
-
-export type Permission =
-  | "site:read"
-  | "site:edit"
-  | "leadership:edit"
-  | "divisions:edit"
-  | "announcements:manage"
-  | "calendar:manage"
-  | "developer:publish"
-  | "applications:manage"
-  | "media:manage"
-  | "admin:all";
-
-export type DiscordGuildRole = {
-  id: string;
-  name: string;
-  position: number;
-  managed?: boolean;
-};
+export type AccessLevel = "owner" | "management" | "senior-leadership" | "developer" | "aide" | "staff" | "member";
+export type Permission = "site:read" | "site:edit" | "leadership:edit" | "divisions:edit" | "announcements:manage" | "calendar:manage" | "developer:publish" | "applications:manage" | "media:manage" | "admin:all";
+export type DiscordGuildRole = { id: string; name: string; position: number; managed?: boolean };
 
 const permissions: Record<AccessLevel, Permission[]> = {
   owner: ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "calendar:manage", "developer:publish", "applications:manage", "media:manage", "admin:all"],
@@ -58,37 +34,23 @@ const permissions: Record<AccessLevel, Permission[]> = {
   member: ["site:read"],
 };
 
-const accessRank: Record<AccessLevel, number> = {
-  member: 0,
-  staff: 1,
-  aide: 2,
-  developer: 2,
-  "senior-leadership": 3,
-  management: 4,
-  owner: 5,
-};
+const accessRank: Record<AccessLevel, number> = { member: 0, staff: 1, aide: 2, developer: 2, "senior-leadership": 3, management: 4, owner: 5 };
 
 function accessForRole(roleId: string): AccessLevel {
   if (roleId === ROLE_IDS.owner || roleId === ROLE_IDS.coOwner || roleId === ROLE_IDS.chairman) return "owner";
-  if (roleId === ROLE_IDS.headManagement) return "management";
-  if ([ROLE_IDS.generalManager, ROLE_IDS.headOperations, ROLE_IDS.headAdministration, ROLE_IDS.communityAffairs, ROLE_IDS.ceo, ROLE_IDS.headDepartment, ROLE_IDS.viceChairman, ROLE_IDS.seniorManagement].includes(roleId as never)) return "senior-leadership";
+  // Senior Management intentionally belongs to Management.
+  if (roleId === ROLE_IDS.headManagement || roleId === ROLE_IDS.seniorManagement) return "management";
+  if ([ROLE_IDS.generalManager, ROLE_IDS.headOperations, ROLE_IDS.headAdministration, ROLE_IDS.communityAffairs, ROLE_IDS.ceo, ROLE_IDS.headDepartment, ROLE_IDS.viceChairman].includes(roleId as never)) return "senior-leadership";
   if (roleId === ROLE_IDS.headDevelopment || roleId === ROLE_IDS.developerPosts) return "developer";
   if (roleId === ROLE_IDS.aides) return "aide";
   if (roleId === ROLE_IDS.staff) return "staff";
   return "member";
 }
 
-export function getAccessLevel(userId: string, roleIds: string[], roles?: DiscordGuildRole[]): AccessLevel {
+export function getAccessLevel(userId: string, roleIds: string[], _roles?: DiscordGuildRole[]): AccessLevel {
   if (userId === SPECIAL_OWNER_ID) return "owner";
-
-  const assigned = roleIds.map(accessForRole);
-  return assigned.reduce<AccessLevel>((highest, current) => accessRank[current] > accessRank[highest] ? current : highest, "member");
+  return roleIds.map(accessForRole).reduce<AccessLevel>((highest, current) => accessRank[current] > accessRank[highest] ? current : highest, "member");
 }
 
-export function can(access: AccessLevel, permission: Permission): boolean {
-  return permissions[access].includes(permission);
-}
-
-export function getPermissions(access: AccessLevel): Permission[] {
-  return permissions[access];
-}
+export function can(access: AccessLevel, permission: Permission): boolean { return permissions[access].includes(permission); }
+export function getPermissions(access: AccessLevel): Permission[] { return permissions[access]; }

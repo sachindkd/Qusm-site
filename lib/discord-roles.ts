@@ -18,38 +18,63 @@ export const ROLE_IDS = {
   seniorManagement: "1531899271614562314",
   headDevelopment: "1478156027244314825",
   developerPosts: "1506466679100801196",
+  // Optional: set DISCORD_OFC_ADMIN_ROLE_ID in Vercel when the Discord role exists.
+  ofcAdmin: process.env.DISCORD_OFC_ADMIN_ROLE_ID || "",
 } as const;
 
-export type AccessLevel = "owner" | "management" | "senior-leadership" | "developer" | "aide" | "staff" | "member";
+export type AccessLevel = "owner" | "ownership" | "senior-leadership" | "developer" | "aide" | "staff" | "member";
 export type Permission = "site:read" | "site:edit" | "leadership:edit" | "divisions:edit" | "announcements:manage" | "calendar:manage" | "developer:publish" | "applications:manage" | "media:manage" | "admin:all";
 export type DiscordGuildRole = { id: string; name: string; position: number; managed?: boolean };
 
+// Permission tiers follow the requested Chain of Command:
+// Chairman Board + Owner/Co-Owner/Special User/OFC Admin = full control.
+// Ownership Team = almost full control, but no developer publishing/admin-all.
+// Senior Leadership = limited operational/CMS permissions.
 const permissions: Record<AccessLevel, Permission[]> = {
   owner: ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "calendar:manage", "developer:publish", "applications:manage", "media:manage", "admin:all"],
-  management: ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "calendar:manage", "applications:manage", "media:manage"],
-  "senior-leadership": ["site:read", "leadership:edit", "divisions:edit", "announcements:manage", "calendar:manage", "applications:manage"],
+  ownership: ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "calendar:manage", "applications:manage", "media:manage"],
+  "senior-leadership": ["site:read", "leadership:edit", "announcements:manage", "calendar:manage", "applications:manage"],
   developer: ["site:read", "developer:publish", "media:manage"],
   aide: ["site:read", "announcements:manage", "calendar:manage"],
   staff: ["site:read"],
   member: ["site:read"],
 };
 
-const accessRank: Record<AccessLevel, number> = { member: 0, staff: 1, aide: 2, developer: 2, "senior-leadership": 3, management: 4, owner: 5 };
+const accessRank: Record<AccessLevel, number> = { member: 0, staff: 1, aide: 2, developer: 2, "senior-leadership": 3, ownership: 4, owner: 5 };
 
-function accessForRole(roleId: string): AccessLevel {
-  if (roleId === ROLE_IDS.owner || roleId === ROLE_IDS.coOwner || roleId === ROLE_IDS.chairman) return "owner";
-  // Senior Management intentionally belongs to Management.
-  if (roleId === ROLE_IDS.headManagement || roleId === ROLE_IDS.seniorManagement) return "management";
-  if ([ROLE_IDS.generalManager, ROLE_IDS.headOperations, ROLE_IDS.headAdministration, ROLE_IDS.communityAffairs, ROLE_IDS.ceo, ROLE_IDS.headDepartment, ROLE_IDS.viceChairman].includes(roleId as never)) return "senior-leadership";
-  if (roleId === ROLE_IDS.headDevelopment || roleId === ROLE_IDS.developerPosts) return "developer";
-  if (roleId === ROLE_IDS.aides) return "aide";
-  if (roleId === ROLE_IDS.staff) return "staff";
+function accessForRole(roleId: string, roleName = ""): AccessLevel {
+  const normalizedName = roleName.trim().toLowerCase();
+
+  // Top-level access: Chairman Board, Owner, Co-Owner, Special User and OFC Admin.
+  if (
+    roleId === ROLE_IDS.owner ||
+    roleId === ROLE_IDS.coOwner ||
+    roleId === ROLE_IDS.chairman ||
+    (ROLE_IDS.ofcAdmin && roleId === ROLE_IDS.ofcAdmin) ||
+    ["owner", "co-owner", "co owner", "chairman", "special user", "ofc admin", "official admin"].includes(normalizedName)
+  ) return "owner";
+
+  // Ownership Team: almost full site/CMS permissions.
+  if ([ROLE_IDS.headOperations, ROLE_IDS.headAdministration, ROLE_IDS.communityAffairs, ROLE_IDS.ceo, ROLE_IDS.headDevelopment].includes(roleId as never)) return "ownership";
+  if (["chief operations officer", "chief logistic officer", "chief logistics officer", "chief relations officer", "head of development"].includes(normalizedName)) return "ownership";
+
+  // Senior Management is treated as ownership-level CMS access.
+  if (roleId === ROLE_IDS.headManagement || roleId === ROLE_IDS.seniorManagement) return "ownership";
+  if ([ROLE_IDS.generalManager, ROLE_IDS.headDepartment, ROLE_IDS.viceChairman].includes(roleId as never)) return "senior-leadership";
+  if (["general manager", "director of national intelligence", "staff overseer", "vice chairman", "head of staff", "assistant head of staff", "administrative officer"].includes(normalizedName)) return "senior-leadership";
+
+  if (roleId === ROLE_IDS.developerPosts) return "developer";
+  if (roleId === ROLE_IDS.aides || normalizedName === "aide" || normalizedName === "aides") return "aide";
+  if (roleId === ROLE_IDS.staff || normalizedName === "staff") return "staff";
   return "member";
 }
 
-export function getAccessLevel(userId: string, roleIds: string[], _roles?: DiscordGuildRole[]): AccessLevel {
+export function getAccessLevel(userId: string, roleIds: string[], roles: DiscordGuildRole[] = []): AccessLevel {
   if (userId === SPECIAL_OWNER_ID) return "owner";
-  return roleIds.map(accessForRole).reduce<AccessLevel>((highest, current) => accessRank[current] > accessRank[highest] ? current : highest, "member");
+  return roleIds.map((roleId) => {
+    const role = roles.find((item) => item.id === roleId);
+    return accessForRole(roleId, role?.name || "");
+  }).reduce<AccessLevel>((highest, current) => accessRank[current] > accessRank[highest] ? current : highest, "member");
 }
 
 export function can(access: AccessLevel, permission: Permission): boolean { return permissions[access].includes(permission); }

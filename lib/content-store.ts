@@ -2,11 +2,25 @@ import { getContent as getFileContent, saveContent as saveFileContent, type Cont
 import { readDbContent, writeDbContent, writeDbSection } from "./db";
 
 const useDatabase = () => Boolean(process.env.DATABASE_URL);
+const isVercelDeployment = () => Boolean(process.env.VERCEL);
 const CMS_SCHEMA_VERSION = 3;
+
+/**
+ * Vercel Preview and Production must use the configured DATABASE_URL so the
+ * staff panel and public/member site always share the same CMS record.
+ * There is deliberately no silent file/Discord fallback on Vercel when the
+ * database variable is missing; that would create a split-brain CMS.
+ */
+function assertDatabaseConfiguration() {
+  if (isVercelDeployment() && !useDatabase()) {
+    throw new Error("DATABASE_URL is required for Vercel CMS deployments");
+  }
+}
 
 /** Database is the source of truth. The first migration also imports any legacy
  * records that are still present in the bundled content source. */
 export async function loadContent(): Promise<Content> {
+  assertDatabaseConfiguration();
   const seed: any = await getFileContent();
   if (!useDatabase()) return seed as Content;
 
@@ -45,6 +59,7 @@ export async function loadContent(): Promise<Content> {
 }
 
 export async function persistContent(content: Content): Promise<void> {
+  assertDatabaseConfiguration();
   if (useDatabase()) {
     await writeDbContent(content);
     return;
@@ -53,6 +68,7 @@ export async function persistContent(content: Content): Promise<void> {
 }
 
 export async function persistSection<K extends keyof Content>(section: K, value: Content[K]): Promise<Content> {
+  assertDatabaseConfiguration();
   if (useDatabase()) {
     const current: any = await readDbContent();
     if (!current) {

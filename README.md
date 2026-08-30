@@ -14,6 +14,10 @@ The public website and Staff Management panel now use one persistent content sou
 
 The public site reads `/api/content` with `no-store` and refreshes every 15 seconds, so staff changes do not require a new deployment. This is intentionally request-time/live data rather than build-time content.
 
+## Public website motion
+
+The `/live` homepage uses Framer Motion for reveal/entry transitions and CSS motion for the hero grid, ambient lines, glow, card, ticker, icons, and interactive hover states. The animation layer is part of the production page rather than a static placeholder.
+
 ## Staff-editable content
 
 The Staff Management panel controls:
@@ -48,4 +52,4 @@ Developer Media supports images and videos. The application enforces an 8 MB per
 
 The GitHub repository is connected to Vercel. Pushes to `main` trigger production deployments automatically.
 
-After a content/code change, verify the newest Vercel deployment before making another patch.
+This commit intentionally refreshes the production deployment after verifying the live homepage animation layer. Verify the newest Vercel deployment before making another patch.

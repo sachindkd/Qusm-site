@@ -38,7 +38,7 @@ export async function GET() {
         id: m.user.id,
         username: m.user.username,
         displayName: m.nick || m.user.global_name || m.user.username,
-        avatar: m.avatar ? `https://cdn.discordapp.com/guilds/${process.env.DISCORD_GUILD_ID}/users/${m.user.id}/avatars/${m.avatar}.png?size=256` : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(m.user.id) >> 22n) % 5}.png`,
+        avatar: m.avatar ? `https://cdn.discordapp.com/guilds/${process.env.DISCORD_GUILD_ID}/users/${m.user.id}/avatars/${m.avatar}.png?size=256` : `https://cdn.discordapp.com/embed/avatars/${parseInt(m.user.id, 10) % 5}.png`,
         roleId,
       }))];
     }));

@@ -37,7 +37,8 @@ export async function GET(request: Request) {
   const member = await memberRes.json();
   const roles = Array.isArray(member.roles) ? member.roles : [];
   const access = getAccessLevel(user.id, roles);
-  const response = NextResponse.redirect(new URL("/staff", url.origin));
+  const destination = access === "member" ? "/member" : "/staff";
+  const response = NextResponse.redirect(new URL(destination, url.origin));
   response.cookies.set(DISCORD_SESSION_COOKIE, serializeDiscordSession({ id: user.id, username: user.username, avatar: user.avatar, roles, access }), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

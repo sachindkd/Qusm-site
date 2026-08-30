@@ -4,7 +4,7 @@ const ROLE_IDS = {
   owner: "1430245086930669579",
   chairman: "1501042310320881834",
   coOwner: process.env.DISCORD_CO_OWNER_ROLE_ID || "",
-  viceChairman: process.env.DISCORD_VICE_CHAIRMAN_ROLE_ID || "",
+  viceChairman: "1538516021608972318",
 } as const;
 
 const TTL = 60_000;
@@ -21,8 +21,7 @@ async function getGuildMembers() {
     if (after !== "0") url.searchParams.set("after", after);
     const r = await fetch(url, { headers: { Authorization: `Bot ${token}` }, next: { revalidate: 60 } });
     if (!r.ok) throw new Error(`Discord API ${r.status}`);
-    const batch = await r.json();
-    out.push(...batch);
+    const batch = await r.json(); out.push(...batch);
     if (batch.length < 1000) break;
     after = batch[batch.length - 1].user.id;
   }
@@ -35,39 +34,22 @@ async function getPresence(userId: string) {
     if (!r.ok) return { status: "offline", activities: [] };
     const d = await r.json();
     return { status: d?.data?.discord_status || "offline", activities: d?.data?.activities || [] };
-  } catch {
-    return { status: "offline", activities: [] };
-  }
+  } catch { return { status: "offline", activities: [] }; }
 }
 
 export async function GET() {
   try {
     if (cache && Date.now() - cache.at < TTL) return NextResponse.json(cache.data);
-    const members = await getGuildMembers();
-    const result: any = {};
+    const members = await getGuildMembers(); const result: any = {};
     for (const [key, roleId] of Object.entries(ROLE_IDS)) {
       if (!roleId) { result[key] = []; continue; }
       const roleMembers = members.filter((m: any) => m.roles?.includes(roleId));
       result[key] = await Promise.all(roleMembers.map(async (m: any) => {
         const presence = await getPresence(m.user.id);
-        const avatar = m.avatar
-          ? `https://cdn.discordapp.com/guilds/${process.env.DISCORD_GUILD_ID}/users/${m.user.id}/avatars/${m.avatar}.png?size=256`
-          : `https://cdn.discordapp.com/embed/avatars/${Number(m.user.discriminator || 0) % 5}.png`;
-        return {
-          id: m.user.id,
-          username: m.user.username,
-          displayName: m.nick || m.user.global_name || m.user.username,
-          avatar,
-          roleId,
-          status: presence.status,
-          statusLabel: presence.status.charAt(0).toUpperCase() + presence.status.slice(1),
-          activities: presence.activities,
-        };
+        const avatar = m.avatar ? `https://cdn.discordapp.com/guilds/${process.env.DISCORD_GUILD_ID}/users/${m.user.id}/avatars/${m.avatar}.png?size=256` : `https://cdn.discordapp.com/embed/avatars/${Number(m.user.discriminator || 0) % 5}.png`;
+        return { id:m.user.id, username:m.user.username, displayName:m.nick||m.user.global_name||m.user.username, avatar, roleId, status:presence.status, statusLabel:presence.status.charAt(0).toUpperCase()+presence.status.slice(1), activities:presence.activities };
       }));
     }
-    cache = { at: Date.now(), data: result };
-    return NextResponse.json(result, { headers: { "Cache-Control": "public, max-age=60" } });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message || "Unable to load Discord leadership" }, { status: 503 });
-  }
+    cache={at:Date.now(),data:result}; return NextResponse.json(result,{headers:{"Cache-Control":"public, max-age=60"}});
+  } catch (e:any) { return NextResponse.json({error:e.message||"Unable to load Discord leadership"},{status:503}); }
 }

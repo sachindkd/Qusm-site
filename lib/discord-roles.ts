@@ -49,40 +49,23 @@ export type DiscordGuildRole = {
 };
 
 const permissions: Record<AccessLevel, Permission[]> = {
-  owner: [
-    "site:read",
-    "site:edit",
-    "leadership:edit",
-    "divisions:edit",
-    "announcements:manage",
-    "calendar:manage",
-    "developer:publish",
-    "applications:manage",
-    "media:manage",
-    "admin:all",
-  ],
-  management: [
-    "site:read",
-    "site:edit",
-    "leadership:edit",
-    "divisions:edit",
-    "announcements:manage",
-    "calendar:manage",
-    "applications:manage",
-    "media:manage",
-  ],
-  "senior-leadership": [
-    "site:read",
-    "leadership:edit",
-    "divisions:edit",
-    "announcements:manage",
-    "calendar:manage",
-    "applications:manage",
-  ],
+  owner: ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "calendar:manage", "developer:publish", "applications:manage", "media:manage", "admin:all"],
+  management: ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "calendar:manage", "applications:manage", "media:manage"],
+  "senior-leadership": ["site:read", "leadership:edit", "divisions:edit", "announcements:manage", "calendar:manage", "applications:manage"],
   developer: ["site:read", "developer:publish", "media:manage"],
   aide: ["site:read", "announcements:manage", "calendar:manage"],
   staff: ["site:read"],
   member: ["site:read"],
+};
+
+const accessRank: Record<AccessLevel, number> = {
+  member: 0,
+  staff: 1,
+  aide: 2,
+  developer: 2,
+  "senior-leadership": 3,
+  management: 4,
+  owner: 5,
 };
 
 function accessForRole(roleId: string): AccessLevel {
@@ -96,19 +79,10 @@ function accessForRole(roleId: string): AccessLevel {
 }
 
 export function getAccessLevel(userId: string, roleIds: string[], roles?: DiscordGuildRole[]): AccessLevel {
-  // This account is the designated site owner. Do this check first so owner
-  // access never depends on Discord role lookup/API availability.
   if (userId === SPECIAL_OWNER_ID) return "owner";
 
-  if (roles?.length) {
-    const highestAssignedRole = roles
-      .filter((role) => roleIds.includes(role.id) && !role.managed)
-      .sort((a, b) => b.position - a.position)[0];
-    return highestAssignedRole ? accessForRole(highestAssignedRole.id) : "member";
-  }
-
-  const knownRole = Object.values(ROLE_IDS).find((roleId) => roleIds.includes(roleId));
-  return knownRole ? accessForRole(knownRole) : "member";
+  const assigned = roleIds.map(accessForRole);
+  return assigned.reduce<AccessLevel>((highest, current) => accessRank[current] > accessRank[highest] ? current : highest, "member");
 }
 
 export function can(access: AccessLevel, permission: Permission): boolean {

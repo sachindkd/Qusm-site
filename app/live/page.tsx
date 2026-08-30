@@ -1,7 +1,7 @@
-import LiveHomeV3 from "./LiveHomeV3";
+import LiveHomeRevamp from "./LiveHomeRevamp2";
 
 export const dynamic = "force-dynamic";
 
 export default function LivePage() {
-  return <LiveHomeV3 />;
+  return <LiveHomeRevamp />;
 }

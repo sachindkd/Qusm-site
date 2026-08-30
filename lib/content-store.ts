@@ -3,22 +3,16 @@ import { readDbContent, writeDbContent, writeDbSection } from "./db";
 
 const useDatabase = () => Boolean(process.env.DATABASE_URL);
 const isVercelDeployment = () => Boolean(process.env.VERCEL);
-const CMS_SCHEMA_VERSION = 3;
+const CMS_SCHEMA_VERSION = 4;
 
-/**
- * Vercel Preview and Production must use the configured DATABASE_URL so the
- * staff panel and public/member site always share the same CMS record.
- * There is deliberately no silent file/Discord fallback on Vercel when the
- * database variable is missing; that would create a split-brain CMS.
- */
 function assertDatabaseConfiguration() {
   if (isVercelDeployment() && !useDatabase()) {
     throw new Error("DATABASE_URL is required for Vercel CMS deployments");
   }
 }
 
-/** Database is the source of truth. The first migration also imports any legacy
- * records that are still present in the bundled content source. */
+/** Database is the source of truth. The bundled content is only used for first-time
+ * initialization and explicit schema migrations. */
 export async function loadContent(): Promise<Content> {
   assertDatabaseConfiguration();
   const seed: any = await getFileContent();
@@ -32,7 +26,8 @@ export async function loadContent(): Promise<Content> {
     return seed as Content;
   }
 
-  const migrationNeeded = Number(stored._schemaVersion || 0) < CMS_SCHEMA_VERSION;
+  const previousVersion = Number(stored._schemaVersion || 0);
+  const migrationNeeded = previousVersion < CMS_SCHEMA_VERSION;
   if (!migrationNeeded) return stored as Content;
 
   const merged: any = {
@@ -51,6 +46,15 @@ export async function loadContent(): Promise<Content> {
     if (!Array.isArray(current) || (current.length === 0 && Array.isArray(seed[key]) && seed[key].length > 0)) {
       merged[key] = seed[key];
     }
+  }
+
+  // Version 4 explicitly replaces the old Chain of Command records with the
+  // approved hierarchy from the current CoC specification. This prevents the
+  // legacy three-person leadership list from surviving in the shared database.
+  if (previousVersion < 4) {
+    merged.cocLeadership = seed.cocLeadership || [];
+    merged.cocStaff = seed.cocStaff || [];
+    merged.cocRoleplay = seed.cocRoleplay || [];
   }
 
   merged._schemaVersion = CMS_SCHEMA_VERSION;

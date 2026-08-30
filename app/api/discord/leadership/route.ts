@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 const ROLE_IDS = {
   owner: "1430245086930669579",
   chairman: "1501042310320881834",
-  coOwner: process.env.DISCORD_CO_OWNER_ROLE_ID || "",
+  coOwner: "1530961653103853669",
   viceChairman: "1538516021608972318",
 } as const;
 
@@ -42,7 +42,6 @@ export async function GET() {
     if (cache && Date.now() - cache.at < TTL) return NextResponse.json(cache.data);
     const members = await getGuildMembers(); const result: any = {};
     for (const [key, roleId] of Object.entries(ROLE_IDS)) {
-      if (!roleId) { result[key] = []; continue; }
       const roleMembers = members.filter((m: any) => m.roles?.includes(roleId));
       result[key] = await Promise.all(roleMembers.map(async (m: any) => {
         const presence = await getPresence(m.user.id);

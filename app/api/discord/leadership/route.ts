@@ -21,10 +21,7 @@ type DiscordMember = {
   nick?: string | null;
   avatar?: string | null;
   roles?: string[];
-  presence?: {
-    status?: string;
-    activities?: any[];
-  };
+  presence?: { status?: string; activities?: any[] };
 };
 
 async function getGuildMembers(): Promise<DiscordMember[]> {
@@ -36,9 +33,6 @@ async function getGuildMembers(): Promise<DiscordMember[]> {
   for (let after = "0"; ; ) {
     const url = new URL(`https://discord.com/api/v10/guilds/${guild}/members`);
     url.searchParams.set("limit", "1000");
-    // Ask Discord for presence data in the same member response. This avoids
-    // making one external presence request per leader and keeps every profile
-    // tied to the exact member returned by the guild API.
     url.searchParams.set("with_presences", "true");
     if (after !== "0") url.searchParams.set("after", after);
 
@@ -56,63 +50,85 @@ async function getGuildMembers(): Promise<DiscordMember[]> {
   return out;
 }
 
+async function lanyardPresence(userId: string) {
+  try {
+    const r = await fetch(`https://api.lanyard.rest/v1/users/${userId}`, {
+      cache: "no-store",
+    });
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (!d?.success || !d?.data) return null;
+    return {
+      status: d.data.discord_status || "offline",
+      activities: Array.isArray(d.data.activities) ? d.data.activities : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 function avatarUrl(member: DiscordMember) {
   const guild = process.env.DISCORD_GUILD_ID;
   const userId = member.user.id;
 
-  // Prefer the guild avatar because it is the member's server-specific image.
   if (member.avatar && guild) {
     return `https://cdn.discordapp.com/guilds/${guild}/users/${userId}/avatars/${member.avatar}.png?size=256&quality=90`;
   }
-
-  // Fall back to the user's global Discord avatar instead of a shared/random
-  // placeholder. This is important when only some leadership members have a
-  // server-specific avatar.
   if (member.user.avatar) {
     const ext = member.user.avatar.startsWith("a_") ? "gif" : "png";
     return `https://cdn.discordapp.com/avatars/${userId}/${member.user.avatar}.${ext}?size=256&quality=90`;
   }
-
-  // Discord's default avatar is deterministic per account.
   const index = Number(BigInt(userId) % 6n);
   return `https://cdn.discordapp.com/embed/avatars/${index}.png`;
 }
 
-function presenceFor(member: DiscordMember) {
-  const status = member.presence?.status || "offline";
-  const activities = Array.isArray(member.presence?.activities)
-    ? member.presence!.activities
-    : [];
+function normalizePresence(status: string, activities: any[]) {
+  const safe = status || "offline";
   return {
-    status,
-    statusLabel: status.charAt(0).toUpperCase() + status.slice(1),
-    activities,
+    status: safe,
+    statusLabel: safe.charAt(0).toUpperCase() + safe.slice(1),
+    activities: Array.isArray(activities) ? activities : [],
   };
 }
 
 export async function GET() {
   try {
     if (cache && Date.now() - cache.at < TTL) {
-      return NextResponse.json(cache.data, {
-        headers: { "Cache-Control": "no-store" },
-      });
+      return NextResponse.json(cache.data, { headers: { "Cache-Control": "no-store" } });
     }
 
     const members = await getGuildMembers();
-    const result: any = {};
+    const leadership = members.filter((member) =>
+      Object.values(ROLE_IDS).some((roleId) => member.roles?.includes(roleId)),
+    );
 
-    // Build each role list independently. Never use a single profile/avatar
-    // object for a role: every Discord member keeps their own id/avatar/status.
+    // Discord member presence is preferred. Lanyard is only used for members
+    // for whom the REST response has no presence, so one user's data can never
+    // overwrite another user's profile or status.
+    const fallbackEntries = await Promise.all(
+      leadership
+        .filter((member) => !member.presence)
+        .map(async (member) => [member.user.id, await lanyardPresence(member.user.id)] as const),
+    );
+    const fallback = new Map(fallbackEntries);
+
+    const result: any = {};
     for (const [key, roleId] of Object.entries(ROLE_IDS)) {
       result[key] = members
         .filter((member) => member.roles?.includes(roleId))
         .map((member) => {
-          const presence = presenceFor(member);
+          const p = member.presence;
+          const fallbackPresence = fallback.get(member.user.id);
+          const presence = p?.status
+            ? normalizePresence(p.status, p.activities || [])
+            : fallbackPresence
+              ? normalizePresence(fallbackPresence.status, fallbackPresence.activities)
+              : normalizePresence("offline", []);
+
           return {
             id: member.user.id,
             username: member.user.username,
-            displayName:
-              member.nick || member.user.global_name || member.user.username,
+            displayName: member.nick || member.user.global_name || member.user.username,
             avatar: avatarUrl(member),
             roleId,
             status: presence.status,
@@ -123,9 +139,7 @@ export async function GET() {
     }
 
     cache = { at: Date.now(), data: result };
-    return NextResponse.json(result, {
-      headers: { "Cache-Control": "no-store" },
-    });
+    return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (e: any) {
     return NextResponse.json(
       { error: e.message || "Unable to load Discord leadership" },

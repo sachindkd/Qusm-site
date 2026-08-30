@@ -18,7 +18,6 @@ export const ROLE_IDS = {
   seniorManagement: "1531899271614562314",
   headDevelopment: "1478156027244314825",
   developerPosts: "1506466679100801196",
-  // Optional: set DISCORD_OFC_ADMIN_ROLE_ID in Vercel when the Discord role exists.
   ofcAdmin: process.env.DISCORD_OFC_ADMIN_ROLE_ID || "",
 } as const;
 
@@ -26,16 +25,12 @@ export type AccessLevel = "owner" | "ownership" | "senior-leadership" | "develop
 export type Permission = "site:read" | "site:edit" | "leadership:edit" | "divisions:edit" | "announcements:manage" | "calendar:manage" | "developer:publish" | "applications:manage" | "media:manage" | "admin:all";
 export type DiscordGuildRole = { id: string; name: string; position: number; managed?: boolean };
 
-// Permission tiers follow the requested Chain of Command:
-// Chairman Board + Owner/Co-Owner/Special User/OFC Admin = full control.
-// Ownership Team = almost full control, but no developer publishing/admin-all.
-// Senior Leadership = limited operational/CMS permissions.
 const permissions: Record<AccessLevel, Permission[]> = {
   owner: ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "calendar:manage", "developer:publish", "applications:manage", "media:manage", "admin:all"],
   ownership: ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "calendar:manage", "applications:manage", "media:manage"],
   "senior-leadership": ["site:read", "leadership:edit", "announcements:manage", "calendar:manage", "applications:manage"],
   developer: ["site:read", "developer:publish", "media:manage"],
-  aide: ["site:read", "announcements:manage", "calendar:manage"],
+  aide: [],
   staff: ["site:read"],
   member: ["site:read"],
 };
@@ -45,7 +40,6 @@ const accessRank: Record<AccessLevel, number> = { member: 0, staff: 1, aide: 2, 
 function accessForRole(roleId: string, roleName = ""): AccessLevel {
   const normalizedName = roleName.trim().toLowerCase();
 
-  // Top-level access: Chairman Board, Owner, Co-Owner, Special User and OFC Admin.
   if (
     roleId === ROLE_IDS.owner ||
     roleId === ROLE_IDS.coOwner ||
@@ -54,11 +48,9 @@ function accessForRole(roleId: string, roleName = ""): AccessLevel {
     ["owner", "co-owner", "co owner", "chairman", "special user", "ofc admin", "official admin"].includes(normalizedName)
   ) return "owner";
 
-  // Ownership Team: almost full site/CMS permissions.
   if ([ROLE_IDS.headOperations, ROLE_IDS.headAdministration, ROLE_IDS.communityAffairs, ROLE_IDS.ceo, ROLE_IDS.headDevelopment].includes(roleId as never)) return "ownership";
   if (["chief operations officer", "chief logistic officer", "chief logistics officer", "chief relations officer", "head of development"].includes(normalizedName)) return "ownership";
 
-  // Senior Management is treated as ownership-level CMS access.
   if (roleId === ROLE_IDS.headManagement || roleId === ROLE_IDS.seniorManagement) return "ownership";
   if ([ROLE_IDS.generalManager, ROLE_IDS.headDepartment, ROLE_IDS.viceChairman].includes(roleId as never)) return "senior-leadership";
   if (["general manager", "director of national intelligence", "staff overseer", "vice chairman", "head of staff", "assistant head of staff", "administrative officer"].includes(normalizedName)) return "senior-leadership";

@@ -1,0 +1,42 @@
+name: Fix homepage JSX
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Fix hero card wrapper
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/page.tsx')
+          s = p.read_text()
+          old = '</div><div className="scroll-cue"><ArrowDown size={13} /> SCROLL TO ENTER</div></section>'
+          new = '</div></motion.div><div className="scroll-cue"><ArrowDown size={13} /> SCROLL TO ENTER</div></section>'
+          if old not in s:
+              raise SystemExit('Target JSX pattern not found; no change made.')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Commit fix
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo 'No change needed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/page.tsx
+          git commit -m 'Fix hero card JSX closing tag'
+          git push

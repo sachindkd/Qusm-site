@@ -1,7 +1,7 @@
-import LiveHomeV2 from "./LiveHomeV2";
+import LiveHomeV3 from "./LiveHomeV3";
 
 export const dynamic = "force-dynamic";
 
 export default function LivePage() {
-  return <LiveHomeV2 />;
+  return <LiveHomeV3 />;
 }

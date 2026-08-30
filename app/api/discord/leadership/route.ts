@@ -21,7 +21,8 @@ async function getGuildMembers() {
     if (after !== "0") url.searchParams.set("after", after);
     const r = await fetch(url, { headers: { Authorization: `Bot ${token}` }, next: { revalidate: 60 } });
     if (!r.ok) throw new Error(`Discord API ${r.status}`);
-    const batch = await r.json(); out.push(...batch);
+    const batch = await r.json();
+    out.push(...batch);
     if (batch.length < 1000) break;
     after = batch[batch.length - 1].user.id;
   }
@@ -31,10 +32,12 @@ async function getGuildMembers() {
 async function getPresence(userId: string) {
   try {
     const r = await fetch(`https://api.lanyard.rest/v1/users/${userId}`, { next: { revalidate: 60 } });
-    if (!r.ok) return { status: "offline" };
+    if (!r.ok) return { status: "offline", activities: [] };
     const d = await r.json();
     return { status: d?.data?.discord_status || "offline", activities: d?.data?.activities || [] };
-  } catch { return { status: "offline" }; }
+  } catch {
+    return { status: "offline", activities: [] };
+  }
 }
 
 export async function GET() {
@@ -57,6 +60,7 @@ export async function GET() {
           avatar,
           roleId,
           status: presence.status,
+          statusLabel: presence.status.charAt(0).toUpperCase() + presence.status.slice(1),
           activities: presence.activities,
         };
       }));

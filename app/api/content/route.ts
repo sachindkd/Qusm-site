@@ -11,24 +11,32 @@ const sectionPermission: Record<string, Permission> = {
   rules: "site:edit", government: "site:edit", ranks: "site:edit", news: "site:edit", media: "media:manage",
 };
 
-async function getIdentity() {
+type Identity = { access: ReturnType<typeof getAccessLevel>; userId: string; roleIds: string[] };
+
+async function getIdentity(): Promise<Identity> {
   const raw = (await cookies()).get(DISCORD_SESSION_COOKIE)?.value;
   const session = readDiscordSession(raw);
-  if (!session) return { access: "member" as const, userId: "", roleIds: [] as string[] };
-  if (session.id === SPECIAL_OWNER_ID) return { access: "owner" as const, userId: session.id, roleIds: session.roles ?? [] };
+  if (!session) return { access: "member", userId: "", roleIds: [] };
+  if (session.id === SPECIAL_OWNER_ID) return { access: "owner", userId: session.id, roleIds: session.roles ?? [] };
+
+  // Elevated access is based on LIVE Discord membership. Never fall back to
+  // stale session roles when Discord verification is unavailable.
   const token = process.env.DISCORD_BOT_TOKEN;
-  if (!token) return { access: "member" as const, userId: session.id, roleIds: session.roles ?? [] };
+  if (!token) return { access: "member", userId: session.id, roleIds: [] };
   try {
     const headers = { Authorization: `Bot ${token}` };
     const [memberResponse, rolesResponse] = await Promise.all([
       fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/members/${session.id}`, { headers, cache: "no-store" }),
       fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/roles`, { headers, cache: "no-store" }),
     ]);
-    if (!memberResponse.ok || !rolesResponse.ok) return { access: "member" as const, userId: session.id, roleIds: session.roles ?? [] };
+    if (!memberResponse.ok || !rolesResponse.ok) return { access: "member", userId: session.id, roleIds: [] };
     const member = await memberResponse.json() as { roles?: string[] };
     const roles = await rolesResponse.json() as DiscordGuildRole[];
-    return { access: getAccessLevel(session.id, member.roles ?? [], roles), userId: session.id, roleIds: member.roles ?? [] };
-  } catch { return { access: "member" as const, userId: session.id, roleIds: session.roles ?? [] }; }
+    const roleIds = member.roles ?? [];
+    return { access: getAccessLevel(session.id, roleIds, roles), userId: session.id, roleIds };
+  } catch {
+    return { access: "member", userId: session.id, roleIds: [] };
+  }
 }
 
 export async function GET() {
@@ -44,14 +52,13 @@ export async function PUT(req: Request) {
     const body = await req.json();
     if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Invalid content" }, { status: 400 });
     const section = req.headers.get("x-content-section") || "";
+    const identity = await getIdentity();
     if (section === "shop") {
-      const identity = await getIdentity();
-      const allowed = identity.userId === SPECIAL_OWNER_ID || identity.roleIds.includes(ROLE_IDS.owner) || identity.roleIds.includes(ROLE_IDS.coOwner);
+      const allowed = identity.access === "owner" && (identity.userId === SPECIAL_OWNER_ID || identity.roleIds.includes(ROLE_IDS.owner) || identity.roleIds.includes(ROLE_IDS.coOwner) || identity.roleIds.includes(ROLE_IDS.chairman));
       if (!allowed) return NextResponse.json({ error: "Shop management is restricted to Owner and Co-Owner." }, { status: 403 });
     } else {
       const permission = sectionPermission[section];
       if (!permission) return NextResponse.json({ error: "Missing or invalid content section" }, { status: 400 });
-      const identity = await getIdentity();
       if (!can(identity.access, permission)) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
     const value = body[section];

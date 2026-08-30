@@ -1,81 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowRight, CalendarDays, LogOut, Megaphone, Shield, Users } from "lucide-react";
 import { signOut } from "next-auth/react";
 
-type Content = {
-  announcements?: any[];
-  calendar?: any[];
-  leadership?: any[];
-  divisions?: any[];
-  media?: any[];
-};
-
-type User = {
-  username: string;
-  avatar?: string | null;
-  nick?: string | null;
-  access?: string;
-  highestRole?: { name: string } | null;
-};
+type Content = { announcements?: any[]; calendar?: any[]; leadership?: any[]; divisions?: any[]; media?: any[] };
+type User = { username: string; avatar?: string | null; nick?: string | null; access?: string; highestRole?: { name: string } | null };
 
 export default function MemberDashboard() {
-  const [user, setUser] = useState<User | null>(null);
-  const [content, setContent] = useState<Content>({});
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const [me, data] = await Promise.all([
-          fetch("/api/auth/me", { cache: "no-store" }).then(r => r.json()),
-          fetch("/api/content", { cache: "no-store" }).then(r => r.ok ? r.json() : {}),
-        ]);
-        if (!cancelled) {
-          setUser(me.authenticated ? me.user : null);
-          setContent(data || {});
-        }
-      } catch {
-        if (!cancelled) setUser(null);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    void load();
-    const timer = window.setInterval(load, 30000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, []);
-
+  const [user, setUser] = useState<User | null>(null); const [content, setContent] = useState<Content>({}); const [loading, setLoading] = useState(true);
+  useEffect(() => { let cancelled = false; const load = async () => { try { const [me, data] = await Promise.all([fetch("/api/auth/me", { cache: "no-store" }).then(r => r.json()), fetch("/api/content", { cache: "no-store" }).then(r => r.ok ? r.json() : {})]); if (!cancelled) { setUser(me.authenticated ? me.user : null); setContent(data || {}); } } catch { if (!cancelled) setUser(null); } finally { if (!cancelled) setLoading(false); } }; void load(); const timer = window.setInterval(load, 30000); return () => { cancelled = true; window.clearInterval(timer); }; }, []);
   const announcements = useMemo(() => (content.announcements || []).filter(x => x.published).slice(0, 5), [content]);
   const events = useMemo(() => (content.calendar || []).filter(x => x.status !== "draft").sort((a, b) => String(a.date || "").localeCompare(String(b.date || ""))).slice(0, 5), [content]);
   const divisions = useMemo(() => (content.divisions || []).filter(x => x.status !== "inactive"), [content]);
-
   if (loading) return <main className="min-h-screen bg-bg text-white flex items-center justify-center"><p className="font-mono text-xs text-textfaint uppercase">Loading member dashboard…</p></main>;
   if (!user) return <main className="min-h-screen bg-bg text-white flex items-center justify-center px-6"><div className="max-w-md w-full border border-border bg-panel rounded-2xl p-8 text-center"><p className="font-mono text-[10px] text-golddim uppercase tracking-[2px]">FBMRP MEMBER PORTAL</p><h1 className="font-serif text-4xl font-bold mt-3">Member Dashboard</h1><p className="text-textdim text-sm mt-3">Sign in with Discord to view your member dashboard.</p><a className="inline-flex mt-6 bg-gold text-black px-5 py-3 rounded-lg font-mono text-[10px] uppercase" href="/api/auth/signin/discord">Login with Discord <ArrowRight size={13} className="ml-2" /></a></div></main>;
-
-  return <main className="min-h-screen bg-bg text-white pb-16">
-    <header className="border-b border-border px-5 sm:px-10 py-5 flex items-center justify-between sticky top-0 z-20 bg-bg/95 backdrop-blur">
-      <div><div className="font-mono text-[10px] tracking-[2px] text-golddim uppercase">FBMRP Member Portal</div><h1 className="font-serif text-2xl font-bold">Welcome, {user.nick || user.username}</h1><p className="font-mono text-[9px] text-textfaint uppercase mt-1">{user.highestRole?.name || "Member"}</p></div>
-      <button onClick={() => signOut({ callbackUrl: "/" })} className="border border-border px-3 py-2 font-mono text-[9px] uppercase flex items-center gap-2"><LogOut size={12} /> Sign out</button>
-    </header>
-    <div className="max-w-6xl mx-auto px-5 sm:px-10 py-8">
-      <section className="grid sm:grid-cols-3 gap-4 mb-8">
-        <Stat icon={<Megaphone size={16}/>} label="Published updates" value={announcements.length} />
-        <Stat icon={<CalendarDays size={16}/>} label="Upcoming events" value={events.length} />
-        <Stat icon={<Shield size={16}/>} label="Active divisions" value={divisions.length} />
-      </section>
-      <section className="grid lg:grid-cols-2 gap-6">
-        <Panel title="Latest announcements" icon={<Megaphone size={16}/>}>{announcements.length ? announcements.map(a => <article key={a.id} className="border-b border-border py-4 last:border-0"><h3 className="font-semibold">{a.title}</h3><p className="text-textdim text-sm mt-1 whitespace-pre-wrap">{a.body}</p></article>) : <Empty text="No published announcements." />}</Panel>
-        <Panel title="Upcoming operations" icon={<CalendarDays size={16}/>}>{events.length ? events.map(e => <article key={e.id} className="border-b border-border py-4 last:border-0"><div className="flex justify-between gap-4"><h3 className="font-semibold">{e.title}</h3><span className="font-mono text-[9px] text-golddim whitespace-nowrap">{e.date || "TBA"}</span></div><p className="text-textdim text-sm mt-1">{e.time || ""}{e.location ? ` · ${e.location}` : ""}</p><p className="text-textdim text-sm mt-1">{e.description || ""}</p></article>) : <Empty text="No upcoming events." />}</Panel>
-      </section>
-      <Panel title="Your organization" icon={<Users size={16}/>}><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">{divisions.length ? divisions.map(d => <div key={d.id || d.code} className="border border-border rounded-xl p-4"><div className="font-mono text-[9px] text-golddim">{d.code}</div><h3 className="font-semibold mt-1">{d.name}</h3><p className="text-textdim text-xs mt-2">{d.description || ""}</p></div>) : <Empty text="No divisions published." />}</div></Panel>
-      <p className="text-center text-textfaint font-mono text-[8px] uppercase mt-8">Member view syncs directly from Staff Management data.</p>
-    </div>
-  </main>;
+  return <main className="min-h-screen bg-bg text-white pb-16"><header className="border-b border-border px-5 sm:px-10 py-5 flex items-center justify-between sticky top-0 z-20 bg-bg/95 backdrop-blur"><div><div className="font-mono text-[10px] tracking-[2px] text-golddim uppercase">FBMRP Member Portal</div><h1 className="font-serif text-2xl font-bold">Welcome, {user.nick || user.username}</h1><p className="font-mono text-[9px] text-textfaint uppercase mt-1">{user.highestRole?.name || "Member"}</p></div><button onClick={() => signOut({ callbackUrl: "/" })} className="border border-border px-3 py-2 font-mono text-[9px] uppercase flex items-center gap-2"><LogOut size={12} /> Sign out</button></header><div className="max-w-6xl mx-auto px-5 sm:px-10 py-8"><section className="grid sm:grid-cols-3 gap-4 mb-8"><Stat icon={<Megaphone size={16}/>} label="Published updates" value={announcements.length}/><Stat icon={<CalendarDays size={16}/>} label="Upcoming events" value={events.length}/><Stat icon={<Shield size={16}/>} label="Active divisions" value={divisions.length}/></section><section className="grid lg:grid-cols-2 gap-6"><Panel title="Latest announcements" icon={<Megaphone size={16}/>} >{announcements.length ? announcements.map(a => <article key={a.id} className="border-b border-border py-4 last:border-0"><h3 className="font-semibold">{a.title}</h3><p className="text-textdim text-sm mt-1 whitespace-pre-wrap">{a.body}</p></article>) : <Empty text="No published announcements."/>}</Panel><Panel title="Upcoming operations" icon={<CalendarDays size={16}/>} >{events.length ? events.map(e => <article key={e.id} className="border-b border-border py-4 last:border-0"><div className="flex justify-between gap-4"><h3 className="font-semibold">{e.title}</h3><span className="font-mono text-[9px] text-golddim whitespace-nowrap">{e.date || "TBA"}</span></div><p className="text-textdim text-sm mt-1">{e.time || ""}{e.location ? ` · ${e.location}` : ""}</p><p className="text-textdim text-sm mt-1">{e.description || ""}</p></article>) : <Empty text="No upcoming events."/>}</Panel></section><Panel title="Your organization" icon={<Users size={16}/>}><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">{divisions.length ? divisions.map(d => <div key={d.id || d.code} className="border border-border rounded-xl p-4"><div className="font-mono text-[9px] text-golddim">{d.code}</div><h3 className="font-semibold mt-1">{d.name}</h3><p className="text-textdim text-xs mt-2">{d.description || ""}</p></div>) : <Empty text="No divisions published."/>}</div></Panel><p className="text-center text-textfaint font-mono text-[8px] uppercase mt-8">Member view syncs directly from Staff Management data.</p></div></main>;
 }
-
-function Stat({icon,label,value}:{icon:React.ReactNode;label:string;value:number}) { return <div className="border border-border bg-panel rounded-xl p-5"><div className="text-golddim">{icon}</div><div className="font-serif text-3xl font-bold mt-3">{value}</div><div className="font-mono text-[9px] uppercase text-textfaint mt-1">{label}</div></div>; }
-function Panel({title,icon,children}:{title:string;icon:React.ReactNode;children:React.ReactNode}) { return <section className="border border-border bg-panel rounded-2xl p-5 sm:p-6 mb-6"><div className="flex items-center gap-2 font-mono text-[10px] uppercase text-golddim tracking-[1px] mb-2">{icon}{title}</div>{children}</section>; }
+function Stat({icon,label,value}:{icon:ReactNode;label:string;value:number}) { return <div className="border border-border bg-panel rounded-xl p-5"><div className="text-golddim">{icon}</div><div className="font-serif text-3xl font-bold mt-3">{value}</div><div className="font-mono text-[9px] uppercase text-textfaint mt-1">{label}</div></div>; }
+function Panel({title,icon,children}:{title:string;icon:ReactNode;children:ReactNode}) { return <section className="border border-border bg-panel rounded-2xl p-5 sm:p-6 mb-6"><div className="flex items-center gap-2 font-mono text-[10px] uppercase text-golddim tracking-[1px] mb-2">{icon}{title}</div>{children}</section>; }
 function Empty({text}:{text:string}) { return <p className="text-textfaint text-sm py-5">{text}</p>; }

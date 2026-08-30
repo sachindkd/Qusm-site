@@ -32,10 +32,72 @@ function Reveal({ children, delay = 0 }: { children: ReactNode; delay?: number }
   return <motion.div initial={{ opacity: 0, y: 55 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.15 }} transition={{ duration: 0.8, delay, ease: [0.16, 1, 0.3, 1] }}>{children}</motion.div>;
 }
 
-function formatDate(value: string) {
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value;
+function asText(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : value == null ? fallback : String(value);
+}
+
+function formatDate(value: unknown) {
+  const raw = asText(value);
+  if (!raw) return "DATE TBA";
+  const date = new Date(`${raw.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return raw;
   return new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).format(date);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function normalizeAnnouncements(value: unknown): Announcement[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isRecord).map((x, i) => ({
+    id: asText(x.id, `announcement-${i}`),
+    title: asText(x.title, "Untitled announcement"),
+    body: asText(x.body, ""),
+    published: x.published !== false,
+    createdAt: asText(x.createdAt, ""),
+  })).filter(x => x.published !== false);
+}
+
+function normalizeCalendar(value: unknown): CalendarItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isRecord).map((x, i) => ({
+    id: asText(x.id, `calendar-${i}`),
+    title: asText(x.title, "Untitled event"),
+    date: asText(x.date, ""),
+    time: asText(x.time, ""),
+    location: asText(x.location, ""),
+    description: asText(x.description, ""),
+    status: asText(x.status, "scheduled"),
+  })).filter(x => x.status !== "draft").sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+}
+
+function normalizeLeadership(value: unknown): LeadershipEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isRecord).map((x, i) => ({
+    id: asText(x.id, `leadership-${i}`),
+    title: asText(x.title, "Leadership role"),
+    name: asText(x.name, "Name not published"),
+    division: asText(x.division, ""),
+    rank: asText(x.rank, ""),
+    description: asText(x.description, ""),
+    active: x.active !== false,
+    order: typeof x.order === "number" ? x.order : i,
+  })).filter(x => x.active !== false).sort((a, b) => (a.order || 0) - (b.order || 0));
+}
+
+function normalizeDivisions(value: unknown): DivisionEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isRecord).map((x, i) => ({
+    id: asText(x.id, `division-${i}`),
+    code: asText(x.code, `DIV${i + 1}`),
+    name: asText(x.name, "Division"),
+    description: asText(x.description, ""),
+    status: x.status === "inactive" || x.status === "temporary" ? x.status : "active",
+    leadership: asText(x.leadership, ""),
+    logoUrl: asText(x.logoUrl, ""),
+    order: typeof x.order === "number" ? x.order : i,
+  })).sort((a, b) => (a.order || 0) - (b.order || 0));
 }
 
 export default function HomePage() {
@@ -62,16 +124,18 @@ export default function HomePage() {
 
   useEffect(() => {
     let cancelled = false;
+    const get = async (url: string): Promise<unknown | null> => {
+      try {
+        const response = await fetch(url, { cache: "no-store" });
+        if (!response.ok) return null;
+        const contentType = response.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) return null;
+        return await response.json();
+      } catch {
+        return null;
+      }
+    };
     const load = async () => {
-      const get = async (url: string): Promise<unknown | null> => {
-        try {
-          const response = await fetch(url, { cache: "no-store" });
-          if (!response.ok) return null;
-          return await response.json();
-        } catch {
-          return null;
-        }
-      };
       const [a, c, l, d] = await Promise.all([
         get("/api/announcements"),
         get("/api/calendar"),
@@ -79,17 +143,19 @@ export default function HomePage() {
         get("/api/divisions"),
       ]);
       if (cancelled) return;
-      if (Array.isArray(a)) setAnnouncements((a as Announcement[]).filter(x => x && x.published !== false));
-      if (Array.isArray(c)) setCalendar((c as CalendarItem[]).filter(x => x && x.status !== "draft").sort((x, y) => `${x.date} ${x.time || ""}`.localeCompare(`${y.date} ${y.time || ""}`)));
-      if (Array.isArray(l)) setLeadership((l as LeadershipEntry[]).filter(x => x && x.active !== false).sort((x, y) => (x.order || 0) - (y.order || 0)));
-      if (Array.isArray(d)) setDivisions((d as DivisionEntry[]).sort((x, y) => (x.order || 0) - (y.order || 0)));
+      setAnnouncements(normalizeAnnouncements(a));
+      setCalendar(normalizeCalendar(c));
+      setLeadership(normalizeLeadership(l));
+      setDivisions(normalizeDivisions(d));
     };
     void load();
     return () => { cancelled = true; };
   }, []);
 
-  const displayedDivisions = divisions.length ? divisions : fallbackDivisions.map(([code, name, description], i) => ({ id: code, code, name, description, status: code === "NAVY" ? "temporary" : "active", order: i } as DivisionEntry));
-  const commandGroups = leadership.length ? [{ title: "Current Leadership", description: "Current active leadership published by staff.", items: leadership.map(x => x.rank ? `${x.rank} — ${x.title}: ${x.name}` : `${x.title}: ${x.name}`) }] : fallbackCommand;
+  const displayedDivisions: DivisionEntry[] = divisions.length ? divisions : fallbackDivisions.map(([code, name, description], i) => ({ id: code, code, name, description, status: code === "NAVY" ? "temporary" : "active", order: i }));
+  const commandGroups = leadership.length
+    ? [{ title: "Current Leadership", description: "Current active leadership published by staff.", items: leadership.map(x => x.rank ? `${x.rank} — ${x.title}: ${x.name}` : `${x.title}: ${x.name}`) }]
+    : fallbackCommand;
 
   return (
     <main className="site-shell">
@@ -128,7 +194,7 @@ export default function HomePage() {
 
       <section className="section-pad" id="announcements">
         <Reveal><div className="section-label">01 / ANNOUNCEMENTS</div><div className="section-heading-row"><div><h2>What’s<br /><span>happening.</span></h2><p className="text-textdim max-w-2xl mt-4">Official announcements published by staff appear here automatically. Published announcements can also be sent to the configured Discord announcements channel.</p></div><div className="heading-index"><Megaphone className="heading-icon" /> LIVE FEED</div></div></Reveal>
-        <div className="command-grid mt-10">{announcements.length ? announcements.map((a, i) => <Reveal key={a.id} delay={i * 0.04}><article className="command-row"><div className="command-button"><div className="command-title"><span>{String(i + 1).padStart(2, "0")}</span><strong>{a.title}</strong></div><span className="text-[9px] font-mono text-textfaint uppercase">{a.createdAt ? formatDate(a.createdAt.slice(0, 10)) : "OFFICIAL"}</span></div><div className="command-body-wrap" style={{ height: "auto", opacity: 1 }}><div className="command-body"><div className="role role-description">{a.body}</div></div></div></article></Reveal>) : <div className="border border-dashed border-border rounded-xl p-12 text-center text-textfaint text-sm">No published announcements yet.</div>}</div>
+        <div className="command-grid mt-10">{announcements.length ? announcements.map((a, i) => <Reveal key={a.id} delay={i * 0.04}><article className="command-row"><div className="command-button"><div className="command-title"><span>{String(i + 1).padStart(2, "0")}</span><strong>{a.title}</strong></div><span className="text-[9px] font-mono text-textfaint uppercase">{a.createdAt ? formatDate(a.createdAt) : "OFFICIAL"}</span></div><div className="command-body-wrap" style={{ height: "auto", opacity: 1 }}><div className="command-body"><div className="role role-description">{a.body}</div></div></div></article></Reveal>) : <div className="border border-dashed border-border rounded-xl p-12 text-center text-textfaint text-sm">No published announcements yet.</div>}</div>
       </section>
 
       <section className="section-pad" id="calendar">
@@ -140,7 +206,7 @@ export default function HomePage() {
 
       <section className="section-pad" id="command"><Reveal><div className="section-heading-row"><div><div className="section-label">04 / CHAIN OF COMMAND</div><h2>Leadership<br /><span>DROP-DOWN.</span></h2></div><div className="heading-index">FBMRP / COC <ChevronDown className="heading-icon" /></div></div></Reveal><div className="command-feature"><div className="feature-number">COC<br />SYS</div><div className="feature-main"><div className="feature-kicker"><Users size={12} /> ORGANIZED LEADERSHIP</div><h3>Every level has a place.</h3><p>Leadership records published by staff are shown to members automatically.</p></div><div className="feature-side"><span>STRUCTURE</span><strong>{leadership.length ? "LIVE LEADERSHIP" : "DEFAULT STRUCTURE"}</strong><span>STAFF / MANAGEMENT / ROLEPLAY</span></div></div><div className="command-grid">{commandGroups.map((group, index) => <div className="command-row" key={group.title}><button className="command-button" onClick={() => setOpen(open === index ? null : index)} aria-expanded={open === index}><div className="command-title"><span>0{index + 1}</span><strong>{group.title}</strong></div><div className="command-open">{open === index ? "CLOSE" : "OPEN"} <ChevronDown size={15} style={{ transform: open === index ? "rotate(180deg)" : "none" }} /></div></button><motion.div initial={false} animate={{ height: open === index ? "auto" : 0, opacity: open === index ? 1 : 0 }} className="command-body-wrap"><div className="command-body"><div className="role role-description">{group.description}</div>{group.items.map(item => <div className="role" key={item}>{item}</div>)}</div></motion.div></div>)}</div></section>
 
-      <section className="section-pad division-section" id="divisions"><Reveal><div className="section-label">05 / DIVISIONS</div><div className="division-head"><h2>Choose your<br /><span>path.</span></h2><p>Divisional identities, descriptions, logos, status, leadership, and every detail published in Staff Management are displayed here.</p></div></Reveal><div className="division-grid">{displayedDivisions.map((division, i) => <Reveal key={division.id} delay={i * 0.04}><article className="division-card"><div className="division-top"><span>DIV / {String(i + 1).padStart(2, "0")}</span><span>{division.status === "temporary" ? "TEMP" : division.status.toUpperCase()}</span></div><div className="division-logo-placeholder">{division.logoUrl ? <img src={division.logoUrl} alt="" className="w-12 h-12 object-contain" /> : <Shield size={24} />}</div><h3>{division.name}</h3><p>{division.description}</p><div className="division-head"><span>{division.code}</span>{division.leadership && <span>{division.leadership}</span>}</div></article></Reveal>)}</div></section>
+      <section className="section-pad division-section" id="divisions"><Reveal><div className="section-label">05 / DIVISIONS</div><div className="division-head"><h2>Choose your<br /><span>path.</span></h2><p>Divisional identities, descriptions, logos, status, leadership, and every detail published in Staff Management are displayed here.</p></div></Reveal><div className="division-grid">{displayedDivisions.map((division, i) => <Reveal key={division.id} delay={i * 0.04}><article className="division-card"><div className="division-top"><span>DIV / {String(i + 1).padStart(2, "0")}</span><span>{division.status === "temporary" ? "TEMP" : String(division.status).toUpperCase()}</span></div><div className="division-logo-placeholder">{division.logoUrl ? <img src={division.logoUrl} alt="" className="w-12 h-12 object-contain" /> : <Shield size={24} />}</div><h3>{division.name}</h3><p>{division.description}</p><div className="division-head"><span>{division.code}</span>{division.leadership && <span>{division.leadership}</span>}</div></article></Reveal>)}</div></section>
 
       <section className="section-pad media-section" id="media"><Reveal><div className="section-label">06 / MEDIA</div><div className="media-intro"><h2>Put the<br /><em>mission</em> in motion.</h2><p>Homepage video, division media, announcements, calendar content, logos, and visual assets can be replaced from the editable website system.</p></div><div className="media-frame"><div className="media-frame-inner"><Play size={32} /><span>HOMEPAGE VIDEO / ADD YOUR FOOTAGE</span></div></div></Reveal></section>
 

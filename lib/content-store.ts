@@ -2,9 +2,10 @@ import { getContent as getFileContent, saveContent as saveFileContent, type Cont
 import { readDbContent, writeDbContent, writeDbSection } from "./db";
 
 const useDatabase = () => Boolean(process.env.DATABASE_URL);
-const CMS_SCHEMA_VERSION = 2;
+const CMS_SCHEMA_VERSION = 3;
 
-/** Database is the single source of truth. Older DB records are migrated once. */
+/** Database is the source of truth. The first migration also imports any legacy
+ * records that are still present in the bundled content source. */
 export async function loadContent(): Promise<Content> {
   const seed: any = await getFileContent();
   if (!useDatabase()) return seed as Content;
@@ -20,22 +21,34 @@ export async function loadContent(): Promise<Content> {
   const migrationNeeded = Number(stored._schemaVersion || 0) < CMS_SCHEMA_VERSION;
   if (!migrationNeeded) return stored as Content;
 
-  // Import the records that were already visible in the legacy website/content
-  // source, while preserving any non-empty records staff have already created.
-  const merged: any = { ...seed, ...stored, org: { ...(seed.org || {}), ...(stored.org || {}) } };
-  const arraySections = ["announcements","calendar","leadership","divisions","rules","government","ranks","news","media","applications","cocLeadership","cocStaff","cocRoleplay"];
+  const merged: any = {
+    ...seed,
+    ...stored,
+    org: { ...(seed.org || {}), ...(stored.org || {}) },
+  };
+
+  const arraySections = [
+    "announcements", "calendar", "leadership", "divisions", "rules", "government",
+    "ranks", "news", "media", "applications", "cocLeadership", "cocStaff", "cocRoleplay", "shop",
+  ];
+
   for (const key of arraySections) {
     const current = stored[key];
-    if (!Array.isArray(current) || (current.length === 0 && Array.isArray(seed[key]) && seed[key].length > 0)) merged[key] = seed[key];
+    if (!Array.isArray(current) || (current.length === 0 && Array.isArray(seed[key]) && seed[key].length > 0)) {
+      merged[key] = seed[key];
+    }
   }
-  merged.shop = Array.isArray(stored.shop) ? stored.shop : [];
+
   merged._schemaVersion = CMS_SCHEMA_VERSION;
   await writeDbContent(merged as Content);
   return merged as Content;
 }
 
 export async function persistContent(content: Content): Promise<void> {
-  if (useDatabase()) { await writeDbContent(content); return; }
+  if (useDatabase()) {
+    await writeDbContent(content);
+    return;
+  }
   await saveFileContent(content);
 }
 
@@ -51,6 +64,7 @@ export async function persistSection<K extends keyof Content>(section: K, value:
     }
     return writeDbSection(String(section), value);
   }
+
   const current: any = await getFileContent();
   current[section as string] = value;
   await saveFileContent(current as Content);

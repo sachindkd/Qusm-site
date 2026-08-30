@@ -16,6 +16,30 @@
     { "id": "l2", "rank": "CO-OWN", "name": "Mr. Dominion", "role": "Co-Owner — Shared executive authority" },
     { "id": "l3", "rank": "AO", "name": "Sachin", "role": "Administrative Officer — Divisional administration, policy, staffing, documentation" }
   ],
+  "cocLeadership": [
+    { "id": "coc-oversight-owners", "section": "OVERSIGHT", "title": "Owners", "description": "Responsible for the overall direction and leadership of FBMR. Has the final say on all major decisions, changes, and community matters.", "order": 10 },
+    { "id": "coc-oversight-game", "section": "OVERSIGHT", "title": "Game Overseer", "description": "Oversees the game, development, updates, gameplay systems, and the overall game experience.", "order": 20 },
+    { "id": "coc-chairman", "section": "CHAIRMAN BOARD", "title": "Chairman", "description": "Leads the ownership structure and oversees major organizational decisions, departments, leadership, and the overall direction of FBMR.", "order": 30 },
+    { "id": "coc-vice-chairman", "section": "CHAIRMAN BOARD", "title": "Vice Chairman", "description": "Assists the Chairman with organizational leadership, oversees assigned responsibilities, handles major situations, and steps in when needed.", "order": 40 },
+    { "id": "coc-coo", "section": "OWNERSHIP TEAM", "title": "Chief Operations Officer", "description": "Oversees day-to-day operations and ensures departments and leadership are functioning properly.", "order": 50 },
+    { "id": "coc-clo", "section": "OWNERSHIP TEAM", "title": "Chief Logistic Officer", "description": "Oversees policies, regulations, finance matters, and organizational compliance.", "order": 60 },
+    { "id": "coc-cro", "section": "OWNERSHIP TEAM", "title": "Chief Relations Officer", "description": "Handles external relations, partnerships, communications, and FBMR’s public image.", "order": 70 },
+    { "id": "coc-hod", "section": "OWNERSHIP TEAM", "title": "Head of Development", "description": "Leads the development team, oversees development projects, assigns responsibilities, manages updates, and ensures the game experience is maintained.", "order": 80 },
+    { "id": "coc-gm", "section": "SENIOR LEADERSHIP", "title": "General Manager", "description": "Oversees the overall management of FBMR and ensures leadership teams are meeting organizational standards.", "order": 90 },
+    { "id": "coc-dni", "section": "SENIOR LEADERSHIP", "title": "Director of National Intelligence", "description": "Oversees intelligence, investigations, internal information, and organizational security.", "order": 100 },
+    { "id": "coc-staff-overseer", "section": "SENIOR LEADERSHIP", "title": "Staff Overseer", "description": "Oversees all staff operations, promotions, disciplinary matters, and overall staff performance.", "order": 110 },
+    { "id": "coc-senior-divider", "section": "DEVELOPMENT", "title": "Senior Developer", "description": "Assists the Head of Development with development operations, manages larger projects, reviews development work, and assists with maintaining game systems.", "order": 120 },
+    { "id": "coc-developer", "section": "DEVELOPMENT", "title": "Developer", "description": "Develops, maintains, fixes, and improves game features, systems, assets, and other technical aspects of FBMR.", "order": 130 }
+  ],
+  "cocStaff": [
+    { "id": "coc-head-staff", "section": "LEADERSHIP", "title": "Head of Staff", "description": "Leads the staff team, coordinates staff operations, and ensures all staff members follow FBMR policies and expectations.", "order": 10 },
+    { "id": "coc-assistant-head", "section": "LEADERSHIP", "title": "Assistant Head of Staff", "description": "Assists the Head of Staff with daily operations, staff coordination, and monitoring staff performance.", "order": 20 },
+    { "id": "coc-admin-officer", "section": "LEADERSHIP", "title": "Administrative Officer", "description": "Handles administrative responsibilities, documentation, records, and organizational support.", "order": 30 },
+    { "id": "coc-admin", "section": "STAFF", "title": "Admin", "description": "Handles higher level moderation, administrative issues, reports, and enforcement of community policies.", "order": 40 },
+    { "id": "coc-moderator", "section": "STAFF", "title": "Moderator", "description": "Maintains order within the community, handles reports, and enforces server rules.", "order": 50 },
+    { "id": "coc-intern", "section": "STAFF", "title": "Intern", "description": "Entry level staff member who assists with basic duties while learning FBMR’s systems, policies, and procedures.", "order": 60 }
+  ],
+  "cocRoleplay": [],
   "divisions": [
     { "id": "d1", "name": "Navy", "head": "Position filled via OCS cycle", "desc": "Naval operations, fleet formation, and Officer Candidate School training pipeline." },
     { "id": "d2", "name": "Army", "head": "TBD", "desc": "Ground force operations, infantry training, and field exercises." },

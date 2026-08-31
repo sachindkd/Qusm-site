@@ -2,6 +2,7 @@ import "./globals.css";
 import "./revamp.css";
 import "./live-v4.css";
 import "./ui-revamp.css";
+import "./profile-mobile-fix.css";
 import Providers from "@/components/Providers";
 import PublicAuditLogButton from "@/components/PublicAuditLogButton";
 

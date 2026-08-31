@@ -25,14 +25,20 @@ export function readDiscordSession(value?: string | null): Session | null {
     const parts = value.split(".");
     if (parts.length !== 2) return null;
     const [payload, signature] = parts;
+    if (!payload || !signature) return null;
     const expected = sign(payload);
     const a = Buffer.from(signature), b = Buffer.from(expected);
     if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
     const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Session;
     if (!session?.id || typeof session.id !== "string" || !Array.isArray(session.roles)) return null;
-    if (!Number.isInteger(session.iat) || !Number.isInteger(session.exp)) return null;
+
+    const iat = session.iat;
+    const exp = session.exp;
+    if (typeof iat !== "number" || !Number.isSafeInteger(iat)) return null;
+    if (typeof exp !== "number" || !Number.isSafeInteger(exp)) return null;
+
     const now = Math.floor(Date.now() / 1000);
-    if (session.exp <= now || session.iat > now + 60) return null;
-    return session;
+    if (exp <= now || iat > now + 60 || iat < now - SESSION_MAX_AGE_SECONDS) return null;
+    return { ...session, iat, exp };
   } catch { return null; }
 }

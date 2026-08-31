@@ -5,6 +5,7 @@ import { FBMRP_GUILD_ID, SPECIAL_OWNER_ID, ROLE_IDS, getAccessLevel, can, type P
 import { DISCORD_SESSION_COOKIE, readDiscordSession } from "@/lib/discord-session";
 import { readContent, persistSection } from "@/lib/content-store";
 import { recordAudit } from "@/lib/audit";
+import { rateLimit, requestKey } from "@/lib/rate-limit";
 const sectionPermission: Record<string, Permission> = { org:"site:edit", announcements:"announcements:manage", calendar:"calendar:manage", cocLeadership:"site:edit", cocStaff:"site:edit", cocRoleplay:"site:edit", leadership:"leadership:edit", divisions:"divisions:edit", applications:"applications:manage", rules:"site:edit", government:"site:edit", ranks:"site:edit", news:"site:edit", media:"media:manage", customSections:"site:edit" };
 type Identity = { access: ReturnType<typeof getAccessLevel>; userId: string; roleIds: string[]; username: string };
 async function getIdentity(): Promise<Identity> {
@@ -15,7 +16,10 @@ async function getIdentity(): Promise<Identity> {
 }
 const hash=(value:unknown)=>createHash("sha256").update(JSON.stringify(value??null)).digest("hex");
 export async function GET(){try{const c=await readContent();const {applications:_private,...publicContent}=c;return NextResponse.json(publicContent,{headers:{"Cache-Control":"no-store, no-cache, must-revalidate"}})}catch{return NextResponse.json({error:"Content store unavailable"},{status:503})}}
-export async function PUT(req:Request){try{const body=await req.json();if(!body||typeof body!=="object"||Array.isArray(body))return NextResponse.json({error:"Invalid content"},{status:400});const section=req.headers.get("x-content-section")||"";const identity=await getIdentity();
+export async function PUT(req:Request){
+ const limiter=rateLimit(requestKey(req,"content-write"),30,60_000);
+ if(!limiter.allowed)return NextResponse.json({error:"Too many content updates. Try again shortly."},{status:429,headers:{"Retry-After":String(limiter.retryAfter)}});
+ try{const body=await req.json();if(!body||typeof body!=="object"||Array.isArray(body))return NextResponse.json({error:"Invalid content"},{status:400});const section=req.headers.get("x-content-section")||"";const identity=await getIdentity();
  if(section==="shop"){const allowed=identity.userId===SPECIAL_OWNER_ID||identity.roleIds.includes(ROLE_IDS.owner)||identity.roleIds.includes(ROLE_IDS.coOwner);if(!allowed)return NextResponse.json({error:"Shop management is restricted to Owner and Co-Owner."},{status:403});}
  else {const permission=sectionPermission[section];if(!permission)return NextResponse.json({error:"Missing or invalid content section"},{status:400});if(!can(identity.access,permission))return NextResponse.json({error:"Unauthorized"},{status:403});}
  const value=body[section]; const valid=section==="org"?!!value&&typeof value==="object"&&!Array.isArray(value):Array.isArray(value);if(!valid)return NextResponse.json({error:section==="org"?"Settings must be an object":"Section must be an array"},{status:400});

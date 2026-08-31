@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 
 // Canonical FBMR command priority/order:
 // OWNER → CO-OWNER → CM → VCM
+// VCM role ID restored to the verified role used by the site before the ordering change.
 const ROLE_IDS = {
   owner: "1430245086930669579",
   coOwner: "1530961653103853669",
   chairman: "1501042310320881834",
-  viceChairman: "716797005753483324",
+  viceChairman: "1538516021608972318",
 } as const;
 
 let cache: { at: number; data: any } | null = null;
@@ -59,8 +60,6 @@ export async function GET() {
   try {
     if (cache && Date.now() - cache.at < TTL) return NextResponse.json(cache.data);
     const members = await getMembers();
-    // Object insertion order is intentional: consumers that iterate Object.entries()
-    // receive the same canonical command priority as the UI.
     const data: Record<string, any[]> = {};
     for (const [key, roleId] of Object.entries(ROLE_IDS)) {
       data[key] = members.filter(m => m.roles?.includes(roleId)).map(m => profile(m, roleId));

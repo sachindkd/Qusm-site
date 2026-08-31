@@ -1,0 +1,50 @@
+/* Mobile-safe leadership profile cards. Scoped to the Chain of Command only. */
+#command article.group {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+#command article.group > div:nth-child(2) {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+#command article.group h3 {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal !important;
+  overflow: hidden !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.1;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+#command article.group p,
+#command article.group span {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#command article.group p,
+#command article.group div:last-child span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 639px) {
+  #command article.group {
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+
+  #command article.group img {
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+}

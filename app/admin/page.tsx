@@ -4,6 +4,7 @@ import { getAccessLevel, FBMRP_GUILD_ID, SPECIAL_OWNER_ID, ROLE_IDS, getPermissi
 import { readDiscordSession, DISCORD_SESSION_COOKIE } from "@/lib/discord-session";
 import { loadContent } from "@/lib/content-store";
 import AdminClientV2 from "./AdminClientV2";
+import AuditLogButton from "./AuditLogButton";
 
 const EDIT_PERMISSIONS = ["site:edit", "announcements:manage", "calendar:manage", "media:manage", "leadership:edit", "divisions:edit", "admin:all"] as const;
 
@@ -37,5 +38,5 @@ export default async function AdminPage() {
   if (!permissions.some((permission) => EDIT_PERMISSIONS.includes(permission as typeof EDIT_PERMISSIONS[number]))) redirect("/staff");
   const shopEditable = session.id === SPECIAL_OWNER_ID || assignedRoles.includes(ROLE_IDS.owner) || assignedRoles.includes(ROLE_IDS.coOwner);
   const content = await loadContent();
-  return <AdminClientV2 initialContent={content} email={session.username ?? "Discord user"} access={access} permissions={permissions} shopEditable={shopEditable} />;
+  return <><div className="fixed right-4 top-4 z-[80] sm:right-8"><AuditLogButton /></div><AdminClientV2 initialContent={content} email={session.username ?? "Discord user"} access={access} permissions={permissions} shopEditable={shopEditable} /></>;
 }

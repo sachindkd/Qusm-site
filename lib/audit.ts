@@ -1,0 +1,7 @@
+import { neon } from "@neondatabase/serverless";
+
+function sql(){const url=process.env.DATABASE_URL;if(!url)throw new Error("DATABASE_URL is not configured");return neon(url)}
+export type AuditEntry={id:number;actorId:string;actorName:string;action:string;section:string;summary:string;beforeHash:string;afterHash:string;createdAt:string};
+async function init(){const q=sql();await q`CREATE TABLE IF NOT EXISTS audit_log (id BIGSERIAL PRIMARY KEY, actor_id TEXT NOT NULL, actor_name TEXT NOT NULL, action TEXT NOT NULL, section TEXT NOT NULL, summary TEXT NOT NULL, before_hash TEXT NOT NULL, after_hash TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;}
+export async function recordAudit(input:{actorId:string;actorName:string;action:string;section:string;summary:string;beforeHash:string;afterHash:string}){await init();const q=sql();await q`INSERT INTO audit_log (actor_id,actor_name,action,section,summary,before_hash,after_hash) VALUES (${input.actorId},${input.actorName},${input.action},${input.section},${input.summary},${input.beforeHash},${input.afterHash})`;}
+export async function readAudit(limit=100){await init();const q=sql();const rows=await q`SELECT id,actor_id AS "actorId",actor_name AS "actorName",action,section,summary,before_hash AS "beforeHash",after_hash AS "afterHash",created_at AS "createdAt" FROM audit_log ORDER BY id DESC LIMIT ${Math.min(Math.max(limit,1),500)}`;return rows as unknown as AuditEntry[];}

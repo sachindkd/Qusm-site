@@ -32,7 +32,7 @@ export function readDiscordSession(value?: string | null): Session | null {
     if (!session?.id || typeof session.id !== "string" || !Array.isArray(session.roles)) return null;
     if (!Number.isInteger(session.iat) || !Number.isInteger(session.exp)) return null;
     const now = Math.floor(Date.now() / 1000);
-    if (session.exp <= now || session.iat > now + 60) return null;
+    if (session.exp <= now || session.iat > now + 60 || session.iat < now - SESSION_MAX_AGE_SECONDS) return null;
     return session;
   } catch { return null; }
 }

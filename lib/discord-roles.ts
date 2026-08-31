@@ -12,7 +12,7 @@ export const ROLE_IDS = {
   communityAffairs: "1540038203959152650",
   ceo: "1493982432276385812",
   headDepartment: "1431617140674265129",
-  viceChairman: "716797005753483324",
+  viceChairman: "1538516021608972318",
   aides: "1538911108788654160",
   staff: "1496561403501219952",
   seniorManagement: "1531899271614562314",
@@ -39,22 +39,12 @@ const accessRank: Record<AccessLevel, number> = { member: 0, staff: 1, aide: 2, 
 
 function accessForRole(roleId: string, roleName = ""): AccessLevel {
   const normalizedName = roleName.trim().toLowerCase();
-
-  if (
-    roleId === ROLE_IDS.owner ||
-    roleId === ROLE_IDS.coOwner ||
-    roleId === ROLE_IDS.chairman ||
-    (ROLE_IDS.ofcAdmin && roleId === ROLE_IDS.ofcAdmin) ||
-    ["owner", "co-owner", "co owner", "chairman", "special user", "ofc admin", "official admin"].includes(normalizedName)
-  ) return "owner";
-
+  if (roleId === ROLE_IDS.owner || roleId === ROLE_IDS.coOwner || roleId === ROLE_IDS.chairman || (ROLE_IDS.ofcAdmin && roleId === ROLE_IDS.ofcAdmin) || ["owner", "co-owner", "co owner", "chairman", "special user", "ofc admin", "official admin"].includes(normalizedName)) return "owner";
   if ([ROLE_IDS.headOperations, ROLE_IDS.headAdministration, ROLE_IDS.communityAffairs, ROLE_IDS.ceo, ROLE_IDS.headDevelopment].includes(roleId as never)) return "ownership";
   if (["chief operations officer", "chief logistic officer", "chief logistics officer", "chief relations officer", "head of development"].includes(normalizedName)) return "ownership";
-
   if (roleId === ROLE_IDS.headManagement || roleId === ROLE_IDS.seniorManagement) return "ownership";
   if ([ROLE_IDS.generalManager, ROLE_IDS.headDepartment, ROLE_IDS.viceChairman].includes(roleId as never)) return "senior-leadership";
   if (["general manager", "director of national intelligence", "staff overseer", "vice chairman", "head of staff", "assistant head of staff", "administrative officer"].includes(normalizedName)) return "senior-leadership";
-
   if (roleId === ROLE_IDS.developerPosts) return "developer";
   if (roleId === ROLE_IDS.aides || normalizedName === "aide" || normalizedName === "aides") return "aide";
   if (roleId === ROLE_IDS.staff || normalizedName === "staff") return "staff";

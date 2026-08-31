@@ -37,18 +37,9 @@
   white-space: nowrap;
 }
 
-/* Canonical command display order: OWNER → CO-OWNER → CM → VCM. */
-#command > div > div.space-y-10 {
-  display: flex;
-  flex-direction: column;
-}
-
-#command > div > div.space-y-10 > :nth-child(1) { order: 1; }
-#command > div > div.space-y-10 > :nth-child(3) { order: 2; }
-#command > div > div.space-y-10 > :nth-child(2) { order: 3; }
-#command > div > div.space-y-10 > :nth-child(4) { order: 4; }
-
-/* Deployment trigger: preserve the exact hierarchy while forcing a fresh production build. */
+/* The React component owns the command order directly.
+   Do not reorder its children with nth-child rules; that conflicts with
+   the separate Owner / Co-Owner / CM / VCM sections, especially on mobile. */
 
 @media (max-width: 639px) {
   #command article.group {

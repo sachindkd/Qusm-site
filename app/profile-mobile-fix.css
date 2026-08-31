@@ -37,6 +37,17 @@
   white-space: nowrap;
 }
 
+/* Canonical command display order: OWNER → CO-OWNER → CM → VCM. */
+#command > div > div.space-y-10 {
+  display: flex;
+  flex-direction: column;
+}
+
+#command > div > div.space-y-10 > :nth-child(1) { order: 1; }
+#command > div > div.space-y-10 > :nth-child(3) { order: 2; }
+#command > div > div.space-y-10 > :nth-child(2) { order: 3; }
+#command > div > div.space-y-10 > :nth-child(4) { order: 4; }
+
 @media (max-width: 639px) {
   #command article.group {
     gap: 0.75rem;

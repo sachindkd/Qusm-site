@@ -9,6 +9,7 @@ const cards = [
   ["Announcements", "Manage public announcements and automatic Discord feed.", "announcements:manage", "announcements"],
   ["Calendar", "Create and manage official FBMRP events.", "calendar:manage", "calendar"],
   ["Developer Media", "Publish approved developer images and media.", "developer:publish", "media"],
+  ["Audit Log", "View the immutable record of staff changes and publishing activity.", "site:read", "audit-log"],
 ] as const;
 
 async function getLiveAccess() {

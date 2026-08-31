@@ -52,4 +52,4 @@ Developer Media supports images and videos. The application enforces an 8 MB per
 
 The GitHub repository is connected to Vercel. Pushes to `main` trigger production deployments automatically.
 
-This commit intentionally refreshes the production deployment after verifying the live homepage animation layer. Verify the newest Vercel deployment before making another patch.
+This small commit is intentionally made on `main` to trigger the connected Vercel production deployment and pick up the latest website/CMS changes.

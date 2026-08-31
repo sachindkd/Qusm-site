@@ -48,6 +48,8 @@
 #command > div > div.space-y-10 > :nth-child(2) { order: 3; }
 #command > div > div.space-y-10 > :nth-child(4) { order: 4; }
 
+/* Deployment trigger: preserve the exact hierarchy while forcing a fresh production build. */
+
 @media (max-width: 639px) {
   #command article.group {
     gap: 0.75rem;

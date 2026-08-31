@@ -1,7 +1,34 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { LockKeyhole, ShieldAlert, Sparkles } from "lucide-react";
+import { LockKeyhole, ShieldAlert, Sparkles, Search, Scale, Cpu } from "lucide-react";
+
+const agencies = [
+  {
+    code: "OPR",
+    name: "Office of Professional Responsibility",
+    icon: Scale,
+    description:
+      "Handles internal affairs, professional standards, misconduct investigations, personnel accountability, and integrity matters within DHS.",
+    scope: "Personnel · Internal Affairs · Professional Standards",
+  },
+  {
+    code: "HSI",
+    name: "Homeland Security Investigations",
+    icon: Search,
+    description:
+      "Handles criminal, intelligence, and other investigative operations involving domestic QUSM-related threats and violations regarding personnel up to VPOTUS.",
+    scope: "Criminal · Intelligence · Investigations",
+  },
+  {
+    code: "CISA",
+    name: "Cybersecurity and Infrastructure Security Agency",
+    icon: Cpu,
+    description:
+      "Handles cybersecurity, cyber threat response, digital security, and resilience against cyber threats to QUSM.",
+    scope: "Cybersecurity · Threat Response · Resilience",
+  },
+];
 
 export default function NSASection() {
   return (
@@ -66,8 +93,41 @@ export default function NSASection() {
           </div>
         </motion.article>
 
+        <div className="mt-20 mb-10 flex flex-col gap-3 border-t border-white/10 pt-10 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="font-mono text-[9px] tracking-[.28em] text-[#c7aa68]">06 / INVESTIGATION UNITS</div>
+            <h3 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Other security agencies.</h3>
+          </div>
+          <p className="max-w-md text-xs leading-6 text-white/30">These agencies operate below NSA and handle their defined investigative, personnel, and security responsibilities.</p>
+        </div>
+
+        <div className="grid gap-px overflow-hidden border border-white/10 bg-white/10 md:grid-cols-3">
+          {agencies.map((agency, index) => {
+            const Icon = agency.icon;
+            return (
+              <motion.article
+                key={agency.code}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: .15 }}
+                transition={{ duration: .4, delay: index * .08 }}
+                className="group bg-[#0b0e0c] p-7 transition-colors duration-300 hover:bg-[#101410] sm:p-9"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex h-11 w-11 items-center justify-center border border-[#c7aa68]/20 bg-[#c7aa68]/[.05] text-[#c7aa68]"><Icon size={17} /></div>
+                  <span className="font-mono text-[9px] tracking-[.2em] text-white/20">0{index + 1}</span>
+                </div>
+                <div className="mt-8 font-mono text-[9px] tracking-[.25em] text-[#c7aa68]">{agency.code}</div>
+                <h4 className="mt-3 text-2xl font-semibold leading-tight">{agency.name}</h4>
+                <p className="mt-5 text-sm leading-6 text-white/40">{agency.description}</p>
+                <div className="mt-7 border-t border-white/10 pt-5 font-mono text-[8px] uppercase tracking-[.14em] text-white/25">{agency.scope}</div>
+              </motion.article>
+            );
+          })}
+        </div>
+
         <div className="mt-10 flex items-center gap-4 border-t border-white/10 pt-6 font-mono text-[8px] uppercase tracking-[.18em] text-white/25">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#c7aa68]" /> Other investigation units follow below the NSA in the security structure.
+          <span className="h-1.5 w-1.5 rounded-full bg-[#c7aa68]" /> NSA remains the highest security authority; other investigation units follow below it in the security structure.
         </div>
       </div>
     </section>

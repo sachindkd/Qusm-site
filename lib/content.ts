@@ -6,82 +6,20 @@ import { FBMRP_GUILD_ID } from "./discord-roles";
 export type LeadershipEntry = { id: string; title: string; name: string; discordId?: string; division?: string; rank?: string; description?: string; active: boolean; order: number };
 export type DivisionEntry = { id: string; code: string; name: string; description: string; status: "active" | "inactive" | "temporary"; leadership?: string; logoUrl?: string; order: number };
 export type CocEntry = { id: string; title: string; name?: string; description?: string; order: number; active: boolean };
-export type ShopEntry = { id: string; name: string; type: "faction" | "family"; description?: string; price?: string; gamepassUrl?: string; imageUrl?: string; status?: "active" | "inactive" | "sold-out"; order: number };
-export type Content = {
-  org: any;
-  announcements: any[];
-  calendar: any[];
-  leadership: LeadershipEntry[];
-  divisions: DivisionEntry[];
-  rules: any[];
-  government: any[];
-  ranks: any[];
-  news: any[];
-  media: any[];
-  applications: any[];
-  cocLeadership: CocEntry[];
-  cocStaff: CocEntry[];
-  cocRoleplay: CocEntry[];
-  shop: ShopEntry[];
-  _schemaVersion?: number;
-};
+export type ShopEntry = { id: string; name: string; type: "faction" | "family"; description?: string; price?: string; gamepassUrl?: string; imageUrl?: string; status?: "active" | "inactive" | "sold-out"; order: number; badge?: string; features?: string[] };
+export type CustomBlock = { id: string; type: "text" | "image" | "gallery" | "video" | "quote" | "cta" | "stats" | "embed" | "divider"; title?: string; body?: string; imageUrl?: string; imageAlt?: string; images?: string[]; videoUrl?: string; buttonLabel?: string; buttonUrl?: string; value?: string; label?: string; embedUrl?: string };
+export type CustomSection = { id: string; slug: string; eyebrow?: string; title: string; description?: string; layout: "split" | "wide" | "feature" | "grid" | "story"; accent?: "gold" | "white" | "olive"; published: boolean; order: number; blocks: CustomBlock[] };
+export type Content = { org: any; announcements: any[]; calendar: any[]; leadership: LeadershipEntry[]; divisions: DivisionEntry[]; rules: any[]; government: any[]; ranks: any[]; news: any[]; media: any[]; applications: any[]; cocLeadership: CocEntry[]; cocStaff: CocEntry[]; cocRoleplay: CocEntry[]; shop: ShopEntry[]; customSections: CustomSection[]; _schemaVersion?: number };
 
 const filePath = path.join(process.cwd(), "data", "content.json");
-const defaults: Content = {
-  org: {
-    name: "FBMRP",
-    fullName: "Fort Bliss Military Roleplay",
-    owner: "",
-    coOwner: "",
-    status: "active",
-    heroEyebrow: "FORT BLISS MILITARY ROLEPLAY",
-    heroTitle: "BUILT TO SERVE",
-    heroDescription: "A structured military roleplay community built around organization, progression, leadership and immersive operations.",
-    recruitmentUrl: "https://discord.com/channels/1426271681969655913/1532347499212177438",
-    footerText: "COMMAND // COMMUNITY // OPERATIONS",
-  },
-  announcements: [], calendar: [], leadership: [], divisions: [], rules: [], government: [], ranks: [], news: [], media: [], applications: [], shop: [],
-  cocLeadership: [
-    { id: "coc-l-1", title: "Owner", order: 1, active: true },
-    { id: "coc-l-2", title: "Co-Owner", order: 2, active: true },
-    { id: "coc-l-3", title: "Chairman", order: 3, active: true },
-    { id: "coc-l-4", title: "Vice Chairman", order: 4, active: true },
-    { id: "coc-l-5", title: "CEO", order: 5, active: true },
-    { id: "coc-l-6", title: "General Manager", order: 6, active: true },
-    { id: "coc-l-7", title: "Department Heads", order: 7, active: true },
-  ],
-  cocStaff: [
-    { id: "coc-s-1", title: "General Manager", order: 1, active: true },
-    { id: "coc-s-2", title: "Department Heads / HOCF / HOD / HDO / HAO", order: 2, active: true },
-    { id: "coc-s-3", title: "Management", order: 3, active: true },
-    { id: "coc-s-4", title: "Administration", order: 4, active: true },
-    { id: "coc-s-5", title: "Moderation", order: 5, active: true },
-    { id: "coc-s-6", title: "Intern", order: 6, active: true },
-  ],
-  cocRoleplay: [
-    { id: "coc-r-1", title: "President", order: 1, active: true },
-    { id: "coc-r-2", title: "Vice President", order: 2, active: true },
-    { id: "coc-r-3", title: "Speaker", order: 3, active: true },
-    { id: "coc-r-4", title: "President Pro Tempore", order: 4, active: true },
-    { id: "coc-r-5", title: "Secretary of Defense", order: 5, active: true },
-    { id: "coc-r-6", title: "Secretary of Homeland Security", order: 6, active: true },
-    { id: "coc-r-7", title: "Attorney General", order: 7, active: true },
-    { id: "coc-r-8", title: "Remaining RP Positions", order: 8, active: true },
-  ],
-};
+const defaults: Content = { org: { name: "FBMRP", fullName: "Fort Bliss Military Roleplay", owner: "", coOwner: "", status: "active", heroEyebrow: "FORT BLISS MILITARY ROLEPLAY", heroTitle: "BUILT TO SERVE", heroDescription: "A structured military roleplay community built around organization, progression, leadership and immersive operations.", recruitmentUrl: "https://discord.com/channels/1426271681969655913/1532347499212177438", footerText: "COMMAND // COMMUNITY // OPERATIONS" }, announcements: [], calendar: [], leadership: [], divisions: [], rules: [], government: [], ranks: [], news: [], media: [], applications: [], shop: [], customSections: [], cocLeadership: [{ id: "coc-l-1", title: "Owner", order: 1, active: true }, { id: "coc-l-2", title: "Co-Owner", order: 2, active: true }, { id: "coc-l-3", title: "Chairman", order: 3, active: true }, { id: "coc-l-4", title: "Vice Chairman", order: 4, active: true }, { id: "coc-l-5", title: "CEO", order: 5, active: true }, { id: "coc-l-6", title: "General Manager", order: 6, active: true }, { id: "coc-l-7", title: "Department Heads", order: 7, active: true }], cocStaff: [{ id: "coc-s-1", title: "General Manager", order: 1, active: true }, { id: "coc-s-2", title: "Department Heads / HOCF / HOD / HDO / HAO", order: 2, active: true }, { id: "coc-s-3", title: "Management", order: 3, active: true }, { id: "coc-s-4", title: "Administration", order: 4, active: true }, { id: "coc-s-5", title: "Moderation", order: 5, active: true }, { id: "coc-s-6", title: "Intern", order: 6, active: true }], cocRoleplay: [{ id: "coc-r-1", title: "President", order: 1, active: true }, { id: "coc-r-2", title: "Vice President", order: 2, active: true }, { id: "coc-r-3", title: "Speaker", order: 3, active: true }, { id: "coc-r-4", title: "President Pro Tempore", order: 4, active: true }, { id: "coc-r-5", title: "Secretary of Defense", order: 5, active: true }, { id: "coc-r-6", title: "Secretary of Homeland Security", order: 6, active: true }, { id: "coc-r-7", title: "Attorney General", order: 7, active: true }, { id: "coc-r-8", title: "Remaining RP Positions", order: 8, active: true }] };
 
-const CMS_CHANNEL = "qusm-cms-data";
-const PREFIX = "FBMRP_CMS_GZIP:";
-const bot = () => process.env.DISCORD_BOT_TOKEN;
+const CMS_CHANNEL = "qusm-cms-data"; const PREFIX = "FBMRP_CMS_GZIP:"; const bot = () => process.env.DISCORD_BOT_TOKEN;
 async function d(p: string, i?: RequestInit) { const t = bot(); if (!t) throw Error("Discord storage unavailable"); return fetch(`https://discord.com/api/v10${p}`, { ...i, headers: { Authorization: `Bot ${t}`, ...(i?.headers || {}) }, cache: "no-store" }); }
 function pack(c: Content) { return PREFIX + gzipSync(Buffer.from(JSON.stringify(c), "utf8")).toString("base64"); }
 function unpack(s: string) { return JSON.parse(gunzipSync(Buffer.from(s.slice(PREFIX.length), "base64")).toString("utf8")); }
 async function readRemote() { try { const r = await d(`/guilds/${FBMRP_GUILD_ID}/channels`); if (!r.ok) return null; const cs = await r.json(); const ch = cs.find((c: any) => c.type === 0 && c.name === CMS_CHANNEL); if (!ch) return null; const m = await d(`/channels/${ch.id}/messages?limit=20`); if (!m.ok) return null; const x = (await m.json()).find((m: any) => m.author?.bot && m.content?.startsWith(PREFIX)); return x ? unpack(x.content) : null; } catch { return null; } }
 async function writeRemote(c: Content) { const r = await d(`/guilds/${FBMRP_GUILD_ID}/channels`); if (!r.ok) throw Error("Discord channels unavailable"); const cs = await r.json(); let ch = cs.find((x: any) => x.type === 0 && x.name === CMS_CHANNEL); if (!ch) { const cr = await d(`/guilds/${FBMRP_GUILD_ID}/channels`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: CMS_CHANNEL, type: 0 }) }); if (!cr.ok) throw Error("CMS channel cannot be created"); ch = await cr.json(); } const body = pack(c); if (body.length > 2000) throw Error("CMS payload too large"); const m = await d(`/channels/${ch.id}/messages?limit=20`); const old = m.ok ? (await m.json()).find((x: any) => x.author?.bot && x.content?.startsWith(PREFIX)) : null; if (old) { const u = await d(`/channels/${ch.id}/messages/${old.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: body }) }); if (!u.ok) throw Error("CMS update failed"); } else { const p = await d(`/channels/${ch.id}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: body }) }); if (!p.ok) throw Error("CMS create failed"); } }
-
-export async function getContent(): Promise<Content> {
-  const remote = await readRemote();
-  if (remote) return { ...defaults, ...remote, org: { ...defaults.org, ...(remote.org || {}) }, calendar: remote.calendar || [], leadership: remote.leadership || [], divisions: remote.divisions || [], cocLeadership: remote.cocLeadership || defaults.cocLeadership, cocStaff: remote.cocStaff || defaults.cocStaff, cocRoleplay: remote.cocRoleplay || defaults.cocRoleplay, shop: remote.shop || [] };
-  try { const local = JSON.parse(await fs.readFile(filePath, "utf8")); return { ...defaults, ...local, org: { ...defaults.org, ...(local.org || {}) }, cocLeadership: local.cocLeadership || defaults.cocLeadership, cocStaff: local.cocStaff || defaults.cocStaff, cocRoleplay: local.cocRoleplay || defaults.cocRoleplay, shop: local.shop || [] }; } catch { return defaults; }
-}
+function normalize(c: any): Content { return { ...defaults, ...c, org: { ...defaults.org, ...(c?.org || {}) }, calendar: c?.calendar || [], leadership: c?.leadership || [], divisions: c?.divisions || [], cocLeadership: c?.cocLeadership || defaults.cocLeadership, cocStaff: c?.cocStaff || defaults.cocStaff, cocRoleplay: c?.cocRoleplay || defaults.cocRoleplay, shop: c?.shop || [], customSections: c?.customSections || [] }; }
+export async function getContent(): Promise<Content> { const remote = await readRemote(); if (remote) return normalize(remote); try { return normalize(JSON.parse(await fs.readFile(filePath, "utf8"))); } catch { return defaults; } }
 export async function saveContent(c: Content) { if (bot()) { await writeRemote(c); return; } await fs.mkdir(path.dirname(filePath), { recursive: true }); await fs.writeFile(filePath, JSON.stringify(c, null, 2), "utf8"); }

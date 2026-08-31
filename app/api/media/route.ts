@@ -33,9 +33,12 @@ export async function POST(req: Request) {
   if (!(await access())) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   try {
     const body = await req.json();
-    if (!body.title || !body.imageUrl) return NextResponse.json({ error: "Title and image URL are required" }, { status: 400 });
+    const title = String(body.title || "").trim();
+    const imageUrl = String(body.imageUrl || "").trim();
+    const videoUrl = String(body.videoUrl || body.videoId || "").trim();
+    if (!title || (!imageUrl && !videoUrl)) return NextResponse.json({ error: "Title and an image URL or video ID/URL are required" }, { status: 400 });
     const content = await readContent();
-    const item = { id: crypto.randomUUID(), title: String(body.title).trim(), caption: String(body.caption || ""), imageUrl: String(body.imageUrl).trim(), category: String(body.category || "general"), createdAt: new Date().toISOString() };
+    const item = { id: crypto.randomUUID(), title, caption: String(body.caption || ""), imageUrl, videoUrl, category: String(body.category || "general"), createdAt: new Date().toISOString() };
     await persistSection("media", [...(content.media || []), item]);
     return NextResponse.json(item, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Media persistence failed" }, { status: 503 }); }

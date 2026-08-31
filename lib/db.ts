@@ -57,14 +57,17 @@ export async function writeDbSection(section: string, value: unknown): Promise<C
   if (!/^[a-zA-Z0-9_]+$/.test(section)) throw new Error("Invalid content section");
   await initDb();
   const q = sql();
+  const currentRows = await q`SELECT data FROM site_content WHERE id = 1`;
+  if (!currentRows.length) throw new Error("Content record does not exist");
+  const current = currentRows[0].data as Record<string, unknown>;
+  const next = { ...current, [section]: value };
+  assertContentSize(next);
   const rows = await q`UPDATE site_content
     SET data = jsonb_set(data, ARRAY[${section}]::text[], ${JSON.stringify(value)}::jsonb, true), updated_at = NOW()
     WHERE id = 1
     RETURNING data`;
   if (!rows.length) throw new Error("Content record does not exist");
-  const result = rows[0].data as Content;
-  assertContentSize(result);
-  return result;
+  return rows[0].data as Content;
 }
 
 export async function dbHealth() {

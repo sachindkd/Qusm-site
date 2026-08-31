@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 
 // Canonical FBMR command priority/order:
 // OWNER → CO-OWNER → CM → VCM
-// VCM role ID restored to the verified role used by the site before the ordering change.
 const ROLE_IDS = {
   owner: "1430245086930669579",
   coOwner: "1530961653103853669",
@@ -19,17 +18,20 @@ async function getMembers(): Promise<Member[]> {
   const token = process.env.DISCORD_BOT_TOKEN, guild = process.env.DISCORD_GUILD_ID;
   if (!token || !guild) throw new Error("Discord integration is not configured");
   const all: Member[] = [];
-  for (let after = "0"; ; ) {
-    const u = new URL(`https://discord.com/api/v10/guilds/${guild}/members`);
-    u.searchParams.set("limit", "1000");
-    u.searchParams.set("with_presences", "true");
-    if (after !== "0") u.searchParams.set("after", after);
-    const r = await fetch(u, { headers: { Authorization: `Bot ${token}` }, cache: "no-store" });
-    if (!r.ok) throw new Error(`Discord API ${r.status}`);
-    const batch = await r.json() as Member[];
-    all.push(...batch);
-    if (batch.length < 1000) break;
-    after = batch[batch.length - 1].user.id;
+  for (const after of ["0"]) {
+    let cursor = after;
+    while (true) {
+      const u = new URL(`https://discord.com/api/v10/guilds/${guild}/members`);
+      u.searchParams.set("limit", "1000");
+      u.searchParams.set("with_presences", "true");
+      if (cursor !== "0") u.searchParams.set("after", cursor);
+      const r = await fetch(u, { headers: { Authorization: `Bot ${token}` }, cache: "no-store" });
+      if (!r.ok) throw new Error(`Discord API ${r.status}`);
+      const batch = await r.json() as Member[];
+      all.push(...batch);
+      if (batch.length < 1000) break;
+      cursor = batch[batch.length - 1].user.id;
+    }
   }
   return all;
 }
@@ -38,8 +40,7 @@ function avatar(member: Member) {
   const id = member.user.id, guild = process.env.DISCORD_GUILD_ID;
   if (member.avatar && guild) return `https://cdn.discordapp.com/guilds/${guild}/users/${id}/avatars/${member.avatar}.png?size=256`;
   if (member.user.avatar) return `https://cdn.discordapp.com/avatars/${id}/${member.user.avatar}.png?size=256`;
-  const fallback = Number(id.slice(-1)) % 5;
-  return `https://cdn.discordapp.com/embed/avatars/${fallback}.png`;
+  return `https://cdn.discordapp.com/embed/avatars/${Number(id.slice(-1)) % 5}.png`;
 }
 
 function profile(member: Member, roleId: string) {
@@ -60,9 +61,10 @@ export async function GET() {
   try {
     if (cache && Date.now() - cache.at < TTL) return NextResponse.json(cache.data);
     const members = await getMembers();
+    // Keep this insertion order stable because the frontend consumes the API in role-priority order.
     const data: Record<string, any[]> = {};
     for (const [key, roleId] of Object.entries(ROLE_IDS)) {
-      data[key] = members.filter(m => m.roles?.includes(roleId)).map(m => profile(m, roleId));
+      data[key] = members.filter(m => Array.isArray(m.roles) && m.roles.includes(roleId)).map(m => profile(m, roleId));
     }
     cache = { at: Date.now(), data };
     return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });

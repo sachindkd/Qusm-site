@@ -1,9 +1,9 @@
-import LiveHomeRevampV3 from "./LiveHomeRevampV3";
+import FBMRExperience from "./FBMRExperience";
 import NSASection from "./NSASection";
 import InvestigationAgenciesSection from "./InvestigationAgenciesSection";
 
 export const dynamic = "force-dynamic";
 
 export default function LivePage() {
-  return <><LiveHomeRevampV3 /><NSASection /><InvestigationAgenciesSection /></>;
+  return <><FBMRExperience /><NSASection /><InvestigationAgenciesSection /></>;
 }

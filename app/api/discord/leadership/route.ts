@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readContent } from "@/lib/content-store";
 
 // Canonical FBMR command priority/order:
 // OWNER → CO-OWNER → CM → VCM
@@ -43,7 +44,7 @@ function avatar(member: Member) {
   return `https://cdn.discordapp.com/embed/avatars/${Number(id.slice(-1)) % 5}.png`;
 }
 
-function profile(member: Member, roleId: string) {
+function profile(member: Member, roleId: string, rank?: string | null) {
   const status = member.presence?.status || "offline";
   return {
     id: member.user.id,
@@ -51,6 +52,7 @@ function profile(member: Member, roleId: string) {
     displayName: member.nick || member.user.global_name || member.user.username,
     avatar: avatar(member),
     roleId,
+    rank: rank || null,
     status,
     statusLabel: status === "dnd" ? "Do Not Disturb" : status.charAt(0).toUpperCase() + status.slice(1),
     activities: Array.isArray(member.presence?.activities) ? member.presence!.activities : [],
@@ -61,10 +63,23 @@ export async function GET() {
   try {
     if (cache && Date.now() - cache.at < TTL) return NextResponse.json(cache.data);
     const members = await getMembers();
-    // Keep this insertion order stable because the frontend consumes the API in role-priority order.
+
+    // Military ranks are managed in Staff Management/CMS. Merge those records into
+    // the live Discord command feed by Discord ID so website rank changes appear
+    // without requiring a Discord role-name change.
+    const content = await readContent();
+    const rankByDiscordId = new Map<string, string>();
+    for (const entry of content.leadership || []) {
+      const id = String(entry?.discordId || "").trim();
+      const rank = String(entry?.rank || "").trim();
+      if (id && rank) rankByDiscordId.set(id, rank);
+    }
+
     const data: Record<string, any[]> = {};
     for (const [key, roleId] of Object.entries(ROLE_IDS)) {
-      data[key] = members.filter(m => Array.isArray(m.roles) && m.roles.includes(roleId)).map(m => profile(m, roleId));
+      data[key] = members
+        .filter(m => Array.isArray(m.roles) && m.roles.includes(roleId))
+        .map(m => profile(m, roleId, rankByDiscordId.get(m.user.id) || null));
     }
     cache = { at: Date.now(), data };
     return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });

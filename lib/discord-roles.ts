@@ -41,6 +41,7 @@ const OWNER_ROLE_IDS = new Set([
   ROLE_IDS.owner,
   ROLE_IDS.coOwner,
   ROLE_IDS.chairman,
+  ROLE_IDS.viceChairman,
   ...(ROLE_IDS.ofcAdmin ? [ROLE_IDS.ofcAdmin] : []),
 ]);
 const OWNERSHIP_ROLE_IDS = new Set([
@@ -55,7 +56,6 @@ const OWNERSHIP_ROLE_IDS = new Set([
 const SENIOR_LEADERSHIP_ROLE_IDS = new Set([
   ROLE_IDS.generalManager,
   ROLE_IDS.headDepartment,
-  ROLE_IDS.viceChairman,
 ]);
 const DEVELOPER_ROLE_IDS = new Set([ROLE_IDS.developerPosts]);
 const AIDE_ROLE_IDS = new Set([ROLE_IDS.aides]);

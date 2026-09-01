@@ -33,7 +33,7 @@ export async function PUT(req: Request) {
     const index = requestedId ? current.findIndex((item: any) => item.id === requestedId) : -1;
     const existing = index >= 0 ? current[index] : undefined;
     const id = existing?.id ?? crypto.randomUUID();
-    const entry = { id, ...fields, order: fields.order ?? (existing?.order ?? current.length), createdAt: existing?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() };
+    const entry = { id, ...fields, order: fields.order ?? (existing?.order ?? current.length), createdAt: (existing as any)?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() };
     const next = [...current];
     if (index >= 0) next[index] = entry; else next.push(entry);
     next.sort((a: any, b: any) => a.order - b.order);
@@ -59,3 +59,5 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   } catch { return NextResponse.json({ error: "Leadership persistence failed" }, { status: 503 }); }
 }
+
+// Preview rebuild trigger: keep this route type-safe for Next.js production builds.

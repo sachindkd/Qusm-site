@@ -2,7 +2,7 @@ import { getContent as getFileContent, saveContent as saveFileContent, type Cont
 import { readDbContent, writeDbContent, writeDbSection } from "./db";
 const useDatabase = () => Boolean(process.env.DATABASE_URL);
 const isVercelDeployment = () => Boolean(process.env.VERCEL);
-const CMS_SCHEMA_VERSION = 6;
+const CMS_SCHEMA_VERSION = 7;
 function assertDatabaseConfiguration() { if (isVercelDeployment() && !useDatabase()) throw new Error("DATABASE_URL is required for Vercel CMS deployments"); }
 export async function loadContent(): Promise<Content> {
   assertDatabaseConfiguration(); const seed: any = await getFileContent(); if (!useDatabase()) return seed as Content;
@@ -12,6 +12,9 @@ export async function loadContent(): Promise<Content> {
   const arraySections = ["announcements","calendar","leadership","divisions","rules","government","ranks","news","media","applications","cocLeadership","cocStaff","cocRoleplay","shop","customSections"];
   for (const key of arraySections) { const current = stored[key]; if (!Array.isArray(current) || (current.length === 0 && Array.isArray(seed[key]) && seed[key].length > 0)) merged[key] = seed[key]; }
   if (previousVersion < 4) { merged.cocLeadership = seed.cocLeadership || []; merged.cocStaff = seed.cocStaff || []; merged.cocRoleplay = seed.cocRoleplay || []; }
+  // Replace the old placeholder military-rank list with the official FBMR military ranks.
+  // This migration intentionally touches ONLY the ranks section; CoC/leadership entries remain separate.
+  if (previousVersion < 7) merged.ranks = seed.ranks || [];
   if (!Array.isArray(merged.customSections)) merged.customSections = [];
   merged._schemaVersion = CMS_SCHEMA_VERSION; await writeDbContent(merged as Content); return merged as Content;
 }

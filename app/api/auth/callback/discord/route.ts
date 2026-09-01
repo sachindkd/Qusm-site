@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { FBMRP_GUILD_ID, getAccessLevel } from "../../../../../lib/discord-roles";
 import { DISCORD_SESSION_COOKIE, serializeDiscordSession } from "../../../../../lib/discord-session";
+import { rateLimit, requestKey } from "../../../../../lib/rate-limit";
 
 const OAUTH_STATE_COOKIE = "fbmrp_discord_oauth_state";
 const SESSION_MAX_AGE = 8 * 60 * 60;
@@ -23,6 +24,9 @@ function validState(expected: string | undefined, received: string | null) {
 }
 
 export async function GET(request: Request) {
+  const limiter = rateLimit(requestKey(request, "discord-callback"), 20, 60_000);
+  if (!limiter.allowed) return NextResponse.json({ error: "Too many authentication callbacks. Try again shortly." }, { status: 429, headers: { "Retry-After": String(limiter.retryAfter), "Cache-Control": "no-store" } });
+
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");

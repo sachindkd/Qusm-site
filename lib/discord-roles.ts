@@ -1,8 +1,8 @@
 export const FBMRP_GUILD_ID = process.env.DISCORD_GUILD_ID || "1426271681969655913";
 export const SPECIAL_OWNER_ID = "1210317929485181000";
+export const MEMBER_ROLE_ID = "1496568955958067400";
 
 // FBMRP authorization is based on Discord Role IDs only.
-// Role names are intentionally not used for authorization decisions.
 export const ROLE_IDS = {
   owner: "1430245086930669579",
   coOwner: "1530961653103853669",
@@ -21,6 +21,7 @@ export const ROLE_IDS = {
   headDevelopment: "1478156027244314825",
   developerPosts: "1506466679100801196",
   ofcAdmin: process.env.DISCORD_OFC_ADMIN_ROLE_ID || "",
+  member: MEMBER_ROLE_ID,
 } as const;
 
 export type AccessLevel = "owner" | "ownership" | "senior-leadership" | "developer" | "aide" | "staff" | "member";
@@ -37,34 +38,14 @@ const permissions: Record<AccessLevel, Permission[]> = {
   member: ["site:read"],
 };
 
-const OWNER_ROLE_IDS = new Set([
-  ROLE_IDS.owner,
-  ROLE_IDS.coOwner,
-  ROLE_IDS.chairman,
-  ROLE_IDS.viceChairman,
-  ...(ROLE_IDS.ofcAdmin ? [ROLE_IDS.ofcAdmin] : []),
-]);
-const OWNERSHIP_ROLE_IDS = new Set([
-  ROLE_IDS.headManagement,
-  ROLE_IDS.headOperations,
-  ROLE_IDS.headAdministration,
-  ROLE_IDS.communityAffairs,
-  ROLE_IDS.ceo,
-  ROLE_IDS.headDevelopment,
-  ROLE_IDS.seniorManagement,
-]);
-const SENIOR_LEADERSHIP_ROLE_IDS = new Set([
-  ROLE_IDS.generalManager,
-  ROLE_IDS.headDepartment,
-]);
+const OWNER_ROLE_IDS = new Set([ROLE_IDS.owner, ROLE_IDS.coOwner, ROLE_IDS.chairman, ROLE_IDS.viceChairman, ...(ROLE_IDS.ofcAdmin ? [ROLE_IDS.ofcAdmin] : [])]);
+const OWNERSHIP_ROLE_IDS = new Set([ROLE_IDS.headManagement, ROLE_IDS.headOperations, ROLE_IDS.headAdministration, ROLE_IDS.communityAffairs, ROLE_IDS.ceo, ROLE_IDS.headDevelopment, ROLE_IDS.seniorManagement]);
+const SENIOR_LEADERSHIP_ROLE_IDS = new Set([ROLE_IDS.generalManager, ROLE_IDS.headDepartment]);
 const DEVELOPER_ROLE_IDS = new Set([ROLE_IDS.developerPosts]);
 const AIDE_ROLE_IDS = new Set([ROLE_IDS.aides]);
 const STAFF_ROLE_IDS = new Set([ROLE_IDS.staff]);
 
-function hasAny(roleIds: Iterable<string>, allowed: Set<string>): boolean {
-  for (const roleId of roleIds) if (allowed.has(roleId)) return true;
-  return false;
-}
+function hasAny(roleIds: Iterable<string>, allowed: Set<string>): boolean { for (const roleId of roleIds) if (allowed.has(roleId)) return true; return false; }
 
 /** Resolve FBMRP access exclusively from Discord Role IDs. */
 export function getAccessLevel(userId: string, roleIds: string[], _roles: DiscordGuildRole[] = []): AccessLevel {
@@ -75,13 +56,8 @@ export function getAccessLevel(userId: string, roleIds: string[], _roles: Discor
   if (hasAny(roleIds, DEVELOPER_ROLE_IDS)) return "developer";
   if (hasAny(roleIds, AIDE_ROLE_IDS)) return "aide";
   if (hasAny(roleIds, STAFF_ROLE_IDS)) return "staff";
-  return "member";
+  return hasAny(roleIds, new Set([MEMBER_ROLE_ID])) ? "member" : "member";
 }
 
-export function can(access: AccessLevel, permission: Permission): boolean {
-  return permissions[access].includes(permission);
-}
-
-export function getPermissions(access: AccessLevel): Permission[] {
-  return permissions[access];
-}
+export function can(access: AccessLevel, permission: Permission): boolean { return permissions[access].includes(permission); }
+export function getPermissions(access: AccessLevel): Permission[] { return permissions[access]; }

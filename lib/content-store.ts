@@ -2,7 +2,7 @@ import { getContent as getFileContent, saveContent as saveFileContent, type Cont
 import { readDbContent, writeDbContent, writeDbSection } from "./db";
 const useDatabase = () => Boolean(process.env.DATABASE_URL);
 const isVercelDeployment = () => Boolean(process.env.VERCEL);
-const CMS_SCHEMA_VERSION = 5;
+const CMS_SCHEMA_VERSION = 6;
 function assertDatabaseConfiguration() { if (isVercelDeployment() && !useDatabase()) throw new Error("DATABASE_URL is required for Vercel CMS deployments"); }
 export async function loadContent(): Promise<Content> {
   assertDatabaseConfiguration(); const seed: any = await getFileContent(); if (!useDatabase()) return seed as Content;

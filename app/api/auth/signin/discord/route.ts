@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { rateLimit, requestKey } from "../../../../../lib/rate-limit";
 
 const OAUTH_STATE_COOKIE = "fbmrp_discord_oauth_state";
+const OAUTH_NEXT_COOKIE = "fbmrp_discord_oauth_next";
 
 function redirectUri(request: Request) {
   const configured = process.env.DISCORD_REDIRECT_URI?.trim();
@@ -11,6 +12,10 @@ function redirectUri(request: Request) {
   if (siteUrl) return `${siteUrl.replace(/\/$/, "")}/api/auth/callback/discord`;
   const url = new URL(request.url);
   return `${url.origin}/api/auth/callback/discord`;
+}
+
+function safeNext(value: string | null) {
+  return value === "/staff" ? "/staff" : "/member";
 }
 
 export async function GET(request: Request) {
@@ -22,6 +27,7 @@ export async function GET(request: Request) {
 
   const redirect = redirectUri(request);
   const state = randomUUID();
+  const next = safeNext(new URL(request.url).searchParams.get("next"));
   const params = new URLSearchParams({
     client_id: clientId,
     response_type: "code",
@@ -33,6 +39,13 @@ export async function GET(request: Request) {
 
   const response = NextResponse.redirect(`https://discord.com/oauth2/authorize?${params.toString()}`);
   response.cookies.set(OAUTH_STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/api/auth",
+    maxAge: 10 * 60,
+  });
+  response.cookies.set(OAUTH_NEXT_COOKIE, next, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

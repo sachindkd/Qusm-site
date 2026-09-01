@@ -1,4 +1,5 @@
 {
+  "content": "",
   "org": {
     "name": "QUSM",
     "fullName": "Quavy's United States Military",
@@ -48,9 +49,21 @@
     { "id": "d5", "name": "Secret Service", "head": "TBD", "desc": "Protective detail for government officials; guard operations at Fort Bliss." }
   ],
   "rules": [
-    { "id": "r1", "title": "Chain of Command", "body": "Requests requiring staff approval must be routed through the appropriate division head before action is taken." },
-    { "id": "r2", "title": "Conduct", "body": "Members are expected to maintain a respectful environment across all platforms, in-game and in Discord." },
-    { "id": "r3", "title": "Disciplinary Action", "body": "Violations are reviewed by High Command and may result in formal charges, demotion, or removal." }
+    { "id": "r1", "title": "Respect All Members", "category": "Community", "body": "Treat everyone with respect at all times. Harassment, discrimination, hate speech, or personal attacks will not be tolerated.", "order": 10 },
+    { "id": "r2", "title": "Follow Discord Terms of Service", "category": "Platform", "body": "All members must comply with the Discord Terms of Service and Community Guidelines. Violations will result in immediate action.", "order": 20 },
+    { "id": "r3", "title": "No NSFW Content", "category": "Content", "body": "Posting or sharing NSFW, explicit, or inappropriate content is strictly prohibited.", "order": 30 },
+    { "id": "r4", "title": "No Spamming or Flooding", "category": "Conduct", "body": "Avoid excessive messaging, repeated content, or unnecessary pinging. Keep chat clean and readable.", "order": 40 },
+    { "id": "r5", "title": "Use Channels Correctly", "category": "Server", "body": "Stay on topic within designated channels. Misuse of channels disrupts server organization.", "order": 50 },
+    { "id": "r6", "title": "No Advertising Without Permission", "category": "Advertising", "body": "Promoting other servers, services, or content without staff approval is not allowed.", "order": 60 },
+    { "id": "r7", "title": "Respect Staff Authority", "category": "Staff", "body": "All staff decisions are final. Do not argue publicly with staff. If you have concerns, handle them professionally through proper channels.", "order": 70 },
+    { "id": "r8", "title": "No Exploiting or Cheating", "category": "Integrity", "body": "Abuse of glitches, exploits, or unfair advantages within any affiliated games or systems is prohibited.", "order": 80 },
+    { "id": "r9", "title": "Keep Usernames & Profiles Appropriate", "category": "Profiles", "body": "Usernames, profile pictures, and statuses must remain appropriate and not offensive.", "order": 90 },
+    { "id": "r10", "title": "Do Not Impersonate Staff or Members", "category": "Integrity", "body": "Impersonation of any member, especially staff, will result in immediate disciplinary action.", "order": 100 },
+    { "id": "r11", "title": "Follow Chain of Command", "category": "Leadership", "body": "Use the proper chain of command when reporting issues or requesting assistance. Do not bypass leadership without a valid reason.", "order": 110 },
+    { "id": "r12", "title": "No Drama or Toxic Behavior", "category": "Conduct", "body": "Creating unnecessary conflict, stirring drama, or provoking others is not tolerated.", "order": 120 },
+    { "id": "r13", "title": "Protect Privacy", "category": "Privacy", "body": "Do not share personal information, yours or others'. Respect everyone's privacy.", "order": 130 },
+    { "id": "r14", "title": "English in Main Channels (if applicable)", "category": "Communication", "body": "Use English in main channels unless otherwise specified to ensure clear communication.", "order": 140 },
+    { "id": "r15", "title": "Punishments", "category": "Enforcement", "body": "Failure to follow these rules may result in warnings, mutes, kicks, or bans, depending on severity.", "order": 150 }
   ],
   "government": [
     { "id": "g1", "title": "President of the United States", "name": "Vacant", "note": "Head of the civilian government and Commander-in-Chief." },

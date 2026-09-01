@@ -5,8 +5,9 @@ import { readContent, persistSection } from "@/lib/content-store";
 import { recordAudit } from "@/lib/audit";
 import { rateLimit, requestKey } from "@/lib/rate-limit";
 import { createHash } from "node:crypto";
+import { CMS_SECTION_BY_ID } from "@/lib/cms-section-registry";
 
-const sectionPermission: Record<string, Permission> = { org:"site:edit", announcements:"announcements:manage", calendar:"calendar:manage", cocLeadership:"site:edit", cocStaff:"site:edit", cocRoleplay:"site:edit", leadership:"leadership:edit", divisions:"divisions:edit", applications:"applications:manage", rules:"site:edit", government:"site:edit", ranks:"site:edit", news:"site:edit", media:"media:manage", customSections:"site:edit" };
+const sectionPermission: Record<string, Permission> = Object.fromEntries(Object.values(CMS_SECTION_BY_ID).map(s => [s.id, s.permission as Permission]));
 const MAX_BODY_BYTES = 512 * 1024;
 const MAX_ITEMS = 500;
 const hash=(value:unknown)=>createHash("sha256").update(JSON.stringify(value??null)).digest("hex");

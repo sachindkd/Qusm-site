@@ -1,0 +1,60 @@
+/* FBMR mobile navigation stability fix
+   Keeps the desktop navigation untouched. */
+@media (max-width: 1023px) {
+  /* The live V3 nav is fixed; make the opened panel a predictable viewport layer. */
+  nav.fixed.inset-x-0.top-0.z-\[60\] {
+    max-height: 100svh;
+  }
+
+  nav.fixed.inset-x-0.top-0.z-\[60\] > div + div {
+    max-height: calc(100svh - 74px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  }
+
+  nav.fixed.inset-x-0.top-0.z-\[60\] > div + div a {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    width: 100%;
+    touch-action: manipulation;
+  }
+
+  /* Prevent the fixed navigation from causing horizontal overflow on narrow devices. */
+  nav.fixed.inset-x-0.top-0.z-\[60\] > div:first-child {
+    min-width: 0;
+  }
+
+  nav.fixed.inset-x-0.top-0.z-\[60\] > div:first-child > a:first-child {
+    min-width: 0;
+  }
+
+  /* Keep the menu button comfortably tappable and above the panel. */
+  nav.fixed.inset-x-0.top-0.z-\[60\] button {
+    position: relative;
+    z-index: 2;
+    flex: 0 0 auto;
+    min-width: 44px;
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  /* Smooth, stable scrolling when jumping to sections from the menu. */
+  nav.fixed.inset-x-0.top-0.z-\[60\] ~ main section[id] {
+    scroll-margin-top: 90px;
+  }
+}
+
+@media (max-width: 380px) {
+  nav.fixed.inset-x-0.top-0.z-\[60\] > div:first-child {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  nav.fixed.inset-x-0.top-0.z-\[60\] > div + div {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}

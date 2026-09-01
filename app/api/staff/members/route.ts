@@ -1,15 +1,44 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { FBMRP_GUILD_ID, SPECIAL_OWNER_ID, getAccessLevel, getPermissions, type DiscordGuildRole } from "../../../../lib/discord-roles";
+import { FBMRP_GUILD_ID, SPECIAL_OWNER_ID, getAccessLevel, can, type DiscordGuildRole } from "../../../../lib/discord-roles";
 import { DISCORD_SESSION_COOKIE, readDiscordSession } from "../../../../lib/discord-session";
+import { rateLimit, requestKey } from "../../../../lib/rate-limit";
 
 const noStore = { "Cache-Control": "no-store, no-cache, must-revalidate" };
 const MIN_QUERY_LENGTH = 2;
 const MAX_RESULTS = 12;
 
+async function getLiveAccess(session: ReturnType<typeof readDiscordSession>) {
+  if (!session) return "member" as const;
+  if (session.id === SPECIAL_OWNER_ID) return "owner" as const;
+  const token = process.env.DISCORD_BOT_TOKEN;
+  if (!token) return "member" as const;
+  try {
+    const headers = { Authorization: `Bot ${token}` };
+    const [memberRes, rolesRes] = await Promise.all([
+      fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/members/${session.id}`, { headers, cache: "no-store" }),
+      fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/roles`, { headers, cache: "no-store" }),
+    ]);
+    if (!memberRes.ok || !rolesRes.ok) return "member" as const;
+    const member = await memberRes.json() as { roles?: string[] };
+    const roles = await rolesRes.json() as DiscordGuildRole[];
+    return getAccessLevel(session.id, member.roles ?? [], roles);
+  } catch {
+    return "member" as const;
+  }
+}
+
 export async function GET(request: Request) {
+  const limiter = rateLimit(requestKey(request, "staff-members-search"), 30, 60_000);
+  if (!limiter.allowed) return NextResponse.json({ error: "Too many member searches. Try again shortly." }, { status: 429, headers: { ...noStore, "Retry-After": String(limiter.retryAfter) } });
+
   const session = readDiscordSession((await cookies()).get(DISCORD_SESSION_COOKIE)?.value);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noStore });
+
+  const access = await getLiveAccess(session);
+  if (!can(access, "applications:manage") && !can(access, "leadership:edit") && !can(access, "divisions:edit") && access !== "owner") {
+    return NextResponse.json({ error: "Staff management access required" }, { status: 403, headers: noStore });
+  }
 
   const query = new URL(request.url).searchParams.get("q")?.trim() ?? "";
   if (query.length < MIN_QUERY_LENGTH) return NextResponse.json({ members: [] }, { headers: noStore });
@@ -18,22 +47,7 @@ export async function GET(request: Request) {
   if (!token) return NextResponse.json({ error: "Discord bot is not configured" }, { status: 503, headers: noStore });
 
   const headers = { Authorization: `Bot ${token}` };
-
   try {
-    // Verify the requester is still a permitted staff/admin user.
-    if (session.id !== SPECIAL_OWNER_ID) {
-      const memberRes = await fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/members/${session.id}`, { headers, cache: "no-store" });
-      const rolesRes = await fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/roles`, { headers, cache: "no-store" });
-      if (!memberRes.ok || !rolesRes.ok) return NextResponse.json({ error: "Unable to verify staff access" }, { status: 403, headers: noStore });
-      const member = await memberRes.json() as { roles?: string[] };
-      const roles = await rolesRes.json() as DiscordGuildRole[];
-      const access = getAccessLevel(session.id, member.roles ?? [], roles);
-      const permissions = getPermissions(access);
-      if (access === "member" || access === "staff" || access === "aide") return NextResponse.json({ error: "Staff access required" }, { status: 403, headers: noStore });
-      void permissions;
-    }
-
-    // Discord's guild member search searches username, global name, nickname and similar member fields.
     const response = await fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/members/search?query=${encodeURIComponent(query)}&limit=${MAX_RESULTS}`, { headers, cache: "no-store" });
     if (!response.ok) {
       const body = await response.text();

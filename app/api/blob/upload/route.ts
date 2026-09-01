@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { DISCORD_SESSION_COOKIE, readDiscordSession } from "@/lib/discord-session";
 import { getAccessLevel, can, FBMRP_GUILD_ID, type DiscordGuildRole } from "@/lib/discord-roles";
+import { passesSameOrigin } from "@/lib/authorization";
+import { rateLimit, requestKey } from "@/lib/rate-limit";
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime"] as const;
@@ -40,10 +42,14 @@ function parsePayload(value: string | null) {
   if (!(ALLOWED as readonly string[]).includes(type)) throw new Error("Unsupported media type.");
   if (!Number.isFinite(size) || size <= 0 || size > MAX_BYTES) throw new Error("Developer media files must be 8 MB or smaller.");
   if (!ALLOWED_EXTENSIONS.has(extension)) throw new Error("Unsupported file extension.");
+  if (pathname.length > 200 || pathname.includes("..") || /[\\\0\r\n]/.test(pathname)) throw new Error("Invalid upload path.");
   return { type, size, pathname };
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const limiter = rateLimit(requestKey(request, "blob-upload"), 20, 60_000);
+  if (!limiter.allowed) return NextResponse.json({ error: "Too many upload attempts. Try again shortly." }, { status: 429, headers: { "Retry-After": String(limiter.retryAfter), "Cache-Control": "no-store" } });
+  if (!passesSameOrigin(request)) return NextResponse.json({ error: "Cross-origin request blocked" }, { status: 403 });
   const access = await getAccess();
   if (!can(access, "media:manage")) return NextResponse.json({ error: "Developer media access denied" }, { status: 403 });
   try {
@@ -53,13 +59,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       request,
       onBeforeGenerateToken: async (pathname, clientPayload) => {
         const payload = parsePayload(clientPayload);
-        if (payload.pathname && payload.pathname !== pathname) throw new Error("Upload metadata mismatch.");
+        if (payload.pathname !== pathname) throw new Error("Upload metadata mismatch.");
         return { allowedContentTypes: [...ALLOWED], maximumSizeInBytes: MAX_BYTES, addRandomSuffix: true };
       },
       onUploadCompleted: async () => {},
     });
-    return NextResponse.json(jsonResponse);
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Upload initialization failed" }, { status: 400 });
+    return NextResponse.json(jsonResponse, { headers: { "Cache-Control": "no-store" } });
+  } catch {
+    return NextResponse.json({ error: "Upload initialization failed" }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }
 }

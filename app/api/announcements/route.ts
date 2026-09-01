@@ -1,33 +1,11 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { FBMRP_GUILD_ID, SPECIAL_OWNER_ID, getAccessLevel, can, type DiscordGuildRole } from "@/lib/discord-roles";
-import { DISCORD_SESSION_COOKIE, readDiscordSession } from "@/lib/discord-session";
+import { requirePermission, passesSameOrigin } from "@/lib/authorization";
 import { readContent, persistSection } from "@/lib/content-store";
 import { rateLimit, requestKey } from "@/lib/rate-limit";
 
 type Announcement = { id: string; title: string; body: string; published: boolean; createdAt: string; updatedAt: string; discordMessageId?: string };
 const MAX_TITLE = 200;
 const MAX_BODY = 10000;
-
-async function auth() {
-  const raw = (await cookies()).get(DISCORD_SESSION_COOKIE)?.value;
-  const session = readDiscordSession(raw);
-  if (!session) return false;
-  if (session.id === SPECIAL_OWNER_ID) return true;
-  const token = process.env.DISCORD_BOT_TOKEN;
-  if (!token) return false;
-  try {
-    const headers = { Authorization: `Bot ${token}` };
-    const [memberResponse, rolesResponse] = await Promise.all([
-      fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/members/${session.id}`, { headers, cache: "no-store" }),
-      fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/roles`, { headers, cache: "no-store" }),
-    ]);
-    if (!memberResponse.ok || !rolesResponse.ok) return false;
-    const member = await memberResponse.json();
-    const roles = await rolesResponse.json();
-    return can(getAccessLevel(session.id, member.roles || [], roles as DiscordGuildRole[]), "announcements:manage");
-  } catch { return false; }
-}
 
 async function publish(a: Announcement) {
   const token = process.env.DISCORD_BOT_TOKEN;
@@ -43,19 +21,19 @@ async function publish(a: Announcement) {
 }
 
 function validText(value: unknown, max: number): value is string { return typeof value === "string" && value.trim().length > 0 && value.trim().length <= max; }
-function writeAllowed(req: Request) { const limiter = rateLimit(requestKey(req, "announcements-write"), 20, 60_000); return limiter; }
+function writeAllowed(req: Request) { return rateLimit(requestKey(req, "announcements-write"), 20, 60_000); }
 
 export async function GET() { try { return NextResponse.json((await readContent()).announcements || [], { headers: { "Cache-Control": "no-store" } }); } catch { return NextResponse.json({ error: "Announcements unavailable" }, { status: 503 }); } }
 
 export async function POST(req: Request) {
   const limiter = writeAllowed(req); if (!limiter.allowed) return NextResponse.json({ error: "Too many announcement updates. Try again shortly." }, { status: 429, headers: { "Retry-After": String(limiter.retryAfter) } });
-  if (!(await auth())) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  if (!passesSameOrigin(req)) return NextResponse.json({ error: "Cross-origin request blocked" }, { status: 403 });
+  if (!(await requirePermission("announcements:manage"))) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   try {
     if (!(req.headers.get("content-type") || "").toLowerCase().includes("application/json")) return NextResponse.json({ error: "JSON body required" }, { status: 415 });
     const body = await req.json();
     if (!validText(body?.title, MAX_TITLE) || !validText(body?.body, MAX_BODY)) return NextResponse.json({ error: `Title must be 1-${MAX_TITLE} characters and body 1-${MAX_BODY} characters.` }, { status: 400 });
-    const now = new Date().toISOString();
-    const announcement: Announcement = { id: crypto.randomUUID(), title: body.title.trim(), body: body.body.trim(), published: Boolean(body.published), createdAt: now, updatedAt: now };
+    const now = new Date().toISOString(); const announcement: Announcement = { id: crypto.randomUUID(), title: body.title.trim(), body: body.body.trim(), published: Boolean(body.published), createdAt: now, updatedAt: now };
     if (announcement.published) announcement.discordMessageId = await publish(announcement);
     const content = await readContent(); await persistSection("announcements", [...(content.announcements || []), announcement]);
     return NextResponse.json(announcement, { status: 201, headers: { "Cache-Control": "no-store" } });
@@ -64,7 +42,8 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   const limiter = writeAllowed(req); if (!limiter.allowed) return NextResponse.json({ error: "Too many announcement updates. Try again shortly." }, { status: 429, headers: { "Retry-After": String(limiter.retryAfter) } });
-  if (!(await auth())) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  if (!passesSameOrigin(req)) return NextResponse.json({ error: "Cross-origin request blocked" }, { status: 403 });
+  if (!(await requirePermission("announcements:manage"))) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   try {
     if (!(req.headers.get("content-type") || "").toLowerCase().includes("application/json")) return NextResponse.json({ error: "JSON body required" }, { status: 415 });
     const body = await req.json(); if (!body?.id || typeof body.id !== "string" || body.id.length > 100) return NextResponse.json({ error: "Missing or invalid id" }, { status: 400 });
@@ -80,6 +59,7 @@ export async function PATCH(req: Request) {
 
 export async function DELETE(req: Request) {
   const limiter = writeAllowed(req); if (!limiter.allowed) return NextResponse.json({ error: "Too many announcement updates. Try again shortly." }, { status: 429, headers: { "Retry-After": String(limiter.retryAfter) } });
-  if (!(await auth())) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  if (!passesSameOrigin(req)) return NextResponse.json({ error: "Cross-origin request blocked" }, { status: 403 });
+  if (!(await requirePermission("announcements:manage"))) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   try { const id = new URL(req.url).searchParams.get("id"); if (!id || id.length > 100) return NextResponse.json({ error: "Missing or invalid id" }, { status: 400 }); const content = await readContent(); const current = content.announcements || []; const next = current.filter((item: Announcement) => item.id !== id); if (next.length === current.length) return NextResponse.json({ error: "Not found" }, { status: 404 }); await persistSection("announcements", next); return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } }); } catch (error: any) { return NextResponse.json({ error: error?.message || "Announcement persistence failed" }, { status: error?.status || 503 }); }
 }

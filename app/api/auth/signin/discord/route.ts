@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
+import { rateLimit, requestKey } from "../../../../../lib/rate-limit";
 
 const OAUTH_STATE_COOKIE = "fbmrp_discord_oauth_state";
 
@@ -13,6 +14,9 @@ function redirectUri(request: Request) {
 }
 
 export async function GET(request: Request) {
+  const limiter = rateLimit(requestKey(request, "discord-signin"), 10, 60_000);
+  if (!limiter.allowed) return NextResponse.json({ error: "Too many sign-in attempts. Try again shortly." }, { status: 429, headers: { "Retry-After": String(limiter.retryAfter), "Cache-Control": "no-store" } });
+
   const clientId = process.env.DISCORD_CLIENT_ID;
   if (!clientId) return NextResponse.json({ error: "Discord authentication is not configured." }, { status: 500 });
 

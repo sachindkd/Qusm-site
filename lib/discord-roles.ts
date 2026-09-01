@@ -37,8 +37,6 @@ const permissions: Record<AccessLevel, Permission[]> = {
   member: ["site:read"],
 };
 
-const accessRank: Record<AccessLevel, number> = { member: 0, staff: 1, aide: 2, developer: 2, "senior-leadership": 3, ownership: 4, owner: 5 };
-
 const OWNER_ROLE_IDS = new Set([
   ROLE_IDS.owner,
   ROLE_IDS.coOwner,
@@ -68,7 +66,7 @@ function hasAny(roleIds: Iterable<string>, allowed: Set<string>): boolean {
   return false;
 }
 
-/** Resolve the single highest FBMRP access level from Discord Role IDs only. */
+/** Resolve FBMRP access exclusively from Discord Role IDs. */
 export function getAccessLevel(userId: string, roleIds: string[], _roles: DiscordGuildRole[] = []): AccessLevel {
   if (userId === SPECIAL_OWNER_ID) return "owner";
   if (hasAny(roleIds, OWNER_ROLE_IDS)) return "owner";

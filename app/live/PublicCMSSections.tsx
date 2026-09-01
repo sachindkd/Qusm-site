@@ -18,6 +18,7 @@ function Group({ id, label, eyebrow, Icon, items }: { id:string; label:string; e
         {items.map((x,i)=><article key={x.id||i} className="border border-white/10 bg-[#0b0e0c] p-6">
           <div className="font-mono text-[8px] text-[#d4b56a]">{String(i+1).padStart(2,"0")}</div>
           <h3 className="mt-2 text-xl font-semibold">{x.title||x.name||"Untitled"}</h3>
+          {x.code && <p className="mt-1 font-mono text-[8px] uppercase tracking-[.16em] text-white/30">{x.code}</p>}
           {x.role && <p className="mt-1 font-mono text-[8px] uppercase tracking-[.16em] text-white/30">{x.role}</p>}
           {x.department && <p className="mt-1 text-xs text-white/35">{x.department}</p>}
           {x.excerpt && <p className="mt-3 text-sm leading-6 text-white/40">{x.excerpt}</p>}
@@ -39,7 +40,7 @@ export default function PublicCMSSections(){
   const news=useMemo(()=>clean(content.news||[]),[content.news]);
   return <>
     <Group id="government" label="Government" eyebrow="06 / GOVERNMENT" Icon={Landmark} items={government}/>
-    <Group id="ranks" label="Ranks" eyebrow="07 / RANK STRUCTURE" Icon={BadgeCheck} items={ranks}/>
+    <Group id="ranks" label="Military Ranks" eyebrow="07 / MILITARY RANKS" Icon={BadgeCheck} items={ranks}/>
     <Group id="news" label="News" eyebrow="08 / NEWS" Icon={Newspaper} items={news}/>
   </>;
 }

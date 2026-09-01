@@ -1,0 +1,1 @@
+Canonical CMS architecture: all staff/site editors must consume the same content source. Rulebook is the only rules section. New custom sections are available through the canonical section system.

@@ -70,10 +70,27 @@
     { "id": "g3", "title": "Secretary of Defense", "name": "Vacant", "note": "Oversees military divisions on behalf of the government." }
   ],
   "ranks": [
-    { "id": "rk1", "code": "E-1", "name": "Recruit", "desc": "Entry-level, completed onboarding training." },
-    { "id": "rk2", "code": "E-2", "name": "Private", "desc": "Active member of a division, basic duties." },
-    { "id": "rk3", "code": "O-1", "name": "Lieutenant", "desc": "Junior officer, oversees small unit operations." },
-    { "id": "rk4", "code": "DIR", "name": "Division Head", "desc": "Full authority over an individual division." }
+    { "id": "rk-o10", "code": "O10", "name": "General", "desc": "Four-star general officer." },
+    { "id": "rk-o9", "code": "O9", "name": "Lieutenant General", "desc": "Three-star general officer." },
+    { "id": "rk-o8", "code": "O8", "name": "Major General", "desc": "Two-star general officer." },
+    { "id": "rk-o7", "code": "O7", "name": "Brigadier General", "desc": "One-star general officer." },
+    { "id": "rk-o6", "code": "O6", "name": "Colonel", "desc": "Senior field-grade officer." },
+    { "id": "rk-o5", "code": "O5", "name": "Lieutenant Colonel", "desc": "Field-grade officer." },
+    { "id": "rk-o4", "code": "O4", "name": "Major", "desc": "Field-grade officer." },
+    { "id": "rk-o3", "code": "O3", "name": "Captain", "desc": "Company-grade officer." },
+    { "id": "rk-o2", "code": "O2", "name": "First Lieutenant", "desc": "Company-grade officer." },
+    { "id": "rk-o1", "code": "O1", "name": "Second Lieutenant", "desc": "Junior commissioned officer." },
+    { "id": "rk-e9b", "code": "E9B", "name": "Command Sergeant Major", "desc": "Senior enlisted command advisor." },
+    { "id": "rk-e9", "code": "E9", "name": "Sergeant Major", "desc": "Senior enlisted leader." },
+    { "id": "rk-e8b", "code": "E8B", "name": "First Sergeant", "desc": "Senior enlisted company-level leader." },
+    { "id": "rk-e8", "code": "E8", "name": "Master Sergeant", "desc": "Senior non-commissioned officer." },
+    { "id": "rk-e7", "code": "E7", "name": "Sergeant First Class", "desc": "Senior non-commissioned officer." },
+    { "id": "rk-e6", "code": "E6", "name": "Staff Sergeant", "desc": "Non-commissioned officer." },
+    { "id": "rk-e5", "code": "E5", "name": "Sergeant", "desc": "Non-commissioned officer." },
+    { "id": "rk-e4", "code": "E4", "name": "Corporal", "desc": "Junior non-commissioned officer." },
+    { "id": "rk-e3", "code": "E3", "name": "Private First Class", "desc": "Junior enlisted rank." },
+    { "id": "rk-e2", "code": "E2", "name": "Private Second Class", "desc": "Junior enlisted rank." },
+    { "id": "rk-e1", "code": "E1", "name": "Private", "desc": "Entry-level enlisted rank." }
   ],
   "news": [
     { "id": "n1", "date": "2026-08-26", "tag": "Staffing", "title": "Navy OCS Cycle Complete", "body": "Full 10-person Navy staff hierarchy finalized after a multi-stage grading and placement process." },

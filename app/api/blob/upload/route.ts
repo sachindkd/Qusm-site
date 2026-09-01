@@ -5,7 +5,8 @@ import { DISCORD_SESSION_COOKIE, readDiscordSession } from "@/lib/discord-sessio
 import { getAccessLevel, can, FBMRP_GUILD_ID, type DiscordGuildRole } from "@/lib/discord-roles";
 
 const MAX_BYTES = 8 * 1024 * 1024;
-const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime"];
+const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime"] as const;
+const ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "gif", "mp4", "webm", "mov"]);
 
 async function getAccess() {
   const raw = (await cookies()).get(DISCORD_SESSION_COOKIE)?.value;
@@ -16,7 +17,7 @@ async function getAccess() {
   try {
     const headers = { Authorization: `Bot ${token}` };
     const [memberResponse, rolesResponse] = await Promise.all([
-      fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/members/${session.id}`, { headers, cache: "no-store" }),
+      fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/members/${encodeURIComponent(session.id)}`, { headers, cache: "no-store" }),
       fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/roles`, { headers, cache: "no-store" }),
     ]);
     if (!memberResponse.ok || !rolesResponse.ok) return "member" as const;
@@ -26,21 +27,34 @@ async function getAccess() {
   } catch { return "member" as const; }
 }
 
+function parsePayload(value: string | null) {
+  if (!value) throw new Error("Upload metadata is required.");
+  let payload: unknown;
+  try { payload = JSON.parse(value); } catch { throw new Error("Invalid upload metadata."); }
+  if (!payload || typeof payload !== "object") throw new Error("Invalid upload metadata.");
+  const record = payload as Record<string, unknown>;
+  const type = typeof record.type === "string" ? record.type.toLowerCase() : "";
+  const size = typeof record.size === "number" ? record.size : Number(record.size);
+  const pathname = typeof record.pathname === "string" ? record.pathname : "";
+  const extension = pathname.split(".").pop()?.toLowerCase() ?? "";
+  if (!(ALLOWED as readonly string[]).includes(type)) throw new Error("Unsupported media type.");
+  if (!Number.isFinite(size) || size <= 0 || size > MAX_BYTES) throw new Error("Developer media files must be 8 MB or smaller.");
+  if (!ALLOWED_EXTENSIONS.has(extension)) throw new Error("Unsupported file extension.");
+  return { type, size, pathname };
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
   const access = await getAccess();
   if (!can(access, "media:manage")) return NextResponse.json({ error: "Developer media access denied" }, { status: 403 });
-  const body = (await request.json()) as HandleUploadBody;
   try {
+    const body = (await request.json()) as HandleUploadBody;
     const jsonResponse = await handleUpload({
       body,
       request,
-      onBeforeGenerateToken: async (_pathname, clientPayload) => {
-        const payload = clientPayload ? JSON.parse(clientPayload) : {};
-        const type = String(payload.type || "");
-        const size = Number(payload.size || 0);
-        if (!ALLOWED.includes(type)) throw new Error("Unsupported media type. Use JPG, PNG, WebP, GIF, MP4, WebM or MOV.");
-        if (!Number.isFinite(size) || size <= 0 || size > MAX_BYTES) throw new Error("Developer media files must be 8 MB or smaller.");
-        return { allowedContentTypes: ALLOWED, maximumSizeInBytes: MAX_BYTES, addRandomSuffix: true };
+      onBeforeGenerateToken: async (pathname, clientPayload) => {
+        const payload = parsePayload(clientPayload);
+        if (payload.pathname && payload.pathname !== pathname) throw new Error("Upload metadata mismatch.");
+        return { allowedContentTypes: [...ALLOWED], maximumSizeInBytes: MAX_BYTES, addRandomSuffix: true };
       },
       onUploadCompleted: async () => {},
     });

@@ -59,3 +59,5 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   } catch { return NextResponse.json({ error: "Leadership persistence failed" }, { status: 503 }); }
 }
+
+// Preview rebuild trigger: keep this route type-safe for Next.js production builds.

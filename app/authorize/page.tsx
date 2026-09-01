@@ -1,20 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 export default function AuthorizePage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    // Keep the authorization page lightweight. The existing Discord auth flow
-    // remains the source of truth; this page is only the professional gateway.
-  }, []);
 
   function authorize() {
     setLoading(true);
-    window.location.href = "/api/auth/discord";
+    window.location.href = "/api/auth/signin/discord";
   }
 
   return (
@@ -30,20 +23,12 @@ export default function AuthorizePage() {
             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-indigo-300/80">FBMRP</p>
             <h1 className="mt-3 text-3xl font-bold tracking-tight">Welcome to FBMRP</h1>
             <p className="mt-3 text-sm leading-6 text-white/60">Authorize with Discord to continue. Your Discord profile will be used to personalize your experience.</p>
-
-            <button
-              onClick={authorize}
-              disabled={loading}
-              className="mt-8 w-full rounded-xl bg-indigo-500 px-5 py-3.5 text-sm font-semibold shadow-lg shadow-indigo-950/40 transition hover:bg-indigo-400 disabled:cursor-wait disabled:opacity-60"
-            >
+            <button onClick={authorize} disabled={loading} className="mt-8 w-full rounded-xl bg-indigo-500 px-5 py-3.5 text-sm font-semibold shadow-lg shadow-indigo-950/40 transition hover:bg-indigo-400 disabled:cursor-wait disabled:opacity-60">
               {loading ? "Connecting to Discord…" : "Authorize with Discord"}
             </button>
-
             <p className="mt-5 text-xs text-white/35">Secure Discord authorization · No password required</p>
           </div>
-          <div className="border-t border-white/10 bg-black/10 px-8 py-5 text-center text-xs text-white/40">
-            After authorization, your profile can display your Discord avatar, username and server roles.
-          </div>
+          <div className="border-t border-white/10 bg-black/10 px-8 py-5 text-center text-xs text-white/40">After authorization, your profile can display your Discord avatar, username and server roles.</div>
         </div>
       </div>
     </main>

@@ -13,6 +13,9 @@ async function getGuildMember(discordUserId: string) {
   return response.json() as Promise<{ roles?: string[]; nick?: string | null }>;
 }
 
+const secureCookies = process.env.NODE_ENV === "production";
+const cookiePrefix = secureCookies ? "__Secure-" : "";
+
 export const authOptions: NextAuthOptions = {
   providers: [
     DiscordProvider({
@@ -56,5 +59,19 @@ export const authOptions: NextAuthOptions = {
     },
   },
   pages: { signIn: "/login", error: "/login" },
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: 8 * 60 * 60 },
+  cookies: {
+    sessionToken: {
+      name: `${cookiePrefix}next-auth.session-token`,
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: secureCookies },
+    },
+    callbackUrl: {
+      name: `${cookiePrefix}next-auth.callback-url`,
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: secureCookies },
+    },
+    csrfToken: {
+      name: `${cookiePrefix}next-auth.csrf-token`,
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: secureCookies },
+    },
+  },
 };

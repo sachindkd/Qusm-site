@@ -1,6 +1,8 @@
 export const FBMRP_GUILD_ID = process.env.DISCORD_GUILD_ID || "1426271681969655913";
 export const SPECIAL_OWNER_ID = "1210317929485181000";
 
+// FBMRP authorization is based on Discord Role IDs only.
+// Role names are intentionally not used for authorization decisions.
 export const ROLE_IDS = {
   owner: "1430245086930669579",
   coOwner: "1530961653103853669",
@@ -37,27 +39,51 @@ const permissions: Record<AccessLevel, Permission[]> = {
 
 const accessRank: Record<AccessLevel, number> = { member: 0, staff: 1, aide: 2, developer: 2, "senior-leadership": 3, ownership: 4, owner: 5 };
 
-function accessForRole(roleId: string, roleName = ""): AccessLevel {
-  const normalizedName = roleName.trim().toLowerCase();
-  if (roleId === ROLE_IDS.owner || roleId === ROLE_IDS.coOwner || roleId === ROLE_IDS.chairman || (ROLE_IDS.ofcAdmin && roleId === ROLE_IDS.ofcAdmin) || ["owner", "co-owner", "co owner", "chairman", "special user", "ofc admin", "official admin"].includes(normalizedName)) return "owner";
-  if ([ROLE_IDS.headOperations, ROLE_IDS.headAdministration, ROLE_IDS.communityAffairs, ROLE_IDS.ceo, ROLE_IDS.headDevelopment].includes(roleId as never)) return "ownership";
-  if (["chief operations officer", "chief logistic officer", "chief logistics officer", "chief relations officer", "head of development"].includes(normalizedName)) return "ownership";
-  if (roleId === ROLE_IDS.headManagement || roleId === ROLE_IDS.seniorManagement) return "ownership";
-  if ([ROLE_IDS.generalManager, ROLE_IDS.headDepartment, ROLE_IDS.viceChairman].includes(roleId as never)) return "senior-leadership";
-  if (["general manager", "director of national intelligence", "staff overseer", "vice chairman", "head of staff", "assistant head of staff", "administrative officer"].includes(normalizedName)) return "senior-leadership";
-  if (roleId === ROLE_IDS.developerPosts) return "developer";
-  if (roleId === ROLE_IDS.aides || normalizedName === "aide" || normalizedName === "aides") return "aide";
-  if (roleId === ROLE_IDS.staff || normalizedName === "staff") return "staff";
+const OWNER_ROLE_IDS = new Set([
+  ROLE_IDS.owner,
+  ROLE_IDS.coOwner,
+  ROLE_IDS.chairman,
+  ...(ROLE_IDS.ofcAdmin ? [ROLE_IDS.ofcAdmin] : []),
+]);
+const OWNERSHIP_ROLE_IDS = new Set([
+  ROLE_IDS.headManagement,
+  ROLE_IDS.headOperations,
+  ROLE_IDS.headAdministration,
+  ROLE_IDS.communityAffairs,
+  ROLE_IDS.ceo,
+  ROLE_IDS.headDevelopment,
+  ROLE_IDS.seniorManagement,
+]);
+const SENIOR_LEADERSHIP_ROLE_IDS = new Set([
+  ROLE_IDS.generalManager,
+  ROLE_IDS.headDepartment,
+  ROLE_IDS.viceChairman,
+]);
+const DEVELOPER_ROLE_IDS = new Set([ROLE_IDS.developerPosts]);
+const AIDE_ROLE_IDS = new Set([ROLE_IDS.aides]);
+const STAFF_ROLE_IDS = new Set([ROLE_IDS.staff]);
+
+function hasAny(roleIds: Iterable<string>, allowed: Set<string>): boolean {
+  for (const roleId of roleIds) if (allowed.has(roleId)) return true;
+  return false;
+}
+
+/** Resolve the single highest FBMRP access level from Discord Role IDs only. */
+export function getAccessLevel(userId: string, roleIds: string[], _roles: DiscordGuildRole[] = []): AccessLevel {
+  if (userId === SPECIAL_OWNER_ID) return "owner";
+  if (hasAny(roleIds, OWNER_ROLE_IDS)) return "owner";
+  if (hasAny(roleIds, OWNERSHIP_ROLE_IDS)) return "ownership";
+  if (hasAny(roleIds, SENIOR_LEADERSHIP_ROLE_IDS)) return "senior-leadership";
+  if (hasAny(roleIds, DEVELOPER_ROLE_IDS)) return "developer";
+  if (hasAny(roleIds, AIDE_ROLE_IDS)) return "aide";
+  if (hasAny(roleIds, STAFF_ROLE_IDS)) return "staff";
   return "member";
 }
 
-export function getAccessLevel(userId: string, roleIds: string[], roles: DiscordGuildRole[] = []): AccessLevel {
-  if (userId === SPECIAL_OWNER_ID) return "owner";
-  return roleIds.map((roleId) => {
-    const role = roles.find((item) => item.id === roleId);
-    return accessForRole(roleId, role?.name || "");
-  }).reduce<AccessLevel>((highest, current) => accessRank[current] > accessRank[highest] ? current : highest, "member");
+export function can(access: AccessLevel, permission: Permission): boolean {
+  return permissions[access].includes(permission);
 }
 
-export function can(access: AccessLevel, permission: Permission): boolean { return permissions[access].includes(permission); }
-export function getPermissions(access: AccessLevel): Permission[] { return permissions[access]; }
+export function getPermissions(access: AccessLevel): Permission[] {
+  return permissions[access];
+}

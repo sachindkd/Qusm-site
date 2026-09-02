@@ -5,14 +5,16 @@ import { DISCORD_SESSION_COOKIE, readDiscordSession } from "../../../../lib/disc
 
 const noStore = { "Cache-Control": "no-store, no-cache, must-revalidate" };
 
+function specialUserIds() {
+  return new Set([SPECIAL_OWNER_ID, ...(process.env.DISCORD_SPECIAL_USER_IDS || "").split(",").map((id) => id.trim()).filter(Boolean)]);
+}
+
 export async function GET() {
   const session = readDiscordSession((await cookies()).get(DISCORD_SESSION_COOKIE)?.value);
   if (!session) return NextResponse.json({ authenticated: false }, { headers: noStore });
 
-  // The designated site owner is trusted explicitly. This keeps the owner portal
-  // usable even if Discord role lookup is temporarily unavailable.
-  if (session.id === SPECIAL_OWNER_ID) {
-    const access = "owner" as const;
+  if (specialUserIds().has(session.id)) {
+    const access = "special-user" as const;
     return NextResponse.json({
       authenticated: true,
       user: {
@@ -32,7 +34,7 @@ export async function GET() {
   try {
     const headers = { Authorization: `Bot ${botToken}` };
     const [memberRes, rolesRes] = await Promise.all([
-      fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/members/${session.id}`, { headers, cache: "no-store" }),
+      fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/members/${encodeURIComponent(session.id)}`, { headers, cache: "no-store" }),
       fetch(`https://discord.com/api/v10/guilds/${FBMRP_GUILD_ID}/roles`, { headers, cache: "no-store" }),
     ]);
     if (!memberRes.ok || !rolesRes.ok) return NextResponse.json({ authenticated: false }, { headers: noStore });

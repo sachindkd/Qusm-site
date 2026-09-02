@@ -23,7 +23,7 @@ export default async function AdminPage() {
   if (!permissions.some((permission) => EDIT_PERMISSIONS.includes(permission))) redirect("/staff");
 
   const auditReadable = permissions.includes("audit:read");
-  const shopEditable = access === "owner";
+  const shopEditable = access === "owner" || access === "special-user";
   const content = await loadContent();
 
   return <><div className="fixed right-4 top-4 z-[80] sm:right-8">{auditReadable ? <AuditLogButton /> : null}</div><AdminClientV2 initialContent={content} email={identity.username ?? session.username ?? "Discord user"} access={access} permissions={permissions} shopEditable={shopEditable} /></>;

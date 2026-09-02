@@ -1,4 +1,5 @@
 export const FBMRP_GUILD_ID = process.env.DISCORD_GUILD_ID || "1426271681969655913";
+/** Legacy name retained for compatibility. This identity is a Special User, not a Discord Owner role. */
 export const SPECIAL_OWNER_ID = "1210317929485181000";
 export const MEMBER_ROLE_ID = "1496568955958067400";
 
@@ -23,11 +24,12 @@ export const ROLE_IDS = {
   member: MEMBER_ROLE_ID,
 } as const;
 
-export type AccessLevel = "owner" | "ownership" | "senior-leadership" | "developer" | "aide" | "staff" | "member";
+export type AccessLevel = "special-user" | "owner" | "ownership" | "senior-leadership" | "developer" | "aide" | "staff" | "member";
 export type Permission = "site:read" | "site:edit" | "leadership:edit" | "divisions:edit" | "announcements:manage" | "audit:read" | "calendar:manage" | "developer:publish" | "applications:manage" | "media:manage" | "shop:manage" | "admin:all";
 export type DiscordGuildRole = { id: string; name: string; position: number; managed?: boolean };
 
 const permissions: Record<AccessLevel, Permission[]> = {
+  "special-user": ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "audit:read", "calendar:manage", "developer:publish", "applications:manage", "media:manage", "shop:manage", "admin:all"],
   owner: ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "audit:read", "calendar:manage", "developer:publish", "applications:manage", "media:manage", "shop:manage", "admin:all"],
   ownership: ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "calendar:manage", "applications:manage", "media:manage"],
   "senior-leadership": ["site:read", "leadership:edit", "announcements:manage", "calendar:manage", "applications:manage"],
@@ -36,6 +38,12 @@ const permissions: Record<AccessLevel, Permission[]> = {
   staff: ["site:read"],
   member: ["site:read"],
 };
+
+const SPECIAL_USER_IDS = new Set(
+  [SPECIAL_OWNER_ID, ...(process.env.DISCORD_SPECIAL_USER_IDS || "").split(",")]
+    .map((id) => id.trim())
+    .filter(Boolean),
+);
 
 const OWNER_ROLE_IDS = new Set([ROLE_IDS.owner, ROLE_IDS.coOwner, ROLE_IDS.chairman, ROLE_IDS.viceChairman, ...(ROLE_IDS.ofcAdmin ? [ROLE_IDS.ofcAdmin] : [])]);
 const OWNERSHIP_ROLE_IDS = new Set([ROLE_IDS.headManagement, ROLE_IDS.headOperations, ROLE_IDS.headAdministration, ROLE_IDS.communityAffairs, ROLE_IDS.ceo, ROLE_IDS.headDevelopment, ROLE_IDS.seniorManagement]);
@@ -46,8 +54,10 @@ const STAFF_ROLE_IDS = new Set([ROLE_IDS.staff]);
 
 function hasAny(roleIds: Iterable<string>, allowed: Set<string>): boolean { for (const roleId of roleIds) if (allowed.has(roleId)) return true; return false; }
 
+export function isSpecialUser(userId: string): boolean { return SPECIAL_USER_IDS.has(userId); }
+
 export function getAccessLevel(userId: string, roleIds: string[], _roles: DiscordGuildRole[] = []): AccessLevel {
-  if (userId === SPECIAL_OWNER_ID) return "owner";
+  if (isSpecialUser(userId)) return "special-user";
   if (hasAny(roleIds, OWNER_ROLE_IDS)) return "owner";
   if (hasAny(roleIds, OWNERSHIP_ROLE_IDS)) return "ownership";
   if (hasAny(roleIds, SENIOR_LEADERSHIP_ROLE_IDS)) return "senior-leadership";

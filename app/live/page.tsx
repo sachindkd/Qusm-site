@@ -1,12 +1,15 @@
 import FBMRExperience from "./FBMRExperience";
+import MobileNavigation from "@/components/MobileNavigation";
 import NSASection from "./NSASection";
 import RulesSection from "./RulesSection";
 import StoreSection from "./StoreSection";
 import CustomSections from "./CustomSections";
 import PublicCMSSections from "./PublicCMSSections";
 import { loadContent } from "@/lib/content-store";
+import "./mobile-functional.css";
+
 export const dynamic = "force-dynamic";
 export default async function LivePage() {
   const content = await loadContent();
-  return <><FBMRExperience /><NSASection /><RulesSection /><PublicCMSSections /><StoreSection /><CustomSections sections={content.customSections || []} /></>;
+  return <><FBMRExperience /><NSASection /><RulesSection /><PublicCMSSections /><StoreSection /><CustomSections sections={content.customSections || []} /><MobileNavigation /></>;
 }

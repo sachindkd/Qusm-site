@@ -5,6 +5,7 @@ import { DISCORD_SESSION_COOKIE, serializeDiscordSession } from "../../../../../
 import { rateLimit, requestKey } from "../../../../../lib/rate-limit";
 
 const OAUTH_STATE_COOKIE = "fbmrp_discord_oauth_state";
+const OAUTH_NEXT_COOKIE = "fbmrp_discord_oauth_next";
 const SESSION_MAX_AGE = 8 * 60 * 60;
 
 function redirectUri(request: Request) {
@@ -23,6 +24,10 @@ function validState(expected: string | undefined, received: string | null) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+function readCookie(request: Request, name: string) {
+  return request.headers.get("cookie")?.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`))?.[1];
+}
+
 export async function GET(request: Request) {
   const limiter = rateLimit(requestKey(request, "discord-callback"), 20, 60_000);
   if (!limiter.allowed) return NextResponse.json({ error: "Too many authentication callbacks. Try again shortly." }, { status: 429, headers: { "Retry-After": String(limiter.retryAfter), "Cache-Control": "no-store" } });
@@ -30,7 +35,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
-  const stateCookie = request.headers.get("cookie")?.match(/(?:^|;\s*)fbmrp_discord_oauth_state=([^;]+)/)?.[1];
+  const stateCookie = readCookie(request, OAUTH_STATE_COOKIE);
   if (!validState(stateCookie ? decodeURIComponent(stateCookie) : undefined, state)) return NextResponse.redirect(new URL("/?auth=invalid_oauth_state", url.origin));
   if (!code) return NextResponse.redirect(new URL("/?auth=missing_code", url.origin));
 
@@ -41,12 +46,7 @@ export async function GET(request: Request) {
   if (!clientId || !clientSecret || !botToken || !sessionSecret || sessionSecret.length < 32) return NextResponse.redirect(new URL("/?auth=not_configured", url.origin));
 
   const redirect = redirectUri(request);
-  const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: "authorization_code", code, redirect_uri: redirect }),
-    cache: "no-store",
-  });
+  const tokenRes = await fetch("https://discord.com/api/oauth2/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: "authorization_code", code, redirect_uri: redirect }), cache: "no-store" });
   if (!tokenRes.ok) return NextResponse.redirect(new URL("/?auth=token_error", url.origin));
   const token = await tokenRes.json();
   if (!token?.access_token || typeof token.access_token !== "string") return NextResponse.redirect(new URL("/?auth=token_error", url.origin));
@@ -61,9 +61,12 @@ export async function GET(request: Request) {
   const member = await memberRes.json();
   const roles = Array.isArray(member.roles) ? member.roles.filter((id: unknown): id is string => typeof id === "string") : [];
   const access = getAccessLevel(user.id, roles);
-  const destination = access === "member" ? "/member" : "/staff";
+  const requested = readCookie(request, OAUTH_NEXT_COOKIE) ? decodeURIComponent(readCookie(request, OAUTH_NEXT_COOKIE)!) : "/member";
+  const privileged = access !== "member";
+  const destination = privileged && ["/staff", "/admin", "/admin/builder"].includes(requested) ? requested : "/member";
   const response = NextResponse.redirect(new URL(destination, url.origin));
   response.cookies.set(OAUTH_STATE_COOKIE, "", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/api/auth", maxAge: 0 });
+  response.cookies.set(OAUTH_NEXT_COOKIE, "", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/api/auth", maxAge: 0 });
   response.cookies.set(DISCORD_SESSION_COOKIE, serializeDiscordSession({ id: user.id, username: typeof user.username === "string" ? user.username.slice(0, 100) : undefined, avatar: typeof user.avatar === "string" ? user.avatar : null, roles, access }), { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: SESSION_MAX_AGE });
   return response;
 }

@@ -22,7 +22,7 @@ export default async function AdminPage() {
   const permissions = getPermissions(access);
   if (!permissions.some((permission) => EDIT_PERMISSIONS.includes(permission))) redirect("/staff");
 
-  const auditReadable = permissions.includes("announcements:manage");
+  const auditReadable = permissions.includes("audit:read");
   const shopEditable = access === "owner";
   const content = await loadContent();
 

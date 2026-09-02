@@ -2,7 +2,6 @@ export const FBMRP_GUILD_ID = process.env.DISCORD_GUILD_ID || "14262716819696559
 export const SPECIAL_OWNER_ID = "1210317929485181000";
 export const MEMBER_ROLE_ID = "1496568955958067400";
 
-// FBMRP authorization is based on Discord Role IDs only.
 export const ROLE_IDS = {
   owner: "1430245086930669579",
   coOwner: "1530961653103853669",
@@ -25,11 +24,11 @@ export const ROLE_IDS = {
 } as const;
 
 export type AccessLevel = "owner" | "ownership" | "senior-leadership" | "developer" | "aide" | "staff" | "member";
-export type Permission = "site:read" | "site:edit" | "leadership:edit" | "divisions:edit" | "announcements:manage" | "audit:read" | "calendar:manage" | "developer:publish" | "applications:manage" | "media:manage" | "admin:all";
+export type Permission = "site:read" | "site:edit" | "leadership:edit" | "divisions:edit" | "announcements:manage" | "audit:read" | "calendar:manage" | "developer:publish" | "applications:manage" | "media:manage" | "shop:manage" | "admin:all";
 export type DiscordGuildRole = { id: string; name: string; position: number; managed?: boolean };
 
 const permissions: Record<AccessLevel, Permission[]> = {
-  owner: ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "audit:read", "calendar:manage", "developer:publish", "applications:manage", "media:manage", "admin:all"],
+  owner: ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "audit:read", "calendar:manage", "developer:publish", "applications:manage", "media:manage", "shop:manage", "admin:all"],
   ownership: ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "calendar:manage", "applications:manage", "media:manage"],
   "senior-leadership": ["site:read", "leadership:edit", "announcements:manage", "calendar:manage", "applications:manage"],
   developer: ["site:read", "developer:publish", "media:manage"],
@@ -47,7 +46,6 @@ const STAFF_ROLE_IDS = new Set([ROLE_IDS.staff]);
 
 function hasAny(roleIds: Iterable<string>, allowed: Set<string>): boolean { for (const roleId of roleIds) if (allowed.has(roleId)) return true; return false; }
 
-/** Resolve FBMRP access exclusively from Discord Role IDs. */
 export function getAccessLevel(userId: string, roleIds: string[], _roles: DiscordGuildRole[] = []): AccessLevel {
   if (userId === SPECIAL_OWNER_ID) return "owner";
   if (hasAny(roleIds, OWNER_ROLE_IDS)) return "owner";
@@ -56,7 +54,7 @@ export function getAccessLevel(userId: string, roleIds: string[], _roles: Discor
   if (hasAny(roleIds, DEVELOPER_ROLE_IDS)) return "developer";
   if (hasAny(roleIds, AIDE_ROLE_IDS)) return "aide";
   if (hasAny(roleIds, STAFF_ROLE_IDS)) return "staff";
-  return hasAny(roleIds, new Set([MEMBER_ROLE_ID])) ? "member" : "member";
+  return "member";
 }
 
 export function can(access: AccessLevel, permission: Permission): boolean { return permissions[access].includes(permission); }

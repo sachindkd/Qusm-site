@@ -9,7 +9,9 @@ export async function getLiveAuthorization(): Promise<AuthorizationResult | null
   const raw = (await cookies()).get(DISCORD_SESSION_COOKIE)?.value;
   const session = readDiscordSession(raw);
   if (!session) return null;
-  if (session.id === SPECIAL_OWNER_ID) return { userId: session.id, access: "owner", roleIds: [], username: session.username || session.id };
+  if (session.id === SPECIAL_OWNER_ID || (process.env.DISCORD_SPECIAL_USER_IDS || "").split(",").map((id) => id.trim()).includes(session.id)) {
+    return { userId: session.id, access: "special-user", roleIds: [], username: session.username || session.id };
+  }
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!token) return null;
   try {
@@ -39,7 +41,5 @@ export function passesSameOrigin(request: Request): boolean {
   if (referer) {
     try { return new URL(referer).origin === target; } catch { return false; }
   }
-  // Modern browsers send Origin for state-changing fetches. Reject requests
-  // with neither Origin nor Referer so a cookie-only cross-site request cannot mutate CMS data.
   return false;
 }

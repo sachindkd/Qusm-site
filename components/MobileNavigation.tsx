@@ -4,17 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Menu, X, ArrowUpRight } from "lucide-react";
 
 type CustomSection = { id?: string; slug?: string; title?: string; published?: boolean; order?: number };
-
 type NavLink = readonly [string, `#${string}`];
 
 const baseLinks: readonly NavLink[] = [
-  ["INTEL", "#intel"],
-  ["COMMAND", "#command"],
-  ["DIVISIONS", "#divisions"],
-  ["OPERATIONS", "#operations"],
-  ["RULES", "#rules"],
-  ["MEDIA", "#media"],
-  ["STORE", "#store"],
+  ["INTEL", "#intel"], ["COMMAND", "#command"], ["DIVISIONS", "#divisions"],
+  ["OPERATIONS", "#operations"], ["RULES", "#rules"], ["MEDIA", "#media"], ["STORE", "#store"],
 ];
 
 export default function MobileNavigation() {
@@ -48,28 +42,25 @@ export default function MobileNavigation() {
   }, []);
 
   const links = useMemo<readonly NavLink[]>(() => {
-    const custom: NavLink[] = sections
+    const custom: NavLink[] = [];
+    [...sections]
       .filter(section => section.published !== false && Boolean(section.title))
       .sort((a, b) => Number(a.order ?? 99) - Number(b.order ?? 99))
-      .map(section => {
+      .forEach(section => {
         const target = String(section.slug || section.id || "").replace(/^#/, "").replace(/^\//, "");
-        return target ? [String(section.title), `#${target}` as `#${string}`] : null;
-      })
-      .filter((item): item is NavLink => Boolean(item));
+        if (target) custom.push([String(section.title), `#${target}` as `#${string}`]);
+      });
     return [...baseLinks, ...custom];
   }, [sections]);
 
   return (
     <>
       <header className="mobile-functional-nav" data-open={open}>
-        <a href="#home" className="mobile-functional-brand" onClick={() => setOpen(false)}>
-          FBMR<span>.</span>
-        </a>
+        <a href="#home" className="mobile-functional-brand" onClick={() => setOpen(false)}>FBMR<span>.</span></a>
         <button type="button" className="mobile-functional-toggle" aria-label={open ? "Close navigation" : "Open navigation"} aria-expanded={open} onClick={() => setOpen(value => !value)}>
           {open ? <X size={22} strokeWidth={1.7} /> : <Menu size={22} strokeWidth={1.7} />}
         </button>
       </header>
-
       {open && (
         <div className="mobile-functional-panel" role="dialog" aria-label="Mobile navigation">
           <div className="mobile-functional-panel-inner">

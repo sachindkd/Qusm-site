@@ -34,7 +34,7 @@ const permissions: Record<AccessLevel, Permission[]> = {
   ownership: ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "calendar:manage", "applications:manage", "media:manage"],
   "senior-leadership": ["site:read", "leadership:edit", "announcements:manage", "calendar:manage", "applications:manage"],
   developer: ["site:read", "developer:publish", "media:manage"],
-  aide: [],
+  aide: ["site:read"],
   staff: ["site:read"],
   member: ["site:read"],
 };
@@ -46,8 +46,8 @@ const SPECIAL_USER_IDS = new Set(
 );
 
 const OWNER_ROLE_IDS = new Set([ROLE_IDS.owner, ROLE_IDS.coOwner, ROLE_IDS.chairman, ROLE_IDS.viceChairman, ...(ROLE_IDS.ofcAdmin ? [ROLE_IDS.ofcAdmin] : [])]);
-const OWNERSHIP_ROLE_IDS = new Set([ROLE_IDS.headManagement, ROLE_IDS.headOperations, ROLE_IDS.headAdministration, ROLE_IDS.communityAffairs, ROLE_IDS.ceo, ROLE_IDS.headDevelopment, ROLE_IDS.seniorManagement]);
-const SENIOR_LEADERSHIP_ROLE_IDS = new Set([ROLE_IDS.generalManager, ROLE_IDS.headDepartment]);
+const OWNERSHIP_ROLE_IDS = new Set([ROLE_IDS.headManagement, ROLE_IDS.headOperations, ROLE_IDS.headAdministration, ROLE_IDS.communityAffairs, ROLE_IDS.ceo, ROLE_IDS.headDevelopment]);
+const SENIOR_LEADERSHIP_ROLE_IDS = new Set([ROLE_IDS.generalManager, ROLE_IDS.headDepartment, ROLE_IDS.seniorManagement]);
 const DEVELOPER_ROLE_IDS = new Set([ROLE_IDS.developerPosts]);
 const AIDE_ROLE_IDS = new Set([ROLE_IDS.aides]);
 const STAFF_ROLE_IDS = new Set([ROLE_IDS.staff]);

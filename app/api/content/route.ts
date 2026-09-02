@@ -24,18 +24,20 @@ export async function GET(){
 
 export async function PUT(req:Request){
   const limiter=rateLimit(requestKey(req,"content-write"),30,60_000);
-  if(!limiter.allowed) return NextResponse.json({error:"Too many content updates. Try again shortly."},{status:429,headers:{"Retry-After":String(limiter.retryAfter)}});
+  if(!limiter.allowed) return NextResponse.json({error:"Too many content updates. Try again shortly."},{status:429,headers:{"Retry-After":String(limiter.retryAfter),"Cache-Control":"no-store"}});
   if(!sameOrigin(req)) return NextResponse.json({error:"Cross-origin request blocked"},{status:403});
   if(!requestContentTypeIsJson(req)) return NextResponse.json({error:"JSON body required"},{status:415});
-  const contentLength=Number(req.headers.get("content-length")||0); if(contentLength>MAX_BODY_BYTES) return NextResponse.json({error:"Request body too large"},{status:413});
+  const rawLength=req.headers.get("content-length");
+  if(rawLength){const contentLength=Number(rawLength); if(!Number.isFinite(contentLength)||contentLength<0||contentLength>MAX_BODY_BYTES)return NextResponse.json({error:"Request body too large"},{status:413});}
   try {
     const body=await req.json(); if(!body||typeof body!=="object"||Array.isArray(body)) return NextResponse.json({error:"Invalid content"},{status:400});
     const section=req.headers.get("x-content-section")||"";
+    if(section.length>100)return NextResponse.json({error:"Invalid section"},{status:400});
     const required=sectionPermission[section];
-    const identity=required?await requirePermission(required):await getAuthContext();
-    if(section==="shop"){
-      if(!identity || (!isSpecialUser(identity.userId) && !identity.roleIds.some(id=>id===ROLE_IDS.owner||id===ROLE_IDS.coOwner))) return NextResponse.json({error:"Shop management is restricted to Owner, Co-Owner, or Special User."},{status:403});
-    } else if(!required || !identity) return NextResponse.json({error:"Unauthorized"},{status:403});
+    if(!required)return NextResponse.json({error:"Unauthorized"},{status:403});
+    const identity=await requirePermission(required);
+    if(section==="shop" && (!identity || (!isSpecialUser(identity.userId) && !identity.roleIds.some(id=>id===ROLE_IDS.owner||id===ROLE_IDS.coOwner)))) return NextResponse.json({error:"Shop management is restricted to Owner, Co-Owner, or Special User."},{status:403});
+    if(!identity)return NextResponse.json({error:"Unauthorized"},{status:403});
     const value=(body as Record<string,unknown>)[section];
     if(!validSectionValue(section,value)) return NextResponse.json({error:"Invalid section payload"},{status:400});
     const current=await readContent();

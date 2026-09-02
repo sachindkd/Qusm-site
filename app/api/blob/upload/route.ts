@@ -54,6 +54,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!can(access, "media:manage")) return NextResponse.json({ error: "Developer media access denied" }, { status: 403 });
   try {
     const body = (await request.json()) as HandleUploadBody;
+    if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid upload request" }, { status: 400 });
     const jsonResponse = await handleUpload({
       body,
       request,

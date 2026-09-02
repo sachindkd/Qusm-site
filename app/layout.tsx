@@ -6,6 +6,7 @@ import "./profile-mobile-fix.css";
 import "./live/mobile-functional.css";
 import Providers from "@/components/Providers";
 import PublicAuditLogButton from "@/components/PublicAuditLogButton";
+import NotificationCenter from "@/components/NotificationCenter";
 
 export const metadata = {
   title: "QUSM — Quavy's United States Military",
@@ -18,6 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <Providers>
           {children}
+          <NotificationCenter />
           <PublicAuditLogButton />
         </Providers>
       </body>

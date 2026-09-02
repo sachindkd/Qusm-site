@@ -6,7 +6,7 @@ import { rateLimit, requestKey } from "@/lib/rate-limit";
 export async function GET(req: Request) {
   const limiter = rateLimit(requestKey(req, "audit-read"), 30, 60_000);
   if (!limiter.allowed) return NextResponse.json({ error: "Too many audit log requests. Try again shortly." }, { status: 429, headers: { "Retry-After": String(limiter.retryAfter), "Cache-Control": "no-store" } });
-  if (!(await requirePermission("announcements:manage"))) return NextResponse.json({ error: "Audit Log is restricted to authorized leadership." }, { status: 403 });
+  if (!(await requirePermission("audit:read"))) return NextResponse.json({ error: "Audit Log is restricted to VCM+ leadership." }, { status: 403 });
   try {
     const url = new URL(req.url);
     const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 100), 1), 200);

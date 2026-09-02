@@ -15,7 +15,9 @@ function redirectUri(request: Request) {
 }
 
 function safeNext(value: string | null) {
-  return value === "/staff" ? "/staff" : "/member";
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/member";
+  const allowed = ["/member", "/staff", "/admin", "/admin/builder"];
+  return allowed.includes(value) ? value : "/member";
 }
 
 export async function GET(request: Request) {
@@ -28,29 +30,10 @@ export async function GET(request: Request) {
   const redirect = redirectUri(request);
   const state = randomUUID();
   const next = safeNext(new URL(request.url).searchParams.get("next"));
-  const params = new URLSearchParams({
-    client_id: clientId,
-    response_type: "code",
-    redirect_uri: redirect,
-    scope: "identify guilds",
-    prompt: "consent",
-    state,
-  });
+  const params = new URLSearchParams({ client_id: clientId, response_type: "code", redirect_uri: redirect, scope: "identify guilds", prompt: "consent", state });
 
   const response = NextResponse.redirect(`https://discord.com/oauth2/authorize?${params.toString()}`);
-  response.cookies.set(OAUTH_STATE_COOKIE, state, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/api/auth",
-    maxAge: 10 * 60,
-  });
-  response.cookies.set(OAUTH_NEXT_COOKIE, next, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/api/auth",
-    maxAge: 10 * 60,
-  });
+  response.cookies.set(OAUTH_STATE_COOKIE, state, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/api/auth", maxAge: 10 * 60 });
+  response.cookies.set(OAUTH_NEXT_COOKIE, next, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/api/auth", maxAge: 10 * 60 });
   return response;
 }

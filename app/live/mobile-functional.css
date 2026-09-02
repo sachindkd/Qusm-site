@@ -1,0 +1,121 @@
+/* Purpose-built mobile experience. Desktop layout remains untouched. */
+.mobile-functional-nav,
+.mobile-functional-panel { display: none; }
+
+@media (max-width: 767px) {
+  html { scroll-padding-top: 76px; }
+  body { -webkit-tap-highlight-color: transparent; }
+  main > nav { display: none !important; }
+
+  .mobile-functional-nav {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 200;
+    height: 68px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    background: rgba(5,7,6,.94);
+    border-bottom: 1px solid rgba(255,255,255,.10);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .mobile-functional-brand {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    font: 800 20px/1 'Space Grotesk', sans-serif;
+    letter-spacing: -.04em;
+  }
+  .mobile-functional-brand span { color: #d4b56a; }
+
+  .mobile-functional-toggle {
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 999px;
+    background: rgba(255,255,255,.035);
+    color: #f3f0e7;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .mobile-functional-toggle:active { transform: scale(.96); }
+
+  .mobile-functional-panel {
+    position: fixed;
+    inset: 68px 0 0;
+    z-index: 190;
+    display: block;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    background: rgba(5,7,6,.985);
+  }
+  .mobile-functional-panel-inner { min-height: 100%; padding: 24px 16px max(28px, env(safe-area-inset-bottom)); }
+  .mobile-functional-kicker {
+    margin-bottom: 14px;
+    font: 8px/1.4 'DM Mono', monospace;
+    letter-spacing: .24em;
+    color: #d4b56a;
+  }
+  .mobile-functional-link {
+    min-height: 62px;
+    display: grid;
+    grid-template-columns: 34px 1fr 20px;
+    align-items: center;
+    gap: 10px;
+    border-top: 1px solid rgba(255,255,255,.10);
+    color: #f3f0e7;
+    touch-action: manipulation;
+  }
+  .mobile-functional-link:last-child { border-bottom: 1px solid rgba(255,255,255,.10); }
+  .mobile-functional-link span { font: 8px 'DM Mono', monospace; color: rgba(255,255,255,.28); }
+  .mobile-functional-link strong { font: 500 21px/1 'Space Grotesk', sans-serif; letter-spacing: -.03em; }
+  .mobile-functional-link svg { color: #d4b56a; }
+  .mobile-functional-link:active { background: rgba(255,255,255,.04); }
+
+  .mobile-functional-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .mobile-functional-actions a {
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 1px solid rgba(255,255,255,.13);
+    border-radius: 999px;
+    font: 9px 'DM Mono', monospace;
+    letter-spacing: .1em;
+    touch-action: manipulation;
+  }
+
+  main { width: 100%; overflow-x: clip; }
+  main > section { scroll-margin-top: 76px; }
+  main > section > div { max-width: 100%; }
+  main h1 { max-width: 100%; overflow-wrap: anywhere; }
+  main img, main video { max-width: 100%; }
+  main button, main a { touch-action: manipulation; }
+  main button { min-height: 44px; }
+  main .hero-actions { gap: 8px; }
+  main .hero-actions > * { min-height: 46px; }
+  main .statement-grid,
+  main .division-grid { grid-template-columns: 1fr !important; }
+  main .command-feature { grid-template-columns: 1fr !important; gap: 18px; }
+  main .feature-side { border-left: 0; border-top: 1px solid rgba(255,255,255,.10); padding: 18px 0 0; }
+  main .news-item { grid-template-columns: 30px 1fr !important; gap: 10px; }
+  main .news-item > *:not(:first-child):not(:nth-child(3)) { display: none; }
+  main .hero-card-wrap { position: relative; right: auto; top: auto; width: min(82vw, 350px); margin: 36px auto 0; transform: none !important; }
+  main .scroll-cue { display: none; }
+  main section { overflow: clip; }
+  main .button { min-height: 46px; justify-content: center; }
+
+  @media (max-width: 390px) {
+    .mobile-functional-link strong { font-size: 19px; }
+    .mobile-functional-actions { grid-template-columns: 1fr; }
+  }
+}

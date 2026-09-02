@@ -25,11 +25,11 @@ export const ROLE_IDS = {
 } as const;
 
 export type AccessLevel = "owner" | "ownership" | "senior-leadership" | "developer" | "aide" | "staff" | "member";
-export type Permission = "site:read" | "site:edit" | "leadership:edit" | "divisions:edit" | "announcements:manage" | "calendar:manage" | "developer:publish" | "applications:manage" | "media:manage" | "admin:all";
+export type Permission = "site:read" | "site:edit" | "leadership:edit" | "divisions:edit" | "announcements:manage" | "audit:read" | "calendar:manage" | "developer:publish" | "applications:manage" | "media:manage" | "admin:all";
 export type DiscordGuildRole = { id: string; name: string; position: number; managed?: boolean };
 
 const permissions: Record<AccessLevel, Permission[]> = {
-  owner: ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "calendar:manage", "developer:publish", "applications:manage", "media:manage", "admin:all"],
+  owner: ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "audit:read", "calendar:manage", "developer:publish", "applications:manage", "media:manage", "admin:all"],
   ownership: ["site:read", "site:edit", "leadership:edit", "divisions:edit", "announcements:manage", "calendar:manage", "applications:manage", "media:manage"],
   "senior-leadership": ["site:read", "leadership:edit", "announcements:manage", "calendar:manage", "applications:manage"],
   developer: ["site:read", "developer:publish", "media:manage"],

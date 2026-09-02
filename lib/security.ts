@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { FBMRP_GUILD_ID, SPECIAL_OWNER_ID, getAccessLevel, can, type AccessLevel, type Permission, type DiscordGuildRole } from "@/lib/discord-roles";
+import { FBMRP_GUILD_ID, SPECIAL_OWNER_ID, getAccessLevel, can, type AccessLevel, type Permission } from "@/lib/discord-roles";
 import { DISCORD_SESSION_COOKIE, readDiscordSession } from "@/lib/discord-session";
 
 export type AuthContext = { userId: string; username: string; access: AccessLevel; roleIds: string[] };
@@ -7,7 +7,8 @@ export type AuthContext = { userId: string; username: string; access: AccessLeve
 export async function getAuthContext(): Promise<AuthContext | null> {
   const session = readDiscordSession((await cookies()).get(DISCORD_SESSION_COOKIE)?.value);
   if (!session) return null;
-  if (session.id === SPECIAL_OWNER_ID) return { userId: session.id, username: session.username || session.id, access: "owner", roleIds: session.roles || [] };
+  // Special User is a dedicated access level, not a Discord Owner role.
+  if (session.id === SPECIAL_OWNER_ID) return { userId: session.id, username: session.username || session.id, access: "special-user", roleIds: session.roles || [] };
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!token) return null;
   try {

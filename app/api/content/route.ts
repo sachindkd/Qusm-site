@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ROLE_IDS, type Permission } from "@/lib/discord-roles";
+import { ROLE_IDS, isSpecialUser, type Permission } from "@/lib/discord-roles";
 import { getAuthContext, requirePermission, sameOrigin, requestContentTypeIsJson } from "@/lib/security";
 import { readContent, persistSection } from "@/lib/content-store";
 import { recordAudit } from "@/lib/audit";
@@ -34,14 +34,14 @@ export async function PUT(req:Request){
     const required=sectionPermission[section];
     const identity=required?await requirePermission(required):await getAuthContext();
     if(section==="shop"){
-      if(!identity||!identity.roleIds.some(id=>id===ROLE_IDS.owner||id===ROLE_IDS.coOwner)||identity.userId!==process.env.SPECIAL_OWNER_ID && identity.userId!=="1210317929485181000") return NextResponse.json({error:"Shop management is restricted to Owner and Co-Owner."},{status:403});
+      if(!identity || (!isSpecialUser(identity.userId) && !identity.roleIds.some(id=>id===ROLE_IDS.owner||id===ROLE_IDS.coOwner))) return NextResponse.json({error:"Shop management is restricted to Owner, Co-Owner, or Special User."},{status:403});
     } else if(!required || !identity) return NextResponse.json({error:"Unauthorized"},{status:403});
     const value=(body as Record<string,unknown>)[section];
     if(!validSectionValue(section,value)) return NextResponse.json({error:"Invalid section payload"},{status:400});
     const current=await readContent();
     const before=current[section as keyof typeof current];
     await persistSection(section as keyof import("@/lib/content").Content,value as never);
-    await recordAudit({actorId:identity!.userId,actorName:identity!.username,action:"content.update",section,summary:`Updated ${section}`,beforeHash:hash(before),afterHash:hash(value)});
+    await recordAudit({actorId:identity.userId,actorName:identity.username,action:"content.update",section,summary:`Updated ${section}`,beforeHash:hash(before),afterHash:hash(value)});
     return NextResponse.json({ok:true,section},{headers:{"Cache-Control":"no-store"}});
   } catch(error){ return NextResponse.json({error:error instanceof Error?error.message:"Content persistence unavailable"},{status:503}); }
 }

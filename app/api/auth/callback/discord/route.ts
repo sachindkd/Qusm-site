@@ -28,6 +28,12 @@ function readCookie(request: Request, name: string) {
   return request.headers.get("cookie")?.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`))?.[1];
 }
 
+function safeDestination(value: string | null) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/member";
+  const allowed = ["/member", "/live", "/staff", "/admin", "/admin/builder", "/permission-tester"];
+  return allowed.includes(value) ? value : "/member";
+}
+
 export async function GET(request: Request) {
   const limiter = rateLimit(requestKey(request, "discord-callback"), 20, 60_000);
   if (!limiter.allowed) return NextResponse.json({ error: "Too many authentication callbacks. Try again shortly." }, { status: 429, headers: { "Retry-After": String(limiter.retryAfter), "Cache-Control": "no-store" } });
@@ -61,9 +67,10 @@ export async function GET(request: Request) {
   const member = await memberRes.json();
   const roles = Array.isArray(member.roles) ? member.roles.filter((id: unknown): id is string => typeof id === "string") : [];
   const access = getAccessLevel(user.id, roles);
-  const requested = readCookie(request, OAUTH_NEXT_COOKIE) ? decodeURIComponent(readCookie(request, OAUTH_NEXT_COOKIE)!) : "/member";
+  const nextCookie = readCookie(request, OAUTH_NEXT_COOKIE);
+  const requested = safeDestination(nextCookie ? decodeURIComponent(nextCookie) : null);
   const privileged = access !== "member";
-  const destination = privileged && ["/staff", "/admin", "/admin/builder"].includes(requested) ? requested : "/member";
+  const destination = privileged && ["/staff", "/admin", "/admin/builder", "/permission-tester"].includes(requested) ? requested : "/member";
   const response = NextResponse.redirect(new URL(destination, url.origin));
   response.cookies.set(OAUTH_STATE_COOKIE, "", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/api/auth", maxAge: 0 });
   response.cookies.set(OAUTH_NEXT_COOKIE, "", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/api/auth", maxAge: 0 });

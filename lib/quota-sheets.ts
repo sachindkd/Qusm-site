@@ -10,9 +10,9 @@ function base64url(value: string | Buffer) { return Buffer.from(value).toString(
 function env(name: string) { return process.env[name]?.trim(); }
 
 async function accessToken() {
-  const clientEmail = env("GOOGLE_SERVICE_ACCOUNT_EMAIL");
-  const privateKey = env("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY")?.replace(/\\n/g, "\n");
-  if (!clientEmail || !privateKey) throw new Error("Google Sheets authorization is not configured. Add GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY to Vercel.");
+  const clientEmail = env("GOOGLE_CLIENT_EMAIL") || env("GOOGLE_SERVICE_ACCOUNT_EMAIL");
+  const privateKey = (env("GOOGLE_PRIVATE_KEY") || env("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY"))?.replace(/\\n/g, "\n");
+  if (!clientEmail || !privateKey) throw new Error("Google Sheets authorization is not configured. Add GOOGLE_CLIENT_EMAIL and GOOGLE_PRIVATE_KEY to Vercel.");
   const now = Math.floor(Date.now() / 1000);
   const header = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const claim = base64url(JSON.stringify({ iss: clientEmail, scope: SHEETS_SCOPE, aud: TOKEN_URL, iat: now, exp: now + 3600 }));

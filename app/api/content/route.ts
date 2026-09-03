@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { ROLE_IDS, isSpecialUser, type Permission } from "@/lib/discord-roles";
-import { getAuthContext, requirePermission, sameOrigin, requestContentTypeIsJson } from "@/lib/security";
+import { isSpecialUser, type Permission } from "@/lib/discord-roles";
+import { requirePermission, sameOrigin, requestContentTypeIsJson } from "@/lib/security";
 import { readContent, persistSection } from "@/lib/content-store";
 import { recordAudit } from "@/lib/audit";
 import { rateLimit, requestKey } from "@/lib/rate-limit";
@@ -36,8 +36,8 @@ export async function PUT(req:Request){
     const required=sectionPermission[section];
     if(!required)return NextResponse.json({error:"Unauthorized"},{status:403});
     const identity=await requirePermission(required);
-    if(section==="shop" && (!identity || (!isSpecialUser(identity.userId) && !identity.roleIds.some(id=>id===ROLE_IDS.owner||id===ROLE_IDS.coOwner)))) return NextResponse.json({error:"Shop management is restricted to Owner, Co-Owner, or Special User."},{status:403});
     if(!identity)return NextResponse.json({error:"Unauthorized"},{status:403});
+    if(section==="shop" && !isSpecialUser(identity.userId) && !identity.roleIds.includes((await import("@/lib/discord-roles")).ROLE_IDS.owner) && !identity.roleIds.includes((await import("@/lib/discord-roles")).ROLE_IDS.coOwner) && !identity.roleIds.includes((await import("@/lib/discord-roles")).ROLE_IDS.chairman) && !identity.roleIds.includes((await import("@/lib/discord-roles")).ROLE_IDS.viceChairman)) return NextResponse.json({error:"Shop management is restricted to Owner-level access."},{status:403});
     const value=(body as Record<string,unknown>)[section];
     if(!validSectionValue(section,value)) return NextResponse.json({error:"Invalid section payload"},{status:400});
     const current=await readContent();

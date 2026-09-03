@@ -26,6 +26,9 @@ const permissions: Record<AccessLevel, Permission[]> = {
 };
 
 const SPECIAL_USER_IDS = new Set([SPECIAL_OWNER_ID, ...(process.env.DISCORD_SPECIAL_USER_IDS || "").split(",")].map(id => id.trim()).filter(Boolean));
+
+// Website access is deterministic and independent of Discord's role position/name.
+// If multiple recognized website roles are assigned, the highest website access tier wins.
 const ROLE_ACCESS: Array<[Set<string>, AccessLevel]> = [
   [new Set([ROLE_IDS.owner, ROLE_IDS.coOwner, ROLE_IDS.chairman, ROLE_IDS.viceChairman, ...(ROLE_IDS.ofcAdmin ? [ROLE_IDS.ofcAdmin] : [])]), "owner"],
   [new Set([ROLE_IDS.headManagement, ROLE_IDS.headOperations, ROLE_IDS.headAdministration, ROLE_IDS.communityAffairs, ROLE_IDS.ceo, ROLE_IDS.headDevelopment]), "ownership"],
@@ -35,24 +38,21 @@ const ROLE_ACCESS: Array<[Set<string>, AccessLevel]> = [
   [new Set([ROLE_IDS.staff]), "staff"],
 ];
 
+const ACCESS_RANK: Record<AccessLevel, number> = {
+  member: 0, staff: 1, aide: 2, developer: 3, "senior-leadership": 4, ownership: 5, owner: 6, "special-user": 7,
+};
+
 export function isSpecialUser(userId: string): boolean { return SPECIAL_USER_IDS.has(userId); }
 
-/** Resolve the highest recognized Discord role by the guild's actual role position. */
-export function getAccessLevel(userId: string, roleIds: string[], roles: DiscordGuildRole[] = []): AccessLevel {
+/** Resolve website access from assigned Discord role IDs only. Discord role position/name never changes website privilege. */
+export function getAccessLevel(userId: string, roleIds: string[], _roles: DiscordGuildRole[] = []): AccessLevel {
   if (isSpecialUser(userId)) return "special-user";
   const assigned = new Set(roleIds);
-  if (roles.length) {
-    let best: { access: AccessLevel; position: number } | null = null;
-    for (const [ids, access] of ROLE_ACCESS) {
-      for (const role of roles) {
-        if (!assigned.has(role.id) || role.managed || !ids.has(role.id)) continue;
-        if (!best || role.position > best.position) best = { access, position: role.position };
-      }
-    }
-    return best?.access ?? "member";
+  let best: AccessLevel = "member";
+  for (const [ids, access] of ROLE_ACCESS) {
+    if ([...ids].some(id => assigned.has(id)) && ACCESS_RANK[access] > ACCESS_RANK[best]) best = access;
   }
-  for (const [ids, access] of ROLE_ACCESS) if (roleIds.some(roleId => ids.has(roleId))) return access;
-  return "member";
+  return best;
 }
 
 export function can(access: AccessLevel, permission: Permission): boolean { return permissions[access].includes(permission); }

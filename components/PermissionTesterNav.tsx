@@ -16,7 +16,7 @@ export default function PermissionTesterNav() {
   return (
     <Link
       href="/permission-tester"
-      className="fixed right-5 top-5 z-[60] hidden items-center gap-2 rounded-full border border-amber-300/30 bg-[#050706]/90 px-4 py-2 text-[10px] font-semibold tracking-[.18em] text-amber-200 shadow-xl backdrop-blur-xl transition hover:border-amber-300/60 hover:bg-amber-300/10 md:flex"
+      className="fixed right-16 top-4 z-[60] flex items-center gap-2 rounded-full border border-amber-300/30 bg-[#050706]/90 px-3 py-2 text-[9px] font-semibold tracking-[.18em] text-amber-200 shadow-xl backdrop-blur-xl transition hover:border-amber-300/60 hover:bg-amber-300/10 md:right-5 md:top-5 md:px-4 md:py-2 md:text-[10px]"
       aria-label="Open Discord Permission Tester"
     >
       <ShieldCheck size={14} strokeWidth={1.7} />

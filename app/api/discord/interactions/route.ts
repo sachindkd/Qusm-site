@@ -103,7 +103,7 @@ async function discordApi(path: string, init: RequestInit) {
 }
 
 async function ensureQuotaCommandRegistered() {
-  if (!APPLICATION_ID || !BOT_TOKEN) return;
+  if (!APPLICATION_ID || !BOT_TOKEN) throw new Error("Discord application credentials are not configured");
   const commands = await discordApi(`/applications/${APPLICATION_ID}/guilds/${STAFF_GUILD_ID}/commands`, { method: "GET" });
   const existing = Array.isArray(commands) ? commands.find((command: any) => command?.name === "quota") : null;
   const payload = {
@@ -114,8 +114,10 @@ async function ensureQuotaCommandRegistered() {
   };
   if (existing?.id) {
     await discordApi(`/applications/${APPLICATION_ID}/guilds/${STAFF_GUILD_ID}/commands/${existing.id}`, { method: "PATCH", body: JSON.stringify(payload) });
+    console.log("/quota command updated", { guildId: STAFF_GUILD_ID, commandId: existing.id });
   } else {
-    await discordApi(`/applications/${APPLICATION_ID}/guilds/${STAFF_GUILD_ID}/commands`, { method: "POST", body: JSON.stringify(payload) });
+    const created = await discordApi(`/applications/${APPLICATION_ID}/guilds/${STAFF_GUILD_ID}/commands`, { method: "POST", body: JSON.stringify(payload) });
+    console.log("/quota command created", { guildId: STAFF_GUILD_ID, commandId: created?.id });
   }
 }
 
@@ -175,6 +177,16 @@ async function followup(interaction: any, content: string) {
   await fetch(`https://discord.com/api/v10/webhooks/${APPLICATION_ID}/${interaction.token}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content, flags: 64 }), cache: "no-store" });
 }
 
+export async function GET() {
+  try {
+    await ensureQuotaCommandRegistered();
+    return json({ success: true, command: "quota", guildId: STAFF_GUILD_ID });
+  } catch (error) {
+    console.error("Failed to register /quota command from GET", error);
+    return json({ success: false, error: error instanceof Error ? error.message : "unknown error" }, 500);
+  }
+}
+
 export async function POST(request: Request) {
   const body = await request.text();
   if (!verifyDiscordSignature(body, request.headers.get("x-signature-timestamp") || "", request.headers.get("x-signature-ed25519") || "")) return json({ error: "invalid signature" }, 401);
@@ -223,13 +235,12 @@ export async function POST(request: Request) {
 
     try {
       await logApproval(quotaRequest, interaction, action === "approve" ? "approved" : "rejected");
-      const actor = interaction.member?.user;
       await discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages/${interaction.message.id}`, {
         method: "PATCH",
         body: JSON.stringify({
           embeds: [{ ...interaction.message.embeds[0], title: action === "approve" ? "Quota Submission — Approved" : "Quota Submission — Rejected", footer: { text: `QUSM Quota System • ${action === "approve" ? "Logged to Google database" : "Rejected by Logistics"}` } }],
           components: [{ type: 1, components: [
-            { type: 2, style: 3, label: action === "approve" ? "Approved & Logged" : "Approved & Logged", custom_id: `quota:done:${requestId}`, disabled: true },
+            { type: 2, style: 3, label: action === "approve" ? "Approved & Logged" : "Approved", custom_id: `quota:done:${requestId}`, disabled: true },
             { type: 2, style: 4, label: action === "reject" ? "Rejected" : "Rejected", custom_id: `quota:done-reject:${requestId}`, disabled: true },
           ]}],
         }),

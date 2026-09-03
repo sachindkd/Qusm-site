@@ -33,7 +33,14 @@ function hmac(value: string) {
 }
 
 function requestSignature(request: QuotaRequest) {
-  return hmac(JSON.stringify(request));
+  return hmac(JSON.stringify({
+    id: request.id,
+    userId: request.userId,
+    username: request.username,
+    quota: request.quota,
+    proof: request.proof,
+    notes: request.notes,
+  }));
 }
 
 function publicKey() {

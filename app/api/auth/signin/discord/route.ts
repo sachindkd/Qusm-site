@@ -16,7 +16,7 @@ function redirectUri(request: Request) {
 
 function safeNext(value: string | null) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return "/member";
-  const allowed = ["/member", "/live", "/staff", "/admin", "/admin/builder"];
+  const allowed = ["/member", "/live", "/staff", "/admin", "/admin/builder", "/permission-tester"];
   return allowed.includes(value) ? value : "/member";
 }
 

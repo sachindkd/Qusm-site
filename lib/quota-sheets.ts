@@ -3,7 +3,7 @@ import { createSign } from "node:crypto";
 const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
-const DEFAULT_SHEET_ID = "1qcTc_tbKLENaxDzKBXYwwimfQKofKxRNYh2qAwDlC-gY";
+const DEFAULT_SHEET_ID = "1qcTc_tbKLENaxDzKBXYwwimFqOfKxRNYh2qAwDlC-gY";
 const SHEET_NAME = "QUSM Staff Database";
 
 function base64url(value: string | Buffer) { return Buffer.from(value).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_"); }
@@ -23,7 +23,7 @@ async function accessToken() {
   const data = await response.json().catch(() => null); if (!response.ok || !data?.access_token) throw new Error(`Google authorization failed (${response.status})`); return String(data.access_token);
 }
 
-async function sheetsFetch(path: string, init: RequestInit = {}) { const token = await accessToken(); const response = await fetch(`${SHEETS_API}/${encodeURIComponent(env("GOOGLE_SHEET_ID") || DEFAULT_SHEET_ID)}${path}`, { ...init, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(init.headers || {}) }, cache: "no-store" }); const text = await response.text(); if (!response.ok) throw new Error(`Google Sheets API ${response.status}: ${text.slice(0, 300)}`); return text ? JSON.parse(text) : {}; }
+async function sheetsFetch(path: string, init: RequestInit = {}) { const token = await accessToken(); const spreadsheetId = env("GOOGLE_SHEET_ID") || DEFAULT_SHEET_ID; const response = await fetch(`${SHEETS_API}/${encodeURIComponent(spreadsheetId)}${path}`, { ...init, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(init.headers || {}) }, cache: "no-store" }); const text = await response.text(); if (!response.ok) throw new Error(`Google Sheets API ${response.status}: ${text.slice(0, 300)}`); return text ? JSON.parse(text) : {}; }
 
 function normalize(value: unknown) { return String(value ?? "").trim().toLowerCase(); }
 function durationToMinutes(value: unknown) { const n = Number(value); if (!Number.isFinite(n) || n <= 0) return 0; return n < 1 ? n * 1440 : n; }

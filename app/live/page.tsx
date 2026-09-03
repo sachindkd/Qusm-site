@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getServerSession } from "next-auth";
+import { cookies } from "next/headers";
 import { ShieldCheck } from "lucide-react";
 import FBMRExperience from "./FBMRExperience";
 import MobileNavigation from "@/components/MobileNavigation";
@@ -9,17 +9,17 @@ import StoreSection from "./StoreSection";
 import CustomSections from "./CustomSections";
 import PublicCMSSections from "./PublicCMSSections";
 import { loadContent } from "@/lib/content-store";
-import { authOptions } from "@/lib/discord-auth";
+import { DISCORD_SESSION_COOKIE, readDiscordSession } from "@/lib/discord-session";
 
 export const dynamic = "force-dynamic";
 
 const SPECIAL_OWNER_ID = "1210317929485181000";
 
 export default async function LivePage() {
-  const [content, session] = await Promise.all([loadContent(), getServerSession(authOptions)]);
-  const user = session?.user as ({ id?: string; discordId?: string } | undefined);
-  const discordId = user?.discordId ?? user?.id;
-  const showPermissionTester = discordId === SPECIAL_OWNER_ID;
+  const content = await loadContent();
+  const cookieStore = await cookies();
+  const session = readDiscordSession(cookieStore.get(DISCORD_SESSION_COOKIE)?.value);
+  const showPermissionTester = session?.id === SPECIAL_OWNER_ID;
 
   return (
     <>

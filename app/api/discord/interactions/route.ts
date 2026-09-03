@@ -102,6 +102,23 @@ async function discordApi(path: string, init: RequestInit) {
   return text ? JSON.parse(text) : {};
 }
 
+async function ensureQuotaCommandRegistered() {
+  if (!APPLICATION_ID || !BOT_TOKEN) return;
+  const commands = await discordApi(`/applications/${APPLICATION_ID}/guilds/${STAFF_GUILD_ID}/commands`, { method: "GET" });
+  const existing = Array.isArray(commands) ? commands.find((command: any) => command?.name === "quota") : null;
+  const payload = {
+    name: "quota",
+    description: "Submit your staff quota for Logistics review",
+    type: 1,
+    options: [],
+  };
+  if (existing?.id) {
+    await discordApi(`/applications/${APPLICATION_ID}/guilds/${STAFF_GUILD_ID}/commands/${existing.id}`, { method: "PATCH", body: JSON.stringify(payload) });
+  } else {
+    await discordApi(`/applications/${APPLICATION_ID}/guilds/${STAFF_GUILD_ID}/commands`, { method: "POST", body: JSON.stringify(payload) });
+  }
+}
+
 async function sendQuotaReview(request: QuotaRequest) {
   const sig = requestSignature(request).slice(0, 24);
   return discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages`, {
@@ -165,7 +182,10 @@ export async function POST(request: Request) {
   let interaction: any;
   try { interaction = JSON.parse(body); } catch { return json({ error: "invalid json" }, 400); }
 
-  if (interaction.type === 1) return json({ type: 1 });
+  if (interaction.type === 1) {
+    try { await ensureQuotaCommandRegistered(); } catch (error) { console.error("Failed to register /quota command", error); }
+    return json({ type: 1 });
+  }
   if (interaction.guild_id !== STAFF_GUILD_ID) return json(ephemeral("This quota system is only available in the Staff Team server."));
 
   if (interaction.type === 2 && interaction.data?.name === "quota") {

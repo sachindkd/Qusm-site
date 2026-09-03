@@ -1,16 +1,17 @@
+"use client";
+
 import Link from "next/link";
-import { getServerSession } from "next-auth";
+import { useSession } from "next-auth/react";
 import { ShieldCheck } from "lucide-react";
-import { authOptions } from "@/lib/discord-auth";
 
 const SPECIAL_OWNER_ID = "1210317929485181000";
 
-export default async function PermissionTesterNav() {
-  const session = await getServerSession(authOptions);
+export default function PermissionTesterNav() {
+  const { data: session, status } = useSession();
   const user = session?.user as ({ id?: string; discordId?: string } | undefined);
   const discordId = user?.discordId ?? user?.id;
 
-  if (discordId !== SPECIAL_OWNER_ID) return null;
+  if (status !== "authenticated" || discordId !== SPECIAL_OWNER_ID) return null;
 
   return (
     <Link

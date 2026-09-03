@@ -27,7 +27,11 @@ export async function GET(request: Request) {
   if (!clientId) return NextResponse.json({ error: "Discord authentication is not configured." }, { status: 500 });
   const redirect = redirectUri(request);
   const state = randomUUID();
-  const next = safeNext(new URL(request.url).searchParams.get("next"));
+  const searchParams = new URL(request.url).searchParams;
+  // /authorize passes callbackUrl, while direct OAuth callers may use next.
+  // Accept both so the requested protected destination survives the OAuth hop.
+  const requestedNext = searchParams.get("next") ?? searchParams.get("callbackUrl");
+  const next = safeNext(requestedNext);
   const params = new URLSearchParams({ client_id: clientId, response_type: "code", redirect_uri: redirect, scope: "identify guilds", prompt: "consent", state });
   const response = NextResponse.redirect(`https://discord.com/oauth2/authorize?${params.toString()}`);
   response.cookies.set(OAUTH_STATE_COOKIE, state, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/api/auth", maxAge: 10 * 60 });

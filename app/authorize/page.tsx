@@ -7,7 +7,13 @@ export default function AuthorizePage() {
   const [loading, setLoading] = useState(false);
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/member";
-  function authorize() { setLoading(true); window.location.href = `/api/auth/signin/discord?next=${encodeURIComponent(next)}`; }
+  function authorize() {
+    setLoading(true);
+    // NextAuth uses `callbackUrl` for the post-login destination.
+    // Passing `next` here was silently ignored, which could send users away
+    // from protected tools such as the permission tester.
+    window.location.href = `/api/auth/signin/discord?callbackUrl=${encodeURIComponent(next)}`;
+  }
   return (
     <main className="min-h-screen bg-[#060a12] text-white flex items-center justify-center px-5 py-10">
       <div className="w-full max-w-md">

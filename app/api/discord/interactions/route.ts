@@ -72,9 +72,9 @@ function modalResponse() {
     type: 9,
     data: {
       custom_id: "quota_submit",
-      title: "Submit Quota",
+      title: "Submit Quota (Minutes)",
       components: [
-        { type: 1, components: [{ type: 4, custom_id: "quota", label: "Quota completed", style: 1, required: true, min_length: 1, max_length: 10, placeholder: "e.g. 10" }] },
+        { type: 1, components: [{ type: 4, custom_id: "quota", label: "Quota completed (minutes)", style: 1, required: true, min_length: 1, max_length: 10, placeholder: "e.g. 10" }] },
         { type: 1, components: [{ type: 4, custom_id: "proof", label: "Proof / evidence URL", style: 1, required: true, min_length: 8, max_length: 500, placeholder: "https://..." }] },
         { type: 1, components: [{ type: 4, custom_id: "notes", label: "Notes (optional)", style: 2, required: false, max_length: 1000, placeholder: "Anything Logistics should know" }] },
       ],
@@ -108,7 +108,7 @@ async function ensureQuotaCommandRegistered() {
   const existing = Array.isArray(commands) ? commands.find((command: any) => command?.name === "quota") : null;
   const payload = {
     name: "quota",
-    description: "Submit your staff quota for Logistics review",
+    description: "Submit your staff quota in minutes for Logistics review",
     type: 1,
     options: [],
   };
@@ -132,7 +132,7 @@ async function sendQuotaReview(request: QuotaRequest) {
         fields: [
           { name: "Request ID", value: request.id, inline: false },
           { name: "Member", value: `<@${request.userId}> (${request.username})`, inline: true },
-          { name: "Quota", value: String(request.quota), inline: true },
+          { name: "Quota (minutes)", value: `${request.quota} min`, inline: true },
           { name: "Proof", value: request.proof, inline: false },
           { name: "Notes", value: request.notes || "—", inline: false },
         ],
@@ -140,7 +140,7 @@ async function sendQuotaReview(request: QuotaRequest) {
         timestamp: request.createdAt,
       }],
       components: [{ type: 1, components: [
-        { type: 2, style: 3, label: "Approve & Log", custom_id: `quota:approve:${request.id}:${sig}` },
+        { type: 2, style: 3, label: "Approve & Add Minutes", custom_id: `quota:approve:${request.id}:${sig}` },
         { type: 2, style: 4, label: "Reject", custom_id: `quota:reject:${request.id}:${sig}` },
       ]}],
       allowed_mentions: { users: [request.userId] },
@@ -154,7 +154,7 @@ function extractRequest(interaction: any, signature: string): QuotaRequest | nul
   const values = Object.fromEntries(fields.map((field: any) => [String(field.name), String(field.value || "")]));
   const id = values["Request ID"];
   const member = values["Member"] || "";
-  const quota = Number(values["Quota"]);
+  const quota = Number(String(values["Quota (minutes)"] || "").replace(/\s*min(?:utes?)?\s*$/i, ""));
   const proof = values["Proof"] || "";
   const notes = values["Notes"] === "—" ? "" : (values["Notes"] || "");
   const mention = member.match(/^<@(\d+)>/);
@@ -167,8 +167,30 @@ function extractRequest(interaction: any, signature: string): QuotaRequest | nul
 async function logApproval(request: QuotaRequest, interaction: any, status: "approved" | "rejected") {
   if (status === "approved") {
     if (!SHEETS_URL) throw new Error("Quota Google database is not configured");
-    const response = await fetch(SHEETS_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "approve", id: request.id, userId: request.userId, username: request.username, quota: request.quota, proof: request.proof, notes: request.notes, createdAt: request.createdAt, approvedBy: interaction.member.user.id, approvedByUsername: interaction.member.user.username, approvedAt: new Date().toISOString(), status: "approved" }), cache: "no-store" });
+    const response = await fetch(SHEETS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "approve",
+        mode: "add_minutes",
+        id: request.id,
+        requestId: request.id,
+        userId: request.userId,
+        username: request.username,
+        quota: request.quota,
+        proof: request.proof,
+        notes: request.notes,
+        createdAt: request.createdAt,
+        approvedBy: interaction.member.user.id,
+        approvedByUsername: interaction.member.user.username,
+        approvedAt: new Date().toISOString(),
+        status: "approved",
+      }),
+      cache: "no-store",
+    });
     if (!response.ok) throw new Error("Google database request failed");
+    const result = await response.json().catch(() => null);
+    if (result && result.success === false) throw new Error(String(result.error || "Google database rejected the update"));
   }
 }
 
@@ -211,11 +233,11 @@ export async function POST(request: Request) {
     const quota = Number(values.quota);
     const proof = values.proof.trim();
     const notes = values.notes.trim();
-    if (!Number.isFinite(quota) || quota < 0 || quota > 100000 || !/^https?:\/\//i.test(proof)) return json(ephemeral("Invalid quota or proof URL."));
+    if (!Number.isFinite(quota) || quota < 0 || quota > 100000 || !/^https?:\/\//i.test(proof)) return json(ephemeral("Invalid quota minutes or proof URL."));
     const user = interaction.member?.user;
     const quotaRequest: QuotaRequest = { id: randomUUID(), userId: user.id, username: user.global_name || user.username || user.id, quota, proof, notes, createdAt: new Date().toISOString() };
     await sendQuotaReview(quotaRequest);
-    return json(ephemeral("✅ Quota submitted. It is now waiting for Logistics approval."));
+    return json(ephemeral(`✅ ${quota} minute(s) submitted. It is now waiting for Logistics approval.`));
   }
 
   if (interaction.type === 3 && typeof interaction.data?.custom_id === "string") {
@@ -238,14 +260,14 @@ export async function POST(request: Request) {
       await discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages/${interaction.message.id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          embeds: [{ ...interaction.message.embeds[0], title: action === "approve" ? "Quota Submission — Approved" : "Quota Submission — Rejected", footer: { text: `QUSM Quota System • ${action === "approve" ? "Logged to Google database" : "Rejected by Logistics"}` } }],
+          embeds: [{ ...interaction.message.embeds[0], title: action === "approve" ? "Quota Submission — Approved" : "Quota Submission — Rejected", footer: { text: `QUSM Quota System • ${action === "approve" ? "Minutes added to Google database" : "Rejected by Logistics"}` } }],
           components: [{ type: 1, components: [
-            { type: 2, style: 3, label: action === "approve" ? "Approved & Logged" : "Approved", custom_id: `quota:done:${requestId}`, disabled: true },
+            { type: 2, style: 3, label: action === "approve" ? "Approved & Added" : "Approved", custom_id: `quota:done:${requestId}`, disabled: true },
             { type: 2, style: 4, label: action === "reject" ? "Rejected" : "Rejected", custom_id: `quota:done-reject:${requestId}`, disabled: true },
           ]}],
         }),
       });
-      await followup(interaction, action === "approve" ? `✅ **${quotaRequest.username}** quota approved and logged to the Google database.` : `❌ **${quotaRequest.username}** quota rejected.`);
+      await followup(interaction, action === "approve" ? `✅ **${quotaRequest.username}** — ${quotaRequest.quota} minute(s) approved and added to the Google database.` : `❌ **${quotaRequest.username}** quota rejected.`);
     } catch (error) {
       await followup(interaction, `⚠️ Quota action failed: ${error instanceof Error ? error.message : "unknown error"}`);
     }

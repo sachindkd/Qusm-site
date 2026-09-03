@@ -49,7 +49,9 @@ export const authOptions: NextAuthOptions = {
           access?: string;
           permissions?: string[];
         };
-        u.discordId = token.discordId as string | undefined;
+        // Discord's user ID is also stored in JWT `sub`; keep the session identity
+        // available even when an existing session predates the discordId claim.
+        u.discordId = (token.discordId as string | undefined) ?? (token.sub as string | undefined);
         u.guildMember = Boolean(token.guildMember);
         u.discordRoles = (token.discordRoles as string[] | undefined) ?? [];
         u.access = token.access as string | undefined;

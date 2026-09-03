@@ -1,19 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 
 export default function AuthorizePage() {
   const [loading, setLoading] = useState(false);
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/member";
-  function authorize() {
+
+  async function authorize() {
     setLoading(true);
-    // NextAuth uses `callbackUrl` for the post-login destination.
-    // Passing `next` here was silently ignored, which could send users away
-    // from protected tools such as the permission tester.
-    window.location.href = `/api/auth/signin/discord?callbackUrl=${encodeURIComponent(next)}`;
+    // Use NextAuth's official client flow so provider callback, CSRF,
+    // callback URL and session cookie handling stay inside NextAuth.
+    await signIn("discord", { callbackUrl: next });
   }
+
   return (
     <main className="min-h-screen bg-[#060a12] text-white flex items-center justify-center px-5 py-10">
       <div className="w-full max-w-md">

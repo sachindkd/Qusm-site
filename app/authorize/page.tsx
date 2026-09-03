@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 
 export default function AuthorizePage() {
@@ -9,11 +8,12 @@ export default function AuthorizePage() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/member";
 
-  async function authorize() {
+  function authorize() {
     setLoading(true);
-    // Use NextAuth's official client flow so provider callback, CSRF,
-    // callback URL and session cookie handling stay inside NextAuth.
-    await signIn("discord", { callbackUrl: next });
+    // Navigate directly to NextAuth's Discord provider endpoint. This avoids
+    // client-side signIn() hanging before the browser reaches Discord OAuth.
+    const callbackUrl = encodeURIComponent(next.startsWith("/") ? next : "/member");
+    window.location.assign(`/api/auth/signin/discord?callbackUrl=${callbackUrl}`);
   }
 
   return (
@@ -28,7 +28,7 @@ export default function AuthorizePage() {
             <h1 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight">Connect Discord</h1>
             <p className="mt-3 text-sm leading-6 text-white/55">Use your Discord account once to authenticate with FBMRP. Your live server roles determine which member, staff and management features you can access.</p>
             <button onClick={authorize} disabled={loading} className="mt-8 w-full rounded-xl border border-amber-200/20 bg-amber-300 px-5 py-3.5 text-sm font-bold text-black transition hover:bg-amber-200 disabled:opacity-60">
-              {loading ? "CONNECTING TO DISCORD…" : "CONTINUE WITH DISCORD"}
+              {loading ? "REDIRECTING TO DISCORD…" : "CONTINUE WITH DISCORD"}
             </button>
             <p className="mt-5 text-[11px] text-white/30">One authentication flow · permissions are checked from live Discord roles.</p>
           </div>

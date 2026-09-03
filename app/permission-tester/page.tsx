@@ -1,8 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/discord-auth";
 import { SPECIAL_OWNER_ID, ROLE_IDS, getAccessLevel, getPermissions, type AccessLevel } from "@/lib/discord-roles";
+import { DISCORD_SESSION_COOKIE, readDiscordSession } from "@/lib/discord-session";
 
 const TEST_ROLES = [
   ["Owner", ROLE_IDS.owner, "owner"], ["Co-Owner", ROLE_IDS.coOwner, "owner"], ["Chairman", ROLE_IDS.chairman, "owner"],
@@ -22,21 +21,21 @@ function label(value: AccessLevel) {
   return value === "senior-leadership" ? "Senior Leadership" : value.replaceAll("-", " ").replace(/\b\w/g, c => c.toUpperCase());
 }
 
-export default async function PermissionTester() {
-  const session = await getServerSession(authOptions);
-  const user = session?.user as ({ id?: string; discordId?: string } | undefined);
-  const discordId = user?.id ?? user?.discordId;
+async function getAuthorizedOwner() {
+  const cookieStore = await cookies();
+  const session = readDiscordSession(cookieStore.get(DISCORD_SESSION_COOKIE)?.value);
+  return session?.id === SPECIAL_OWNER_ID ? session : null;
+}
 
+export default async function PermissionTester() {
+  const session = await getAuthorizedOwner();
   if (!session) redirect("/authorize?next=/permission-tester");
-  if (discordId !== SPECIAL_OWNER_ID) redirect("/live");
 
   async function selectRole(formData: FormData) {
     "use server";
 
-    const currentSession = await getServerSession(authOptions);
-    const currentUser = currentSession?.user as ({ id?: string; discordId?: string } | undefined);
-    const currentDiscordId = currentUser?.id ?? currentUser?.discordId;
-    if (!currentSession || currentDiscordId !== SPECIAL_OWNER_ID) redirect("/live");
+    const currentSession = await getAuthorizedOwner();
+    if (!currentSession) redirect("/authorize?next=/permission-tester");
 
     const roleId = String(formData.get("roleId") ?? "");
     const valid = TEST_ROLES.some(([, id]) => id === roleId);

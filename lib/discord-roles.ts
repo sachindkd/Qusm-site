@@ -31,8 +31,8 @@ const SPECIAL_USER_IDS = new Set([SPECIAL_OWNER_ID, ...(process.env.DISCORD_SPEC
 // If multiple recognized website roles are assigned, the highest website access tier wins.
 const ROLE_ACCESS: Array<[Set<string>, AccessLevel]> = [
   [new Set([ROLE_IDS.owner, ROLE_IDS.coOwner, ROLE_IDS.chairman, ROLE_IDS.viceChairman, ...(ROLE_IDS.ofcAdmin ? [ROLE_IDS.ofcAdmin] : [])]), "owner"],
-  [new Set([ROLE_IDS.headManagement, ROLE_IDS.headOperations, ROLE_IDS.headAdministration, ROLE_IDS.communityAffairs, ROLE_IDS.ceo, ROLE_IDS.headDevelopment]), "ownership"],
-  [new Set([ROLE_IDS.generalManager, ROLE_IDS.headDepartment, ROLE_IDS.seniorManagement]), "senior-leadership"],
+  [new Set([ROLE_IDS.headOperations, ROLE_IDS.headAdministration, ROLE_IDS.communityAffairs, ROLE_IDS.ceo, ROLE_IDS.headDevelopment]), "ownership"],
+  [new Set([ROLE_IDS.headManagement, ROLE_IDS.generalManager, ROLE_IDS.headDepartment, ROLE_IDS.seniorManagement]), "senior-leadership"],
   [new Set([ROLE_IDS.developerPosts]), "developer"],
   [new Set([ROLE_IDS.aides]), "aide"],
   [new Set([ROLE_IDS.staff]), "staff"],

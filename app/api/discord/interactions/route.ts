@@ -7,7 +7,7 @@ const LOGISTICS_ROLE_ID = "1539908119067492427";
 const TESTER_ROLE_ID = "1540499074061439006";
 const QUOTA_CHANNEL_ID = "1545116182858965046";
 const QUOTA_LOG_CHANNEL_ID = "1539785260923879505";
-const LEADERBOARD_ROLE_ID = "1496561403501219952";
+const LEADERBOARD_ROLE_ID = STAFF_ROLE_ID;
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN?.trim();
 const APPLICATION_ID = (process.env.DISCORD_APPLICATION_ID || process.env.DISCORD_CLIENT_ID || "").trim();
 const PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY?.trim();
@@ -40,7 +40,6 @@ async function ensureQuotaCommandsRegistered() {
     { name: "quota-leaderboard", description: "Show the live quota leaderboard in Discord", type: 1, options: [] }
   ];
   const commands = await discordApi(base, { method: "GET" });
-  const desiredNames = new Set(payloads.map((p) => p.name));
   if (Array.isArray(commands)) {
     for (const command of commands) {
       if (command?.name === "quota" && command?.id) await discordApi(`${base}/${command.id}`, { method: "DELETE" });
@@ -76,7 +75,7 @@ export async function POST(request: Request) {
   if (interaction.guild_id !== STAFF_GUILD_ID) return json(ephemeral("This quota system is only available in the Staff Team server."));
 
   if (interaction.type === 2 && interaction.data?.name === "quota-leaderboard") {
-    if (!hasRole(interaction, LEADERBOARD_ROLE_ID)) return json(ephemeral("You need the website Staff role to view the quota leaderboard."));
+    if (!hasRole(interaction, LEADERBOARD_ROLE_ID)) return json(ephemeral("You need the Staff Team server staff role to view the quota leaderboard."));
     if (!APPLICATION_ID) return json(ephemeral("Discord application ID is not configured."));
     try {
       await fetch(`https://discord.com/api/v10/interactions/${interaction.id}/${interaction.token}/callback`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: 5, data: { flags: 64 } }), cache: "no-store" });

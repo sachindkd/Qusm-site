@@ -56,25 +56,19 @@ export async function attachQuotaMessage(requestId: string, messageId: string) {
   if (!rows.length) throw new Error("Quota request is no longer pending while attaching its Discord message.");
 }
 
-export async function getQuotaRequestState(requestId: string) {
+export async function getQuotaRequestState(requestId: string): Promise<QuotaApprovalState | undefined> {
   await initQuotaState();
   const q = sql();
-  const rows = await q`SELECT request_id, user_id, username, minutes, signature, message_id, status, approved_by, approved_by_username
-    FROM quota_requests WHERE request_id = ${requestId}`;
-  return rows[0] as {
-    request_id: string;
-    user_id: string;
-    username: string;
-    minutes: number;
-    signature: string;
-    message_id: string | null;
-    status: QuotaApprovalState;
-    approved_by: string | null;
-    approved_by_username: string | null;
-  } | undefined;
+  const rows = await q`SELECT status FROM quota_requests WHERE request_id = ${requestId}`;
+  return rows[0]?.status as QuotaApprovalState | undefined;
 }
 
-export async function claimQuotaApproval(requestId: string, interactionId: string, approvedBy: string, approvedByUsername: string) {
+export async function claimQuotaApproval(
+  requestId: string,
+  interactionId = "unknown",
+  approvedBy = "unknown",
+  approvedByUsername = "unknown"
+) {
   await initQuotaState();
   const q = sql();
   const rows = await q`UPDATE quota_requests

@@ -33,6 +33,7 @@ export type QuotaDirectInput = { userId: string; username: string; minutes: numb
 
 export async function processQuotaDirect(input: QuotaDirectInput) {
   if (!Number.isFinite(input.minutes) || input.minutes <= 0) throw new Error("Approved quota must be greater than 0 minutes.");
+  // Only read the username and quota columns. Approval never writes to Mod Logs or any other column.
   const values = await sheetsFetch(`/values/${encodeURIComponent(SHEET_NAME + "!B:E")}?valueRenderOption=UNFORMATTED_VALUE`);
   const rows: unknown[][] = Array.isArray(values.values) ? values.values : [];
   const wanted = normalize(input.username);
@@ -42,11 +43,8 @@ export async function processQuotaDirect(input: QuotaDirectInput) {
   if (matches.length > 1) throw new Error(`Username "${input.username}" appears in ${matches.length} rows; update blocked to prevent changing the wrong staff record.`);
   const match = matches[0];
   const newTotal = match.current + input.minutes;
+  // Column E is the only cell changed by quota approval.
   await sheetsFetch(`/values/${encodeURIComponent(SHEET_NAME + "!E" + match.row)}?valueInputOption=USER_ENTERED`, { method: "PUT", body: JSON.stringify({ range: `${SHEET_NAME}!E${match.row}`, majorDimension: "ROWS", values: [[minutesToDuration(newTotal)]] }) });
-  const logText = `[${new Date().toISOString()}] Quota approved: +${input.minutes} min (total ${newTotal} min) | Request ${input.requestId} | Approved by ${input.approvedByUsername || input.approvedBy} | Proof: ${input.proof}`;
-  const logCell = await sheetsFetch(`/values/${encodeURIComponent(SHEET_NAME + "!F" + match.row)}?valueRenderOption=UNFORMATTED_VALUE`);
-  const existingLog = String(logCell?.values?.[0]?.[0] ?? "").trim();
-  await sheetsFetch(`/values/${encodeURIComponent(SHEET_NAME + "!F" + match.row)}?valueInputOption=USER_ENTERED`, { method: "PUT", body: JSON.stringify({ range: `${SHEET_NAME}!F${match.row}`, majorDimension: "ROWS", values: [[existingLog ? `${existingLog}\n${logText}` : logText]] }) });
   const verify = await sheetsFetch(`/values/${encodeURIComponent(SHEET_NAME + "!E" + match.row)}?valueRenderOption=UNFORMATTED_VALUE`);
   const verifiedMinutes = durationToMinutes(verify?.values?.[0]?.[0]);
   if (Math.abs(verifiedMinutes - newTotal) > 0.001) throw new Error(`Google Sheets verification failed: expected ${newTotal} minutes, read back ${verifiedMinutes} minutes.`);

@@ -38,23 +38,27 @@ export async function getQuotaLeaderboard(): Promise<QuotaLeaderboardRow[]> {
 }
 
 export type QuotaDirectInput = { userId: string; username: string; minutes: number; requestId: string; proof: string; approvedBy: string; approvedByUsername: string };
+export type LegacyQuotaRequest = { id: string; userId: string; username: string; quota: number; proof: string; proofName: string; notes: string; createdAt: string };
 
-export async function processQuotaDirect(input: QuotaDirectInput) {
-  if (!Number.isFinite(input.minutes) || input.minutes <= 0) throw new Error("Approved quota must be greater than 0 minutes.");
+export async function processQuotaDirect(input: QuotaDirectInput | LegacyQuotaRequest) {
+  const normalized: QuotaDirectInput = "minutes" in input
+    ? input
+    : { userId: input.userId, username: input.username, minutes: input.quota, requestId: input.id, proof: input.proof, approvedBy: "", approvedByUsername: "" };
+  if (!Number.isFinite(normalized.minutes) || normalized.minutes <= 0) throw new Error("Approved quota must be greater than 0 minutes.");
   // Only read the username and quota columns. Approval never writes to Mod Logs or any other column.
   const values = await sheetsFetch(`/values/${encodeURIComponent(SHEET_NAME + "!B:E")}?valueRenderOption=UNFORMATTED_VALUE`);
   const rows: unknown[][] = Array.isArray(values.values) ? values.values : [];
-  const wanted = normalize(input.username);
+  const wanted = normalize(normalized.username);
   const matches: { row: number; current: number }[] = [];
   rows.forEach((cells, index) => { if (normalize(cells?.[0]) === wanted) matches.push({ row: index + 1, current: durationToMinutes(cells?.[3]) }); });
-  if (!matches.length) throw new Error(`Username "${input.username}" not found in Column B of "${SHEET_NAME}".`);
-  if (matches.length > 1) throw new Error(`Username "${input.username}" appears in ${matches.length} rows; update blocked to prevent changing the wrong staff record.`);
+  if (!matches.length) throw new Error(`Username "${normalized.username}" not found in Column B of "${SHEET_NAME}".`);
+  if (matches.length > 1) throw new Error(`Username "${normalized.username}" appears in ${matches.length} rows; update blocked to prevent changing the wrong staff record.`);
   const match = matches[0];
-  const newTotal = match.current + input.minutes;
+  const newTotal = match.current + normalized.minutes;
   // Column E is the only cell changed by quota approval.
   await sheetsFetch(`/values/${encodeURIComponent(SHEET_NAME + "!E" + match.row)}?valueInputOption=USER_ENTERED`, { method: "PUT", body: JSON.stringify({ range: `${SHEET_NAME}!E${match.row}`, majorDimension: "ROWS", values: [[minutesToDuration(newTotal)]] }) });
   const verify = await sheetsFetch(`/values/${encodeURIComponent(SHEET_NAME + "!E" + match.row)}?valueRenderOption=UNFORMATTED_VALUE`);
   const verifiedMinutes = durationToMinutes(verify?.values?.[0]?.[0]);
   if (Math.abs(verifiedMinutes - newTotal) > 0.001) throw new Error(`Google Sheets verification failed: expected ${newTotal} minutes, read back ${verifiedMinutes} minutes.`);
-  return { success: true, row: match.row, previousMinutes: match.current, addedMinutes: input.minutes, totalMinutes: newTotal };
+  return { success: true, row: match.row, previousMinutes: match.current, addedMinutes: normalized.minutes, totalMinutes: newTotal };
 }

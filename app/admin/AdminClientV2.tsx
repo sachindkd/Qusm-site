@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { signOut } from "next-auth/react";
-import { Save, Plus, Trash2, Search, LogOut, Shield, Users, Megaphone, CalendarDays, ScrollText, Landmark, BadgeCheck, Newspaper, Image as ImageIcon, GitBranch, ShoppingBag, RefreshCw, Sparkles, Trophy } from "lucide-react";
+import { Save, Plus, Trash2, Search, LogOut, Shield, Users, Megaphone, CalendarDays, ScrollText, Landmark, BadgeCheck, Newspaper, Image as ImageIcon, GitBranch, ShoppingBag, RefreshCw, Sparkles } from "lucide-react";
 import MemberSearch from "./MemberSearch";
 import { CMS_SECTIONS, type CmsField, type CmsSection } from "../../lib/cms-section-registry";
 const icon=(id:string)=>({org:Shield,announcements:Megaphone,calendar:CalendarDays,cocLeadership:GitBranch,cocStaff:GitBranch,cocRoleplay:GitBranch,leadership:Users,divisions:Shield,rules:ScrollText,government:Landmark,ranks:BadgeCheck,news:Newspaper,media:ImageIcon,shop:ShoppingBag,applications:Users,customSections:Sparkles}[id]||Shield);
@@ -9,20 +9,7 @@ const uid=()=>`cms-${crypto.randomUUID()}`;
 function blank(fields:CmsField[]){return fields.reduce((o:any,f)=>({...o,[f.key]:f.type==="select"?(f.options?.[0]||""):f.type==="number"?0:""}),{id:uid()});}
 
 export default function AdminClientV2(props:{initialContent:any;email:string;access:string;permissions:string[];shopEditable?:boolean;readOnly?:boolean}){
-  if (props.readOnly) return <QuotaLeaderboardPanel email={props.email}/>;
-  return <AdminEditor {...props}/>;
-}
-
-function QuotaLeaderboardPanel({email}:{email:string}){
- const [rows,setRows]=useState<{username:string;rank:string;minutes:number}[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState("");
- const load=async()=>{setLoading(true);setError("");try{const r=await fetch("/api/quota/leaderboard",{cache:"no-store"});const d=await r.json();if(!r.ok)throw Error(d.error||"Could not load leaderboard");setRows(Array.isArray(d.rows)?d.rows:[]);}catch(e:any){setError(e.message||"Could not load leaderboard")}finally{setLoading(false)}};
- useEffect(()=>{void load()},[]);
- return <div className="min-h-screen bg-bg text-white pb-24"><header className="sticky top-0 z-30 border-b border-border bg-bg/95 backdrop-blur px-4 sm:px-8 py-4 flex justify-between items-center"><div><div className="font-mono text-[9px] tracking-[3px] text-golddim uppercase">FBMRP / Staff Management</div><h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight">Quota Leaderboard</h1><div className="font-mono text-[8px] text-textfaint uppercase mt-1">READ ONLY · {email}</div></div><button onClick={()=>signOut({callbackUrl:"/"})} className="border border-border hover:border-gold px-3 py-2.5 font-mono text-[9px] uppercase flex gap-2 items-center"><LogOut size={13}/><span className="hidden sm:inline">Sign out</span></button></header>
- <main className="px-4 sm:px-8 py-7 max-w-[1100px] mx-auto"><div className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4"><div><div className="font-mono text-[8px] tracking-[2px] text-textfaint uppercase">LIVE GOOGLE STAFF DATABASE</div><h2 className="font-serif text-4xl sm:text-5xl font-bold mt-2">Staff Quota</h2><p className="text-textdim mt-3 max-w-2xl leading-6">Current quota is read directly from Column E of the QUSM Staff Database. Existing records are included.</p></div><button onClick={()=>void load()} disabled={loading} className="self-start border border-border hover:border-gold px-4 py-3 font-mono text-[9px] uppercase flex gap-2 items-center"><RefreshCw size={13} className={loading?"animate-spin":""}/>{loading?"Reading…":"Refresh"}</button></div>
- {error&&<div className="mb-5 border-l-2 border-red-400 bg-red-400/5 px-4 py-3 text-sm text-red-200">{error}</div>}
- <div className="border border-border bg-panel/60 overflow-hidden"><div className="grid grid-cols-[56px_1fr_150px] sm:grid-cols-[70px_1fr_220px] gap-3 border-b border-border px-4 py-3 font-mono text-[8px] uppercase tracking-[1px] text-textfaint"><span>#</span><span>Staff Member</span><span className="text-right">Quota</span></div>{rows.map((row,i)=><div key={`${row.username}-${i}`} className="grid grid-cols-[56px_1fr_150px] sm:grid-cols-[70px_1fr_220px] gap-3 items-center border-b border-border/60 px-4 py-4 last:border-0"><span className="font-mono text-golddim text-sm">{String(i+1).padStart(2,"0")}</span><div className="min-w-0"><div className="font-serif font-bold truncate">{row.username}</div><div className="font-mono text-[8px] text-textfaint uppercase truncate">{row.rank||"Staff"}</div></div><div className="text-right font-mono text-sm text-gold">{row.minutes} min</div></div>)}{!loading&&!rows.length&&<div className="p-10 text-center text-textfaint">No quota records found.</div>}</div>
- <div className="mt-4 flex items-center gap-2 font-mono text-[8px] uppercase text-textfaint"><Trophy size={13} className="text-gold"/> Sorted by live Column E quota · read-only</div>
- </main></div>;
+ return <AdminEditor {...props}/>;
 }
 
 function AdminEditor({initialContent,email,access,permissions,shopEditable=false}:{initialContent:any;email:string;access:string;permissions:string[];shopEditable?:boolean}){
@@ -32,7 +19,7 @@ function AdminEditor({initialContent,email,access,permissions,shopEditable=false
  const refresh=async()=>{setLoading(true);try{const r=await fetch("/api/content",{cache:"no-store"});const d=await r.json();if(!r.ok)throw Error(d.error||"Could not read live CMS data");setContent(d);setMsg("Live database data loaded.")}catch(e:any){setMsg(e.message||"Refresh failed")}finally{setLoading(false)}};useEffect(()=>{void refresh()},[]);
  const save=async()=>{setSaving(true);setMsg("");try{const r=await fetch("/api/content",{method:"PUT",headers:{"Content-Type":"application/json","x-content-section":active},body:JSON.stringify({[active]:content[active]})});const d=await r.json();if(!r.ok)throw Error(d.error||"Save failed");setMsg("Saved. Public site uses the same live record.");await refresh()}catch(e:any){setMsg(e.message||"Save failed")}finally{setSaving(false)}};
  const update=(i:number,k:string,v:any)=>setContent((c:any)=>({...c,[active]:items.map((x:any,n:number)=>n===i?{...x,[k]:v}:x)}));
- const updateOrg=(k:string,v:any)=>setContent((c:any)=>({...c,org:{...(c.org||{}),[k]:v}}));
+ const updateOrg=(k:string,v:any)=>setContent((c:any)=>({...c,org:{...(c.org||{}),[k]:v}));
  const add=()=>setContent((c:any)=>({...c,[active]:[...(Array.isArray(c[active])?c[active]:[]),blank(section.fields)]}));
  const remove=(i:number)=>{if(!confirm("Delete this record?"))return;setContent((c:any)=>({...c,[active]:items.filter((_:any,n:number)=>n!==i)}));};
  return <div className="min-h-screen bg-bg text-white pb-24"><header className="sticky top-0 z-30 border-b border-border bg-bg/95 backdrop-blur px-4 sm:px-8 py-4 flex justify-between items-center"><div><div className="font-mono text-[9px] tracking-[3px] text-golddim uppercase">FBMRP / Administration</div><h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight">Staff Management</h1><div className="font-mono text-[8px] text-textfaint uppercase mt-1">{access} · {permissions.length} permissions</div></div><button onClick={()=>signOut({callbackUrl:"/"})} className="border border-border hover:border-gold px-3 py-2.5 font-mono text-[9px] uppercase flex gap-2 items-center"><LogOut size={13}/><span className="hidden sm:inline">Sign out</span></button></header>

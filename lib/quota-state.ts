@@ -74,8 +74,6 @@ export async function getQuotaRequestState(requestId: string) {
   } | undefined;
 }
 
-// Atomic compare-and-set: only one request handler can move a pending request to processing.
-// A duplicate Discord delivery therefore cannot run the Sheets write twice.
 export async function claimQuotaApproval(requestId: string, interactionId: string, approvedBy: string, approvedByUsername: string) {
   await initQuotaState();
   const q = sql();
@@ -98,6 +96,7 @@ export async function markQuotaApproved(requestId: string) {
 export async function markQuotaRejected(requestId: string) {
   await initQuotaState();
   const q = sql();
-  await q`UPDATE quota_requests SET status = 'rejected', updated_at = NOW()
-    WHERE request_id = ${requestId} AND status = 'pending'`;
+  const rows = await q`UPDATE quota_requests SET status = 'rejected', updated_at = NOW()
+    WHERE request_id = ${requestId} AND status = 'pending' RETURNING request_id`;
+  return Boolean(rows.length);
 }

@@ -11,13 +11,15 @@ The quota system is the official workflow for reviewing Staff quota submissions.
 5. The approved minutes are added directly to the QUSM Staff Database in Google Sheets, to the staff member's existing quota total.
 6. The submission message is marked **Approved** and an approval log is posted in the configured quota approval-log channel.
 7. If the submission is invalid, click **Reject**, enter a clear reason, and submit the rejection form.
-8. The staff member receives the rejection reason by Discord DM, and the original submission is marked **Rejected** with the reason recorded on the review message.
+8. The staff member receives the rejection reason by Discord DM, the original submission is marked **Rejected**, and a **Quota Rejected** record is posted in the same quota approval-log channel.
 
 ## Important
 - Do not manually edit the quota amount for an approved submission unless specifically correcting an administrative error.
 - Approval adds minutes; it does not replace the existing quota total.
 - Proof must be reviewed before approval.
 - A rejection reason is required so the staff member knows what must be corrected.
+- Rejected submissions do **not** add minutes to the Google Staff Database.
+- The approval and rejection records use the same configured quota log channel so the complete decision history stays together.
 - The quota leaderboard is Discord-only. Use `/quota-leaderboard` and the Staff Team server staff role to view it.
 - Staff submit quota with `/quota-submit`, including minutes and the proof image. Notes are optional.
 

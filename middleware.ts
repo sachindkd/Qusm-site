@@ -1,5 +1,5 @@
 import { createHmac, createPublicKey, verify } from "node:crypto";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, NextFetchEvent } from "next/server";
 import { distributedRateLimit } from "@/lib/distributed-rate-limit";
 
 const API_LIMIT = 120;
@@ -64,6 +64,7 @@ async function logRejectedQuota(body: string, request: NextRequest) {
   const botToken = process.env.DISCORD_BOT_TOKEN?.trim();
   if (!botToken) return;
 
+  const memberId = member.match(/^<@(\d+)>/)?.[1] || "";
   const response = await fetch(`https://discord.com/api/v10/channels/${QUOTA_LOG_CHANNEL_ID}/messages`, {
     method: "POST",
     headers: {
@@ -73,7 +74,7 @@ async function logRejectedQuota(body: string, request: NextRequest) {
     body: JSON.stringify({
       embeds: [{
         title: "Quota Rejected",
-        description: `<@${member.match(/^<@(\d+)>/)?.[1] || "0"}> quota submission has been rejected by Logistics.`,
+        description: memberId ? `<@${memberId}> quota submission has been rejected by Logistics.` : "A quota submission has been rejected by Logistics.",
         color: 0xed4245,
         fields: [
           { name: "Staff Member", value: member, inline: true },
@@ -94,7 +95,7 @@ async function logRejectedQuota(body: string, request: NextRequest) {
   if (!response.ok) console.error("Failed to send quota rejection log", await response.text());
 }
 
-export async function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest, event: NextFetchEvent) {
   const { pathname } = request.nextUrl;
   if (!pathname.startsWith("/api/")) return NextResponse.next();
 
@@ -118,8 +119,7 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/api/discord/interactions" && request.method === "POST") {
     try {
       const body = await request.clone().text();
-      // Keep Discord's interaction response path independent; rejection logging is best-effort.
-      await logRejectedQuota(body, request);
+      event.waitUntil(logRejectedQuota(body, request));
     } catch (error) {
       console.error("Quota rejection logging failed", error);
     }

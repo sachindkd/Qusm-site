@@ -25,24 +25,32 @@ function hasRole(interaction: any, roleId: string) { return roles(interaction).i
 function json(data: unknown, status = 200) { return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } }); }
 function ephemeral(content: string) { return { type: 4, data: { content, flags: 64 } }; }
 function option(interaction: any, name: string) { return (interaction?.data?.options || []).find((item: any) => item?.name === name); }
-function subcommand(interaction: any) { return interaction?.data?.options?.[0]?.name || ""; }
 
 async function discordApi(path: string, init: RequestInit) { if (!BOT_TOKEN) throw new Error("DISCORD_BOT_TOKEN is not configured"); const response = await fetch(`https://discord.com/api/v10${path}`, { ...init, headers: { Authorization: `Bot ${BOT_TOKEN}`, "Content-Type": "application/json", ...(init.headers || {}) }, cache: "no-store" }); const text = await response.text(); if (!response.ok) throw new Error(`Discord API ${response.status}: ${text.slice(0, 300)}`); return text ? JSON.parse(text) : {}; }
 
-async function ensureQuotaCommandRegistered() {
+async function ensureQuotaCommandsRegistered() {
   if (!APPLICATION_ID || !BOT_TOKEN) throw new Error("Discord application credentials are not configured");
-  const payload = { name: "quota", description: "Submit staff quota or view the live leaderboard", type: 1, options: [
-    { type: 1, name: "submit", description: "Submit quota with a proof image", options: [
+  const base = `/applications/${APPLICATION_ID}/guilds/${STAFF_GUILD_ID}/commands`;
+  const payloads = [
+    { name: "quota-submit", description: "Submit staff quota with a proof image", type: 1, options: [
       { type: 4, name: "minutes", description: "Quota completed in minutes", required: true, min_value: 1, max_value: 100000 },
       { type: 11, name: "proof", description: "Attach the proof image directly", required: true },
       { type: 3, name: "notes", description: "Optional notes for Logistics", required: false, max_length: 1000 }
     ] },
-    { type: 1, name: "leaderboard", description: "Show the live quota leaderboard in Discord", options: [] }
-  ] };
-  const commands = await discordApi(`/applications/${APPLICATION_ID}/guilds/${STAFF_GUILD_ID}/commands`, { method: "GET" });
-  const existing = Array.isArray(commands) ? commands.find((command: any) => command?.name === "quota") : null;
-  if (existing?.id) await discordApi(`/applications/${APPLICATION_ID}/guilds/${STAFF_GUILD_ID}/commands/${existing.id}`, { method: "PATCH", body: JSON.stringify(payload) });
-  else await discordApi(`/applications/${APPLICATION_ID}/guilds/${STAFF_GUILD_ID}/commands`, { method: "POST", body: JSON.stringify(payload) });
+    { name: "quota-leaderboard", description: "Show the live quota leaderboard in Discord", type: 1, options: [] }
+  ];
+  const commands = await discordApi(base, { method: "GET" });
+  const desiredNames = new Set(payloads.map((p) => p.name));
+  if (Array.isArray(commands)) {
+    for (const command of commands) {
+      if (command?.name === "quota" && command?.id) await discordApi(`${base}/${command.id}`, { method: "DELETE" });
+    }
+  }
+  for (const payload of payloads) {
+    const existing = Array.isArray(commands) ? commands.find((command: any) => command?.name === payload.name) : null;
+    if (existing?.id) await discordApi(`${base}/${existing.id}`, { method: "PATCH", body: JSON.stringify(payload) });
+    else await discordApi(base, { method: "POST", body: JSON.stringify(payload) });
+  }
 }
 
 function rejectReasonModal(requestId: string, signature: string, messageId: string) { return { type: 9, data: { custom_id: `quota_reject:${requestId}:${signature}:${messageId}`, title: "Reject Quota", components: [{ type: 1, components: [{ type: 4, custom_id: "reason", label: "Reason for rejection", style: 2, required: true, min_length: 2, max_length: 1000, placeholder: "Explain why this quota is being rejected" }] }] } }; }
@@ -58,27 +66,26 @@ async function followup(interaction: any, payload: any) { if (!APPLICATION_ID) r
 async function sendQuotaLeaderboard(interaction: any) { const rows = await getQuotaLeaderboard(); if (!rows.length) return followup(interaction, { content: "No staff quota records were found in the Google Staff Database.", flags: 64 }); const chunks: any[] = []; for (let i = 0; i < rows.length; i += 25) { const chunk = rows.slice(i, i + 25); chunks.push({ title: i === 0 ? "QUSM Quota Leaderboard" : "QUSM Quota Leaderboard — Continued", color: 0xd4af37, description: chunk.map((row, index) => `${i + index + 1}. **${row.username}** — ${row.minutes} min${row.rank ? ` · ${row.rank}` : ""}`).join("\n"), footer: { text: "Live from QUSM Staff Database • Column E" } }); } await followup(interaction, { embeds: chunks.slice(0, 10), flags: 64 }); }
 async function dmRejection(userId: string, reason: string, quota: number) { const dm = await discordApi("/users/@me/channels", { method: "POST", body: JSON.stringify({ recipient_id: userId }) }); await discordApi(`/channels/${dm.id}/messages`, { method: "POST", body: JSON.stringify({ content: `❌ Your **${quota} minute** quota submission has been rejected by Logistics.\n\n**Reason:** ${reason}` }) }); }
 
-export async function GET() { try { await ensureQuotaCommandRegistered(); return json({ success: true, command: "quota", guildId: STAFF_GUILD_ID }); } catch (error) { console.error("Failed to register /quota command", error); return json({ success: false, error: error instanceof Error ? error.message : "unknown error" }, 500); } }
+export async function GET() { try { await ensureQuotaCommandsRegistered(); return json({ success: true, commands: ["/quota-submit", "/quota-leaderboard"], guildId: STAFF_GUILD_ID }); } catch (error) { console.error("Failed to register quota commands", error); return json({ success: false, error: error instanceof Error ? error.message : "unknown error" }, 500); } }
 
 export async function POST(request: Request) {
   const body = await request.text();
   if (!verifyDiscordSignature(body, request.headers.get("x-signature-timestamp") || "", request.headers.get("x-signature-ed25519") || "")) return json({ error: "invalid signature" }, 401);
   let interaction: any; try { interaction = JSON.parse(body); } catch { return json({ error: "invalid json" }, 400); }
-  if (interaction.type === 1) { try { await ensureQuotaCommandRegistered(); } catch (error) { console.error("Failed to register /quota command", error); } return json({ type: 1 }); }
+  if (interaction.type === 1) { try { await ensureQuotaCommandsRegistered(); } catch (error) { console.error("Failed to register quota commands", error); } return json({ type: 1 }); }
   if (interaction.guild_id !== STAFF_GUILD_ID) return json(ephemeral("This quota system is only available in the Staff Team server."));
 
-  if (interaction.type === 2 && interaction.data?.name === "quota") {
-    const command = subcommand(interaction);
-    if (command === "leaderboard") {
-      if (!hasRole(interaction, LEADERBOARD_ROLE_ID)) return json(ephemeral("You need the website Staff role to view the quota leaderboard."));
-      if (!APPLICATION_ID) return json(ephemeral("Discord application ID is not configured."));
-      try {
-        await fetch(`https://discord.com/api/v10/interactions/${interaction.id}/${interaction.token}/callback`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: 5, data: { flags: 64 } }), cache: "no-store" });
-        await sendQuotaLeaderboard(interaction);
-      } catch (error) { console.error("Quota leaderboard fetch failed", error); await followup(interaction, { content: `⚠️ Could not fetch the live leaderboard: ${error instanceof Error ? error.message : "unknown error"}`, flags: 64 }); }
-      return new Response(null, { status: 204 });
-    }
-    if (command !== "submit") return json(ephemeral("Use `/quota submit` to submit quota or `/quota leaderboard` to view the live leaderboard in Discord."));
+  if (interaction.type === 2 && interaction.data?.name === "quota-leaderboard") {
+    if (!hasRole(interaction, LEADERBOARD_ROLE_ID)) return json(ephemeral("You need the website Staff role to view the quota leaderboard."));
+    if (!APPLICATION_ID) return json(ephemeral("Discord application ID is not configured."));
+    try {
+      await fetch(`https://discord.com/api/v10/interactions/${interaction.id}/${interaction.token}/callback`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: 5, data: { flags: 64 } }), cache: "no-store" });
+      await sendQuotaLeaderboard(interaction);
+    } catch (error) { console.error("Quota leaderboard fetch failed", error); await followup(interaction, { content: `⚠️ Could not fetch the live leaderboard: ${error instanceof Error ? error.message : "unknown error"}`, flags: 64 }); }
+    return new Response(null, { status: 204 });
+  }
+
+  if (interaction.type === 2 && interaction.data?.name === "quota-submit") {
     if (!hasRole(interaction, STAFF_ROLE_ID)) return json(ephemeral("You need the Staff Team role to submit quota."));
     const minutes = Number(option(interaction, "minutes")?.value);
     const proofId = String(option(interaction, "proof")?.value || "");
@@ -99,7 +106,7 @@ export async function POST(request: Request) {
 
   if (interaction.type === 3 && typeof interaction.data?.custom_id === "string") {
     const customId = interaction.data.custom_id;
-    if (customId === "quota:leaderboard:yes" || customId === "quota:leaderboard:no") return json(ephemeral("The quota leaderboard is now Discord-only. Use `/quota leaderboard`."));
+    if (customId === "quota:leaderboard:yes" || customId === "quota:leaderboard:no") return json(ephemeral("The quota leaderboard is Discord-only. Use `/quota-leaderboard`."));
     const rejectModal = customId.match(/^quota:reject:([^:]+):([a-f0-9]{24})$/);
     if (rejectModal) {
       if (!(hasRole(interaction, LOGISTICS_ROLE_ID) || hasRole(interaction, TESTER_ROLE_ID))) return json(ephemeral("Only Logistics can reject quota submissions."));

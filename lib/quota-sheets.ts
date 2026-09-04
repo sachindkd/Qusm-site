@@ -29,6 +29,14 @@ function normalize(value: unknown) { return String(value ?? "").trim().toLowerCa
 function durationToMinutes(value: unknown) { const n = Number(value); if (!Number.isFinite(n) || n <= 0) return 0; return n < 1 ? n * 1440 : n; }
 function minutesToDuration(minutes: number) { return minutes / 1440; }
 
+export type QuotaLeaderboardRow = { username: string; rank: string; minutes: number };
+
+export async function getQuotaLeaderboard(): Promise<QuotaLeaderboardRow[]> {
+  const values = await sheetsFetch(`/values/${encodeURIComponent(SHEET_NAME + "!B:E")}?valueRenderOption=UNFORMATTED_VALUE`);
+  const rows: unknown[][] = Array.isArray(values.values) ? values.values : [];
+  return rows.slice(1).map((cells) => ({ username: String(cells?.[0] ?? "").trim(), rank: String(cells?.[1] ?? "").trim(), minutes: Math.round(durationToMinutes(cells?.[3])) })).filter((row) => row.username).sort((a, b) => b.minutes - a.minutes || a.username.localeCompare(b.username));
+}
+
 export type QuotaDirectInput = { userId: string; username: string; minutes: number; requestId: string; proof: string; approvedBy: string; approvedByUsername: string };
 
 export async function processQuotaDirect(input: QuotaDirectInput) {

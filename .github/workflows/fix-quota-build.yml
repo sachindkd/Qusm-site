@@ -1,0 +1,29 @@
+name: Fix quota build
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch and remove temporary workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/api/discord/interactions/route.ts')
+          s=p.read_text()
+          s=s.replace('const confirmation=modalValues(i).confirm?.trim().toUpperCase();','const modal=modalValues(i); const confirmation=String(modal.confirm||"").trim().toUpperCase();')
+          s=s.replace('const reason=modalValues(i).reason?.trim();','const modal=modalValues(i); const reason=String(modal.reason||"").trim();')
+          p.write_text(s)
+          PY
+          rm -f .github/workflows/fix-quota-build.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/api/discord/interactions/route.ts .github/workflows/fix-quota-build.yml
+          git diff --cached --quiet || git commit -m 'Fix quota modal TypeScript inference'
+          git push

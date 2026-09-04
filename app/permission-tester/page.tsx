@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { SPECIAL_OWNER_ID, ROLE_IDS, getAccessLevel, getPermissions, type AccessLevel } from "@/lib/discord-roles";
 import { DISCORD_SESSION_COOKIE, readDiscordSession } from "@/lib/discord-session";
 
+const WEB_DEVELOPMENT_TEAM_ROLE_ID = "1540499074061439006";
+
 const TEST_ROLES = [
   ["Owner", ROLE_IDS.owner, "owner"], ["Co-Owner", ROLE_IDS.coOwner, "owner"], ["Chairman", ROLE_IDS.chairman, "owner"],
   ["Vice Chairman", ROLE_IDS.viceChairman, "owner"], ["OFC Admin", ROLE_IDS.ofcAdmin, "owner"],
@@ -21,20 +23,23 @@ function label(value: AccessLevel) {
   return value === "senior-leadership" ? "Senior Leadership" : value.replaceAll("-", " ").replace(/\b\w/g, c => c.toUpperCase());
 }
 
-async function getAuthorizedOwner() {
+async function getAuthorizedDeveloper() {
   const cookieStore = await cookies();
   const session = readDiscordSession(cookieStore.get(DISCORD_SESSION_COOKIE)?.value);
-  return session?.id === SPECIAL_OWNER_ID ? session : null;
+  if (!session) return null;
+  if (session.id === SPECIAL_OWNER_ID) return session;
+  if (session.roles?.includes(WEB_DEVELOPMENT_TEAM_ROLE_ID)) return session;
+  return null;
 }
 
 export default async function PermissionTester() {
-  const session = await getAuthorizedOwner();
+  const session = await getAuthorizedDeveloper();
   if (!session) redirect("/authorize?next=/permission-tester");
 
   async function selectRole(formData: FormData) {
     "use server";
 
-    const currentSession = await getAuthorizedOwner();
+    const currentSession = await getAuthorizedDeveloper();
     if (!currentSession) redirect("/authorize?next=/permission-tester");
 
     const roleId = String(formData.get("roleId") ?? "");
@@ -62,7 +67,7 @@ export default async function PermissionTester() {
     <main className="min-h-screen bg-[#060a12] text-white px-5 py-10">
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 rounded-3xl border border-amber-300/20 bg-amber-300/[0.06] p-6">
-          <p className="font-mono text-[10px] uppercase tracking-[3px] text-amber-300">FBMRP · SPECIAL USER TOOL</p>
+          <p className="font-mono text-[10px] uppercase tracking-[3px] text-amber-300">FBMRP · WEB DEVELOPMENT TEAM</p>
           <h1 className="mt-2 text-3xl font-bold">Discord Permission Tester</h1>
           <p className="mt-2 max-w-3xl text-sm text-white/55">Simulate any configured Discord role against the exact deterministic access resolver used by the website. Nothing here changes your real Discord roles or live session permissions.</p>
         </div>

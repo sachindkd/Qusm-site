@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getQuotaLeaderboard, processQuotaDirect } from "@/lib/quota-sheets";
-import { attachQuotaMessage, claimQuotaApproval, createQuotaRequest, getQuotaRequestState, markQuotaApproved, markQuotaRejected } from "@/lib/quota-state";
+import { attachQuotaMessage, claimQuotaApproval, createQuotaRequest, getQuotaRequestState, markQuotaApproved, markQuotaRejected, releaseQuotaApproval } from "@/lib/quota-state";
 import { LOGISTICS_ROLE_ID, QUOTA_CHANNEL_ID, STAFF_GUILD_ID, STAFF_ROLE_ID, TESTER_ROLE_ID } from "./config";
 import { discordApi, ephemeral, hasRole, interactionCallback, interactionFollowup, jsonResponse, modalValues, option } from "./discord-api";
 import { approveModal, dmRejection, getAndValidateReviewMessage, postApprovalLog, postRejectionLog, postReviewMessage, rejectModal } from "./messages";
@@ -26,16 +26,10 @@ async function handleLeaderboard(interaction: any) {
     const embeds: any[] = [];
     for (let offset = 0; offset < rows.length; offset += 25) {
       const chunk = rows.slice(offset, offset + 25);
-      embeds.push({
-        title: offset === 0 ? "QUSM Quota Leaderboard" : "QUSM Quota Leaderboard — Continued",
-        description: chunk.map((row: any, index: number) => `${offset + index + 1}. **${row.username}** — ${row.minutes} min${row.rank ? ` · ${row.rank}` : ""}`).join("\n"),
-        color: 0xd4af37,
-      });
+      embeds.push({ title: offset === 0 ? "QUSM Quota Leaderboard" : "QUSM Quota Leaderboard — Continued", description: chunk.map((row: any, index: number) => `${offset + index + 1}. **${row.username}** — ${row.minutes} min${row.rank ? ` · ${row.rank}` : ""}`).join("\n"), color: 0xd4af37 });
     }
     await interactionFollowup(interaction, { content: rows.length ? undefined : "No staff quota records were found in the Google Staff Database.", embeds: embeds.slice(0, 10), flags: 64 });
-  } catch (error) {
-    console.error("[quota] leaderboard failed", error);
-  }
+  } catch (error) { console.error("[quota] leaderboard failed", error); }
   return new Response(null, { status: 204 });
 }
 
@@ -50,19 +44,8 @@ async function handleSubmit(interaction: any) {
     const proof = String(attachment?.url || "");
     const proofName = String(attachment?.filename || "Proof image");
     const contentType = String(attachment?.content_type || "").toLowerCase();
-    if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 100000 || !proof || (contentType && !contentType.startsWith("image/"))) {
-      return interactionFollowup(interaction, { content: "Invalid quota submission. Minutes must be positive and proof must be an image.", flags: 64 });
-    }
-    const request: QuotaRequest = {
-      id: randomUUID(),
-      userId: interactionUserId(interaction),
-      username: interactionUsername(interaction),
-      quota: Math.round(minutes),
-      proof,
-      proofName,
-      notes,
-      createdAt: new Date().toISOString(),
-    };
+    if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 100000 || !proof || (contentType && !contentType.startsWith("image/"))) return interactionFollowup(interaction, { content: "Invalid quota submission. Minutes must be positive and proof must be an image.", flags: 64 });
+    const request: QuotaRequest = { id: randomUUID(), userId: interactionUserId(interaction), username: interactionUsername(interaction), quota: Math.round(minutes), proof, proofName, notes, createdAt: new Date().toISOString() };
     await createQuotaRequest({ requestId: request.id, userId: request.userId, username: request.username, minutes: request.quota, signature: quotaSignature(request) });
     const message = await postReviewMessage(request, interactionDisplayName(interaction));
     await attachQuotaMessage(request.id, String(message.id));
@@ -74,9 +57,7 @@ async function handleSubmit(interaction: any) {
   return new Response(null, { status: 204 });
 }
 
-function canReview(interaction: any) {
-  return hasRole(interaction, LOGISTICS_ROLE_ID) || hasRole(interaction, TESTER_ROLE_ID);
-}
+function canReview(interaction: any) { return hasRole(interaction, LOGISTICS_ROLE_ID) || hasRole(interaction, TESTER_ROLE_ID); }
 
 async function handleButton(interaction: any) {
   const customId = String(interaction?.data?.custom_id || "");
@@ -95,6 +76,8 @@ async function finishApproval(interaction: any, match: RegExpMatchArray) {
   if (String(interaction.channel_id) !== QUOTA_CHANNEL_ID) return jsonResponse(ephemeral("⚠️ Invalid quota review channel."));
   const values = modalValues(interaction);
   if (String(values.confirm || "") !== "APPROVE") return jsonResponse(ephemeral("Approval cancelled. Type exactly APPROVE to confirm."));
+  let claimed = false;
+  let sheetUpdated = false;
   try {
     await interactionCallback(interaction, { type: 5, data: { flags: 64 } });
     const requestId = match[1];
@@ -104,16 +87,23 @@ async function finishApproval(interaction: any, match: RegExpMatchArray) {
     if (state !== "pending") return interactionFollowup(interaction, { content: `⚠️ This quota request is no longer pending (status: ${state || "not found"}).`, flags: 64 });
     const original = await getAndValidateReviewMessage(messageId, requestId, signature);
     if (!original) return interactionFollowup(interaction, { content: "⚠️ This quota approval request is invalid, outdated, or no longer pending.", flags: 64 });
-    if (!await claimQuotaApproval(requestId, interaction.id, interactionUserId(interaction), interactionUsername(interaction))) return interactionFollowup(interaction, { content: "⚠️ This quota request is already being processed or has been completed.", flags: 64 });
+    claimed = await claimQuotaApproval(requestId, interaction.id, interactionUserId(interaction), interactionUsername(interaction));
+    if (!claimed) return interactionFollowup(interaction, { content: "⚠️ This quota request is already being processed or has been completed.", flags: 64 });
     const approverId = interactionUserId(interaction);
     const approverName = interactionDisplayName(interaction) || approverId;
     await processQuotaDirect({ userId: original.request.userId, username: original.request.username, minutes: original.request.quota, requestId: original.request.id, proof: original.request.proof, approvedBy: approverId, approvedByUsername: approverName });
+    sheetUpdated = true;
+    // Mark approved immediately after the Sheets write succeeds. Logging/UI cleanup must never leave it stuck in processing.
     await markQuotaApproved(requestId);
     await postApprovalLog(original.request, approverId, approverName);
     await discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ components: [] }) });
     await interactionFollowup(interaction, { content: `✅ ${original.request.quota} minutes approved and added to the Staff Database.`, flags: 64 });
   } catch (error) {
     console.error("[quota] approval failed", { interactionId: interaction.id, error });
+    // If the Sheets operation did not complete, unlock the request so a legitimate retry is possible.
+    if (claimed && !sheetUpdated) {
+      try { await releaseQuotaApproval(match[1]); } catch (releaseError) { console.error("[quota] failed to release approval claim", { requestId: match[1], releaseError }); }
+    }
     try { await interactionFollowup(interaction, { content: `⚠️ Quota approval failed: ${error instanceof Error ? error.message : "unknown error"}`, flags: 64 }); } catch {}
   }
   return new Response(null, { status: 204 });

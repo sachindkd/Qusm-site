@@ -55,11 +55,11 @@ async function ensureQuotaCommandsRegistered() {
 function rejectReasonModal(requestId: string, signature: string, messageId: string) { return { type: 9, data: { custom_id: `quota_reject:${requestId}:${signature}:${messageId}`, title: "Reject Quota", components: [{ type: 1, components: [{ type: 4, custom_id: "reason", label: "Reason for rejection", style: 2, required: true, min_length: 2, max_length: 1000, placeholder: "Explain why this quota is being rejected" }] }] } }; }
 function modalValues(interaction: any) { const out: Record<string, string> = {}; for (const row of interaction?.data?.components || []) for (const component of row?.components || []) out[component.custom_id] = String(component.value || ""); return out; }
 
-async function sendQuotaReview(request: QuotaRequest, displayName: string) { const sig = requestSignature(request).slice(0, 24); return discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages`, { method: "POST", body: JSON.stringify({ embeds: [{ title: "Quota Submission — Pending Review", description: `<@${request.userId}> submitted a quota for Logistics review.`, fields: [{ name: "Request ID", value: request.id }, { name: "Member", value: `<@${request.userId}> (${request.username})`, inline: true }, { name: "Display Name", value: displayName || request.username, inline: true }, { name: "Quota (minutes)", value: `${request.quota} min`, inline: true }, { name: "Proof", value: `[${request.proofName || "View proof image"}](${request.proof})` }, { name: "Notes", value: request.notes || "—" }], image: { url: request.proof }, footer: { text: "QUSM Quota System • Staff Team" }, timestamp: request.createdAt }], components: [{ type: 1, components: [{ type: 2, style: 3, label: "Approve & Add Minutes", custom_id: `quota:approve:${request.id}:${sig}` }, { type: 2, style: 4, label: "Reject", custom_id: `quota:reject:${request.id}:${sig}` }] }], allowed_mentions: { users: [request.userId] } }) }); }
+async function sendQuotaReview(request: QuotaRequest, displayName: string) { const sig = requestSignature(request).slice(0, 24); return discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages`, { method: "POST", body: JSON.stringify({ content: `<@&${LOGISTICS_ROLE_ID}>`, embeds: [{ title: "Quota Submission — Pending Review", description: `<@${request.userId}> submitted a quota for Logistics review.`, fields: [{ name: "Request ID", value: request.id }, { name: "Member", value: `<@${request.userId}> (${request.username})`, inline: true }, { name: "Display Name", value: displayName || request.username, inline: true }, { name: "Quota (minutes)", value: `${request.quota} min`, inline: true }, { name: "Proof", value: `[${request.proofName || "View proof image"}](${request.proof})` }, { name: "Notes", value: request.notes || "—" }], image: { url: request.proof }, footer: { text: "QUSM Quota System • Staff Team" }, timestamp: request.createdAt }], components: [{ type: 1, components: [{ type: 2, style: 3, label: "Approve & Add Minutes", custom_id: `quota:approve:${request.id}:${sig}` }, { type: 2, style: 4, label: "Reject", custom_id: `quota:reject:${request.id}:${sig}` }] }], allowed_mentions: { users: [request.userId], roles: [LOGISTICS_ROLE_ID] } }) }); }
 
 async function sendQuotaApprovalLog(request: QuotaRequest, approvedById: string, approvedByUsername: string) { const allowedUsers = [...new Set([request.userId, approvedById])]; return discordApi(`/channels/${QUOTA_LOG_CHANNEL_ID}/messages`, { method: "POST", body: JSON.stringify({ content: `<@&${LOGISTICS_ROLE_ID}>`, embeds: [{ title: "Quota Approved", description: `<@${request.userId}> quota has been approved and added to the Google Staff Database.`, color: 0x57f287, fields: [{ name: "Staff Member", value: `<@${request.userId}> (${request.username})`, inline: true }, { name: "Minutes Added", value: `${request.quota} min`, inline: true }, { name: "Approved By", value: `<@${approvedById}> (${approvedByUsername})`, inline: true }, { name: "Request ID", value: request.id }, { name: "Proof", value: `[${request.proofName || "View proof image"}](${request.proof})` }, { name: "Notes", value: request.notes || "—" }], image: { url: request.proof }, footer: { text: "QUSM Quota System • Approval Log" }, timestamp: new Date().toISOString() }], allowed_mentions: { users: allowedUsers, roles: [LOGISTICS_ROLE_ID] } }) }); }
 
-async function sendQuotaRejectionLog(request: QuotaRequest, reason: string, rejectedById: string, rejectedByUsername: string) { const allowedUsers = [...new Set([request.userId, rejectedById])]; return discordApi(`/channels/${QUOTA_LOG_CHANNEL_ID}/messages`, { method: "POST", body: JSON.stringify({ content: `<@&${LOGISTICS_ROLE_ID}>`, embeds: [{ title: "Quota Rejected", description: `<@${request.userId}> quota submission has been rejected by Logistics.`, color: 0xed4245, fields: [{ name: "Staff Member", value: `<@${request.userId}> (${request.username})`, inline: true }, { name: "Quota Submitted", value: `${request.quota} min`, inline: true }, { name: "Rejected By", value: `<@${rejectedById}> (${rejectedByUsername})`, inline: true }, { name: "Request ID", value: request.id }, { name: "Reason", value: reason }, { name: "Proof", value: `[${request.proofName || "View proof image"}](${request.proof})` }, { name: "Notes", value: request.notes || "—" }], image: { url: request.proof }, footer: { text: "QUSM Quota System • Rejection Log" }, timestamp: new Date().toISOString() }], allowed_mentions: { users: allowedUsers, roles: [LOGISTICS_ROLE_ID] } }) }); }
+async function sendQuotaRejectionLog(request: QuotaRequest, reason: string, rejectedById: string, rejectedByUsername: string) { const allowedUsers = [...new Set([request.userId, rejectedById])]; return discordApi(`/channels/${QUOTA_LOG_CHANNEL_ID}/messages`, { method: "POST", body: JSON.stringify({ content: `<@&${LOGISTICS_ROLE_ID}>`, embeds: [{ title: "Quota Rejected", description: `<@${request.userId}> quota submission has been rejected by Logistics.", color: 0xed4245, fields: [{ name: "Staff Member", value: `<@${request.userId}> (${request.username})`, inline: true }, { name: "Quota Submitted", value: `${request.quota} min`, inline: true }, { name: "Rejected By", value: `<@${rejectedById}> (${rejectedByUsername})`, inline: true }, { name: "Request ID", value: request.id }, { name: "Reason", value: reason }, { name: "Proof", value: `[${request.proofName || "View proof image"}](${request.proof})` }, { name: "Notes", value: request.notes || "—" }], image: { url: request.proof }, footer: { text: "QUSM Quota System • Rejection Log" }, timestamp: new Date().toISOString() }], allowed_mentions: { users: allowedUsers, roles: [LOGISTICS_ROLE_ID] } }) }); }
 
 function extractRequest(interaction: any, signature: string): QuotaRequest | null { const fields = interaction?.message?.embeds?.[0]?.fields; if (!Array.isArray(fields)) return null; const values = Object.fromEntries(fields.map((field: any) => [String(field.name), String(field.value || "")])); const id = values["Request ID"]; const member = values["Member"] || ""; const quota = Number(String(values["Quota (minutes)"] || "").replace(/\s*min(?:utes?)?\s*$/i, "")); const proofField = values["Proof"] || ""; const proof = proofField.match(/\((https?:\/\/[^)]+)\)/i)?.[1] || proofField; const proofName = proofField.match(/^\[([^\]]+)\]/)?.[1] || "Proof image"; const notes = values["Notes"] === "—" ? "" : (values["Notes"] || ""); const mention = member.match(/^<@(\d+)>/); const usernameMatch = member.match(/^<@\d+>\s*\(([^\n]*)\)$/); const username = usernameMatch?.[1]?.trim() || ""; if (!id || !mention?.[1] || !username || !Number.isFinite(quota) || quota <= 0 || !/^https?:\/\//i.test(proof)) return null; const request: QuotaRequest = { id, userId: mention[1], username, quota, proof, proofName, notes, createdAt: String(interaction?.message?.timestamp || new Date().toISOString()) }; return requestSignature(request).slice(0, 24) === signature ? request : null; }
 async function resolveDiscordUsername(userId: string) { const user = await discordApi(`/users/${encodeURIComponent(userId)}`, { method: "GET" }); const username = String(user?.username || "").trim(); if (!username) throw new Error(`Discord user ${userId} has no username`); return username; }
@@ -95,63 +95,37 @@ export async function POST(request: Request) {
     const proof = String(attachment?.url || "").trim();
     const proofName = String(attachment?.filename || "Proof image").trim();
     const contentType = String(attachment?.content_type || "").toLowerCase();
-    if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 100000 || !proof || (contentType && !contentType.startsWith("image/"))) return json(ephemeral("Invalid quota or proof. Enter a positive minute amount and attach an image directly to the command."));
-    const user = interaction.member?.user || interaction.user;
-    const username = String(user?.username || "").trim();
-    const displayName = String(user?.global_name || user?.username || "").trim();
-    if (!username) return json(ephemeral("Could not determine your Discord username. Please try again."));
-    const quotaRequest: QuotaRequest = { id: randomUUID(), userId: user.id, username, quota: minutes, proof, proofName, notes, createdAt: new Date().toISOString() };
-    await sendQuotaReview(quotaRequest, displayName);
-    return json(ephemeral(`✅ ${minutes} minute(s) submitted with your proof image. It is now waiting for Logistics approval.`));
+    if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 100000 || !proof || (contentType && !contentType.startsWith("image/"))) return json(ephemeral("Invalid quota submission. Minutes must be positive and proof must be an image."));
+    const username = String(interaction?.member?.user?.username || interaction?.user?.username || "").trim();
+    if (!username) return json(ephemeral("Could not determine your Discord username."));
+    const displayName = String(interaction?.member?.nick || interaction?.member?.user?.global_name || username).trim();
+    const request: QuotaRequest = { id: randomUUID(), userId: String(interaction?.member?.user?.id || interaction?.user?.id || ""), username, quota: Math.round(minutes), proof, proofName, notes, createdAt: new Date().toISOString() };
+    try { await sendQuotaReview(request, displayName); } catch (error) { console.error("Failed to send quota review", error); return json(ephemeral(`⚠️ Could not send your quota for review: ${error instanceof Error ? error.message : "unknown error"}`)); }
+    return json(ephemeral(`✅ Your ${request.quota} minute quota was submitted to Logistics for review.`));
   }
 
-  if (interaction.type === 3 && typeof interaction.data?.custom_id === "string") {
-    const customId = interaction.data.custom_id;
-    if (customId === "quota:leaderboard:yes" || customId === "quota:leaderboard:no") return json(ephemeral("The quota leaderboard is Discord-only. Use `/quota-leaderboard`."));
-    const rejectModal = customId.match(/^quota:reject:([^:]+):([a-f0-9]{24})$/);
-    if (rejectModal) {
-      if (!(hasRole(interaction, LOGISTICS_ROLE_ID) || hasRole(interaction, TESTER_ROLE_ID))) return json(ephemeral("Only Logistics can reject quota submissions."));
-      return json(rejectReasonModal(rejectModal[1], rejectModal[2], String(interaction.message?.id || "")));
-    }
-    const match = customId.match(/^quota:(approve|reject):([^:]+):([a-f0-9]{24})$/);
-    if (!match) return json(ephemeral("Unknown quota action."));
-    const [, action, requestId, signature] = match;
-    if (!(hasRole(interaction, LOGISTICS_ROLE_ID) || hasRole(interaction, TESTER_ROLE_ID))) return json(ephemeral("Only Logistics can approve or reject quota submissions."));
-    const quotaRequest = extractRequest(interaction, signature);
-    if (!quotaRequest || quotaRequest.id !== requestId) return json(ephemeral("This quota request is invalid or has been tampered with."));
-    if (action === "reject") return json(ephemeral("Please use the rejection reason form."));
-    if (!APPLICATION_ID) return json(ephemeral("Discord application ID is not configured."));
-    await fetch(`https://discord.com/api/v10/interactions/${interaction.id}/${interaction.token}/callback`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: 5, data: { flags: 64 } }), cache: "no-store" });
-    try {
-      const liveUsername = await resolveDiscordUsername(quotaRequest.userId);
-      await processQuotaDirect({ userId: quotaRequest.userId, username: liveUsername, minutes: quotaRequest.quota, requestId: quotaRequest.id, proof: quotaRequest.proof, approvedBy: interaction.member.user.id, approvedByUsername: interaction.member.user.username });
-      try { await sendQuotaApprovalLog({ ...quotaRequest, username: liveUsername }, interaction.member.user.id, interaction.member.user.username); } catch (logError) { console.error("Quota approval log failed", logError); }
-      await discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages/${interaction.message.id}`, { method: "PATCH", body: JSON.stringify({ embeds: [{ ...interaction.message.embeds[0], title: "Quota Submission — Approved", footer: { text: "QUSM Quota System • Minutes added directly to Google Sheets" } }], components: [{ type: 1, components: [{ type: 2, style: 3, label: "Approved & Added", custom_id: `quota:done:${requestId}`, disabled: true }, { type: 2, style: 4, label: "Rejected", custom_id: `quota:done-reject:${requestId}`, disabled: true }] }] }) });
-      await followup(interaction, { content: `✅ **${quotaRequest.username}** — ${quotaRequest.quota} minute(s) approved and added directly to the Google Staff Database.`, flags: 64 });
-    } catch (error) { console.error("Quota direct Sheets action failed", error); await followup(interaction, { content: `⚠️ Quota action failed: ${error instanceof Error ? error.message : "unknown error"}`, flags: 64 }); }
-    return new Response(null, { status: 204 });
+  if (interaction.type === 3 && String(interaction?.data?.custom_id || "").startsWith("quota:approve:")) {
+    if (!hasRole(interaction, LOGISTICS_ROLE_ID) && !hasRole(interaction, TESTER_ROLE_ID)) return json(ephemeral("Only Logistics or an approved tester can approve quota."));
+    const parts = String(interaction.data.custom_id).split(":"); const requestId = parts[2]; const signature = parts[3]; const requestData = extractRequest(interaction, signature);
+    if (!requestData || requestData.id !== requestId) return json(ephemeral("⚠️ This quota request is invalid or has expired."));
+    try { await processQuotaDirect(requestData.username, requestData.quota); await sendQuotaApprovalLog(requestData, String(interaction?.member?.user?.id || interaction?.user?.id || ""), String(interaction?.member?.user?.username || interaction?.user?.username || "Unknown")); await followup(interaction, { content: `✅ Quota approved and ${requestData.quota} minutes added for ${requestData.username}.` }); return json(ephemeral("✅ Quota approved and added to the Staff Database.")); } catch (error) { console.error("Quota approval failed", error); return json(ephemeral(`⚠️ Quota approval failed: ${error instanceof Error ? error.message : "unknown error"}`)); }
   }
 
-  if (interaction.type === 5 && typeof interaction.data?.custom_id === "string" && interaction.data.custom_id.startsWith("quota_reject:")) {
-    const match = interaction.data.custom_id.match(/^quota_reject:([^:]+):([a-f0-9]{24}):(\d+)$/);
-    if (!match) return json(ephemeral("Invalid rejection form."));
-    if (!(hasRole(interaction, LOGISTICS_ROLE_ID) || hasRole(interaction, TESTER_ROLE_ID))) return json(ephemeral("Only Logistics can reject quota submissions."));
-    if (!APPLICATION_ID) return json(ephemeral("Discord application ID is not configured."));
-    const [, requestId, signature, messageId] = match;
-    const message = await discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages/${messageId}`, { method: "GET" });
-    const quotaRequest = extractRequest({ message }, signature);
-    if (!quotaRequest || quotaRequest.id !== requestId) return json(ephemeral("This quota request is invalid or has been tampered with."));
-    const reason = modalValues(interaction).reason?.trim();
-    if (!reason) return json(ephemeral("A rejection reason is required."));
-    await fetch(`https://discord.com/api/v10/interactions/${interaction.id}/${interaction.token}/callback`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: 5, data: { flags: 64 } }), cache: "no-store" });
-    try {
-      await dmRejection(quotaRequest.userId, reason, quotaRequest.quota);
-      await discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ embeds: [{ ...message.embeds[0], title: "Quota Submission — Rejected", fields: [...(message.embeds[0]?.fields || []), { name: "Rejection Reason", value: reason, inline: false }], footer: { text: "QUSM Quota System • Rejected by Logistics" } }], components: [{ type: 1, components: [{ type: 2, style: 4, label: "Rejected", custom_id: `quota:done-reject:${requestId}`, disabled: true }] }] }) });
-      const rejectedBy = interaction?.member?.user;
-      try { await sendQuotaRejectionLog(quotaRequest, reason, String(rejectedBy?.id || ""), String(rejectedBy?.username || "Unknown")); } catch (logError) { console.error("Quota rejection log failed", logError); }
-      await followup(interaction, { content: `❌ **${quotaRequest.username}** quota rejected. The requester was sent the reason by DM.`, flags: 64 });
-    } catch (error) { console.error("Quota rejection failed", error); await followup(interaction, { content: `⚠️ Rejection action failed: ${error instanceof Error ? error.message : "unknown error"}`, flags: 64 }); }
-    return new Response(null, { status: 204 });
+  if (interaction.type === 3 && String(interaction?.data?.custom_id || "").startsWith("quota:reject:")) {
+    if (!hasRole(interaction, LOGISTICS_ROLE_ID) && !hasRole(interaction, TESTER_ROLE_ID)) return json(ephemeral("Only Logistics or an approved tester can reject quota."));
+    const parts = String(interaction.data.custom_id).split(":"); const requestId = parts[2]; const signature = parts[3]; const messageId = String(interaction?.message?.id || "");
+    const requestData = extractRequest(interaction, signature);
+    if (!requestData || requestData.id !== requestId || !messageId) return json(ephemeral("⚠️ This quota request is invalid or has expired."));
+    return json(rejectReasonModal(requestId, signature, messageId));
   }
-  return json(ephemeral("Unsupported interaction."));
+
+  if (interaction.type === 5 && String(interaction?.data?.custom_id || "").startsWith("quota_reject:")) {
+    if (!hasRole(interaction, LOGISTICS_ROLE_ID) && !hasRole(interaction, TESTER_ROLE_ID)) return json(ephemeral("Only Logistics or an approved tester can reject quota."));
+    const parts = String(interaction.data.custom_id).split(":"); const requestId = parts[1]; const signature = parts[2]; const messageId = parts[3]; const reason = modalValues(interaction).reason?.trim();
+    const requestData = extractRequest(interaction, signature);
+    if (!requestData || requestData.id !== requestId || !messageId || !reason) return json(ephemeral("⚠️ This quota request is invalid or missing a rejection reason."));
+    try { await dmRejection(requestData.userId, reason, requestData.quota); await sendQuotaRejectionLog(requestData, reason, String(interaction?.member?.user?.id || interaction?.user?.id || ""), String(interaction?.member?.user?.username || interaction?.user?.username || "Unknown")); await discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ embeds: [{ title: "Quota Submission — Rejected", description: `<@${requestData.userId}> quota submission was rejected.`, color: 0xed4245, fields: [{ name: "Request ID", value: requestData.id }, { name: "Member", value: `<@${requestData.userId}> (${requestData.username})`, inline: true }, { name: "Quota (minutes)", value: `${requestData.quota} min`, inline: true }, { name: "Reason", value: reason }], footer: { text: "QUSM Quota System • Rejected" }, timestamp: new Date().toISOString() }], components: [] }) }); return json(ephemeral("❌ Quota rejected and the staff member has been notified.")); } catch (error) { console.error("Quota rejection failed", error); return json(ephemeral(`⚠️ Quota rejection failed: ${error instanceof Error ? error.message : "unknown error"}`)); }
+  }
+
+  return json(ephemeral("Unknown quota interaction."));
 }

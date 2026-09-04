@@ -59,8 +59,25 @@ export async function attachQuotaMessage(requestId: string, messageId: string) {
 export async function getQuotaRequestState(requestId: string): Promise<QuotaApprovalState | undefined> {
   await initQuotaState();
   const q = sql();
-  const rows = await q`SELECT status FROM quota_requests WHERE request_id = ${requestId}`;
-  return rows[0]?.status as QuotaApprovalState | undefined;
+  const rows = await q`SELECT status, updated_at FROM quota_requests WHERE request_id = ${requestId}`;
+  const row = rows[0];
+  if (!row) return undefined;
+  const status = row.status as QuotaApprovalState;
+  // A crashed/timeout approval can otherwise leave the request permanently locked.
+  // Only recover processing claims that have been untouched for 10 minutes.
+  if (status === "processing") {
+    const updatedAt = new Date(String(row.updated_at)).getTime();
+    if (Number.isFinite(updatedAt) && Date.now() - updatedAt >= 10 * 60 * 1000) {
+      const recovered = await q`UPDATE quota_requests SET status = 'pending', updated_at = NOW()
+        WHERE request_id = ${requestId} AND status = 'processing'
+        AND updated_at <= NOW() - INTERVAL '10 minutes' RETURNING request_id`;
+      if (recovered.length) {
+        console.warn("[quota] recovered stale processing request", { requestId });
+        return "pending";
+      }
+    }
+  }
+  return status;
 }
 
 export async function claimQuotaApproval(
@@ -78,6 +95,13 @@ export async function claimQuotaApproval(
   if (!rows.length) return false;
   console.info("[quota] approval claim acquired", { requestId, interactionId, approvedBy });
   return true;
+}
+
+export async function releaseQuotaApproval(requestId: string) {
+  await initQuotaState();
+  const q = sql();
+  await q`UPDATE quota_requests SET status = 'pending', updated_at = NOW()
+    WHERE request_id = ${requestId} AND status = 'processing'`;
 }
 
 export async function markQuotaApproved(requestId: string) {

@@ -7,11 +7,7 @@ import { CMS_SECTIONS, type CmsField, type CmsSection } from "../../lib/cms-sect
 const icon=(id:string)=>({org:Shield,announcements:Megaphone,calendar:CalendarDays,cocLeadership:GitBranch,cocStaff:GitBranch,cocRoleplay:GitBranch,leadership:Users,divisions:Shield,rules:ScrollText,government:Landmark,ranks:BadgeCheck,news:Newspaper,media:ImageIcon,shop:ShoppingBag,applications:Users,customSections:Sparkles}[id]||Shield);
 const uid=()=>`cms-${crypto.randomUUID()}`;
 function blank(fields:CmsField[]){return fields.reduce((o:any,f)=>({...o,[f.key]:f.type==="select"?(f.options?.[0]||""):f.type==="number"?0:""}),{id:uid()});}
-
-export default function AdminClientV2(props:{initialContent:any;email:string;access:string;permissions:string[];shopEditable?:boolean;readOnly?:boolean}){
- return <AdminEditor {...props}/>;
-}
-
+export default function AdminClientV2(props:{initialContent:any;email:string;access:string;permissions:string[];shopEditable?:boolean;readOnly?:boolean}){return <AdminEditor {...props}/>;}
 function AdminEditor({initialContent,email,access,permissions,shopEditable=false}:{initialContent:any;email:string;access:string;permissions:string[];shopEditable?:boolean}){
  const allowed=(s:CmsSection)=>s.id==="shop"?shopEditable:(permissions.includes("admin:all")||permissions.includes(s.permission));
  const visibleSections=CMS_SECTIONS.filter(allowed);const [active,setActive]=useState(visibleSections[0]?.id||"org");const [content,setContent]=useState<any>(initialContent||{});const [query,setQuery]=useState("");const [saving,setSaving]=useState(false);const [loading,setLoading]=useState(false);const [msg,setMsg]=useState("");
@@ -19,7 +15,7 @@ function AdminEditor({initialContent,email,access,permissions,shopEditable=false
  const refresh=async()=>{setLoading(true);try{const r=await fetch("/api/content",{cache:"no-store"});const d=await r.json();if(!r.ok)throw Error(d.error||"Could not read live CMS data");setContent(d);setMsg("Live database data loaded.")}catch(e:any){setMsg(e.message||"Refresh failed")}finally{setLoading(false)}};useEffect(()=>{void refresh()},[]);
  const save=async()=>{setSaving(true);setMsg("");try{const r=await fetch("/api/content",{method:"PUT",headers:{"Content-Type":"application/json","x-content-section":active},body:JSON.stringify({[active]:content[active]})});const d=await r.json();if(!r.ok)throw Error(d.error||"Save failed");setMsg("Saved. Public site uses the same live record.");await refresh()}catch(e:any){setMsg(e.message||"Save failed")}finally{setSaving(false)}};
  const update=(i:number,k:string,v:any)=>setContent((c:any)=>({...c,[active]:items.map((x:any,n:number)=>n===i?{...x,[k]:v}:x)}));
- const updateOrg=(k:string,v:any)=>setContent((c:any)=>({...c,org:{...(c.org||{}),[k]:v}));
+ const updateOrg=(k:string,v:any)=>setContent((c:any)=>({...c,org:{...(c.org||{}),[k]:v}}));
  const add=()=>setContent((c:any)=>({...c,[active]:[...(Array.isArray(c[active])?c[active]:[]),blank(section.fields)]}));
  const remove=(i:number)=>{if(!confirm("Delete this record?"))return;setContent((c:any)=>({...c,[active]:items.filter((_:any,n:number)=>n!==i)}));};
  return <div className="min-h-screen bg-bg text-white pb-24"><header className="sticky top-0 z-30 border-b border-border bg-bg/95 backdrop-blur px-4 sm:px-8 py-4 flex justify-between items-center"><div><div className="font-mono text-[9px] tracking-[3px] text-golddim uppercase">FBMRP / Administration</div><h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight">Staff Management</h1><div className="font-mono text-[8px] text-textfaint uppercase mt-1">{access} · {permissions.length} permissions</div></div><button onClick={()=>signOut({callbackUrl:"/"})} className="border border-border hover:border-gold px-3 py-2.5 font-mono text-[9px] uppercase flex gap-2 items-center"><LogOut size={13}/><span className="hidden sm:inline">Sign out</span></button></header>

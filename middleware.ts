@@ -1,4 +1,4 @@
-import { createHmac, createPublicKey, verify } from "node:crypto";
+import { createPublicKey, verify } from "node:crypto";
 import { NextRequest, NextResponse, NextFetchEvent } from "next/server";
 import { distributedRateLimit } from "@/lib/distributed-rate-limit";
 

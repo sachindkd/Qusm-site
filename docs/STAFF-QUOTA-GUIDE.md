@@ -14,7 +14,9 @@ The command requires:
 After submission, your request goes to the Logistics review channel. Do not assume the minutes are counted until Logistics approves the request.
 
 ## If your quota is rejected
-If Logistics rejects your submission, you will receive a Discord DM containing the rejection reason. Read the reason and correct the issue before submitting again where appropriate.
+If Logistics rejects your submission, you will receive a Discord DM containing the rejection reason. The original review message is marked **Rejected**, and the rejection is recorded in the same quota log channel used for approvals. Rejected quota is **not** added to your Google Staff Database total.
+
+Read the reason and correct the issue before submitting again where appropriate.
 
 ## Leaderboard
 Use:
@@ -39,5 +41,5 @@ For now, that feature is **not the general logging system**. The active automate
 4. Attach clear proof.
 5. Add notes if needed.
 6. Wait for Logistics review.
-7. If approved, the minutes are added to your database total.
-8. If rejected, check your DM for the reason and correct/resubmit as needed.
+7. If approved, the minutes are added to your database total and an approval record is logged.
+8. If rejected, check your DM for the reason; the rejection is logged and no minutes are added.

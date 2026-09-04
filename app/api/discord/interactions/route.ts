@@ -40,11 +40,7 @@ async function ensureQuotaCommandsRegistered() {
     { name: "quota-leaderboard", description: "Show the live quota leaderboard in Discord", type: 1, options: [] }
   ];
   const commands = await discordApi(base, { method: "GET" });
-  if (Array.isArray(commands)) {
-    for (const command of commands) {
-      if (command?.name === "quota" && command?.id) await discordApi(`${base}/${command.id}`, { method: "DELETE" });
-    }
-  }
+  if (Array.isArray(commands)) for (const command of commands) if (command?.name === "quota" && command?.id) await discordApi(`${base}/${command.id}`, { method: "DELETE" });
   for (const payload of payloads) {
     const existing = Array.isArray(commands) ? commands.find((command: any) => command?.name === payload.name) : null;
     if (existing?.id) await discordApi(`${base}/${existing.id}`, { method: "PATCH", body: JSON.stringify(payload) });
@@ -75,57 +71,30 @@ export async function POST(request: Request) {
   let interaction: any; try { interaction = JSON.parse(body); } catch { return json({ error: "invalid json" }, 400); }
   if (interaction.type === 1) { try { await ensureQuotaCommandsRegistered(); } catch (error) { console.error("Failed to register quota commands", error); } return json({ type: 1 }); }
   if (interaction.guild_id !== STAFF_GUILD_ID) return json(ephemeral("This quota system is only available in the Staff Team server."));
-
   if (interaction.type === 2 && interaction.data?.name === "quota-leaderboard") {
     if (!hasRole(interaction, LEADERBOARD_ROLE_ID)) return json(ephemeral("You need the Staff Team server staff role to view the quota leaderboard."));
     if (!APPLICATION_ID) return json(ephemeral("Discord application ID is not configured."));
-    try {
-      await fetch(`https://discord.com/api/v10/interactions/${interaction.id}/${interaction.token}/callback`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: 5, data: { flags: 64 } }), cache: "no-store" });
-      await sendQuotaLeaderboard(interaction);
-    } catch (error) { console.error("Quota leaderboard fetch failed", error); await followup(interaction, { content: `⚠️ Could not fetch the live leaderboard: ${error instanceof Error ? error.message : "unknown error"}`, flags: 64 }); }
-    return new Response(null, { status: 204 });
+    try { await fetch(`https://discord.com/api/v10/interactions/${interaction.id}/${interaction.token}/callback`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: 5, data: { flags: 64 } }), cache: "no-store" }); await sendQuotaLeaderboard(interaction); } catch (error) { console.error("Quota leaderboard fetch failed", error); await followup(interaction, { content: `⚠️ Could not fetch the live leaderboard: ${error instanceof Error ? error.message : "unknown error"}`, flags: 64 }); } return new Response(null, { status: 204 });
   }
-
   if (interaction.type === 2 && interaction.data?.name === "quota-submit") {
     if (!hasRole(interaction, STAFF_ROLE_ID)) return json(ephemeral("You need the Staff Team role to submit quota."));
-    const minutes = Number(option(interaction, "minutes")?.value);
-    const proofId = String(option(interaction, "proof")?.value || "");
-    const notes = String(option(interaction, "notes")?.value || "").trim();
-    const attachment = interaction?.data?.resolved?.attachments?.[proofId];
-    const proof = String(attachment?.url || "").trim();
-    const proofName = String(attachment?.filename || "Proof image").trim();
-    const contentType = String(attachment?.content_type || "").toLowerCase();
+    const minutes = Number(option(interaction, "minutes")?.value); const proofId = String(option(interaction, "proof")?.value || ""); const notes = String(option(interaction, "notes")?.value || "").trim(); const attachment = interaction?.data?.resolved?.attachments?.[proofId]; const proof = String(attachment?.url || "").trim(); const proofName = String(attachment?.filename || "Proof image").trim(); const contentType = String(attachment?.content_type || "").toLowerCase();
     if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 100000 || !proof || (contentType && !contentType.startsWith("image/"))) return json(ephemeral("Invalid quota submission. Minutes must be positive and proof must be an image."));
-    const username = String(interaction?.member?.user?.username || interaction?.user?.username || "").trim();
-    if (!username) return json(ephemeral("Could not determine your Discord username."));
-    const displayName = String(interaction?.member?.nick || interaction?.member?.user?.global_name || username).trim();
-    const request: QuotaRequest = { id: randomUUID(), userId: String(interaction?.member?.user?.id || interaction?.user?.id || ""), username, quota: Math.round(minutes), proof, proofName, notes, createdAt: new Date().toISOString() };
+    const username = String(interaction?.member?.user?.username || interaction?.user?.username || "").trim(); if (!username) return json(ephemeral("Could not determine your Discord username."));
+    const displayName = String(interaction?.member?.nick || interaction?.member?.user?.global_name || username).trim(); const request: QuotaRequest = { id: randomUUID(), userId: String(interaction?.member?.user?.id || interaction?.user?.id || ""), username, quota: Math.round(minutes), proof, proofName, notes, createdAt: new Date().toISOString() };
     try { await sendQuotaReview(request, displayName); } catch (error) { console.error("Failed to send quota review", error); return json(ephemeral(`⚠️ Could not send your quota for review: ${error instanceof Error ? error.message : "unknown error"}`)); }
     return json(ephemeral(`✅ Your ${request.quota} minute quota was submitted to Logistics for review.`));
   }
-
   if (interaction.type === 3 && String(interaction?.data?.custom_id || "").startsWith("quota:approve:")) {
-    if (!hasRole(interaction, LOGISTICS_ROLE_ID) && !hasRole(interaction, TESTER_ROLE_ID)) return json(ephemeral("Only Logistics or an approved tester can approve quota."));
-    const parts = String(interaction.data.custom_id).split(":"); const requestId = parts[2]; const signature = parts[3]; const requestData = extractRequest(interaction, signature);
-    if (!requestData || requestData.id !== requestId) return json(ephemeral("⚠️ This quota request is invalid or has expired."));
+    if (!hasRole(interaction, LOGISTICS_ROLE_ID) && !hasRole(interaction, TESTER_ROLE_ID)) return json(ephemeral("Only Logistics or an approved tester can approve quota.")); const parts = String(interaction.data.custom_id).split(":"); const requestId = parts[2]; const signature = parts[3]; const requestData = extractRequest(interaction, signature); if (!requestData || requestData.id !== requestId) return json(ephemeral("⚠️ This quota request is invalid or has expired."));
     try { await processQuotaDirect(requestData.username, requestData.quota); await sendQuotaApprovalLog(requestData, String(interaction?.member?.user?.id || interaction?.user?.id || ""), String(interaction?.member?.user?.username || interaction?.user?.username || "Unknown")); await followup(interaction, { content: `✅ Quota approved and ${requestData.quota} minutes added for ${requestData.username}.` }); return json(ephemeral("✅ Quota approved and added to the Staff Database.")); } catch (error) { console.error("Quota approval failed", error); return json(ephemeral(`⚠️ Quota approval failed: ${error instanceof Error ? error.message : "unknown error"}`)); }
   }
-
   if (interaction.type === 3 && String(interaction?.data?.custom_id || "").startsWith("quota:reject:")) {
-    if (!hasRole(interaction, LOGISTICS_ROLE_ID) && !hasRole(interaction, TESTER_ROLE_ID)) return json(ephemeral("Only Logistics or an approved tester can reject quota."));
-    const parts = String(interaction.data.custom_id).split(":"); const requestId = parts[2]; const signature = parts[3]; const messageId = String(interaction?.message?.id || "");
-    const requestData = extractRequest(interaction, signature);
-    if (!requestData || requestData.id !== requestId || !messageId) return json(ephemeral("⚠️ This quota request is invalid or has expired."));
-    return json(rejectReasonModal(requestId, signature, messageId));
+    if (!hasRole(interaction, LOGISTICS_ROLE_ID) && !hasRole(interaction, TESTER_ROLE_ID)) return json(ephemeral("Only Logistics or an approved tester can reject quota.")); const parts = String(interaction.data.custom_id).split(":"); const requestId = parts[2]; const signature = parts[3]; const messageId = String(interaction?.message?.id || ""); const requestData = extractRequest(interaction, signature); if (!requestData || requestData.id !== requestId || !messageId) return json(ephemeral("⚠️ This quota request is invalid or has expired.")); return json(rejectReasonModal(requestId, signature, messageId));
   }
-
   if (interaction.type === 5 && String(interaction?.data?.custom_id || "").startsWith("quota_reject:")) {
-    if (!hasRole(interaction, LOGISTICS_ROLE_ID) && !hasRole(interaction, TESTER_ROLE_ID)) return json(ephemeral("Only Logistics or an approved tester can reject quota."));
-    const parts = String(interaction.data.custom_id).split(":"); const requestId = parts[1]; const signature = parts[2]; const messageId = parts[3]; const reason = modalValues(interaction).reason?.trim();
-    const requestData = extractRequest(interaction, signature);
-    if (!requestData || requestData.id !== requestId || !messageId || !reason) return json(ephemeral("⚠️ This quota request is invalid or missing a rejection reason."));
+    if (!hasRole(interaction, LOGISTICS_ROLE_ID) && !hasRole(interaction, TESTER_ROLE_ID)) return json(ephemeral("Only Logistics or an approved tester can reject quota.")); const parts = String(interaction.data.custom_id).split(":"); const requestId = parts[1]; const signature = parts[2]; const messageId = parts[3]; const reason = modalValues(interaction).reason?.trim(); const requestData = extractRequest(interaction, signature); if (!requestData || requestData.id !== requestId || !messageId || !reason) return json(ephemeral("⚠️ This quota request is invalid or missing a rejection reason."));
     try { await dmRejection(requestData.userId, reason, requestData.quota); await sendQuotaRejectionLog(requestData, reason, String(interaction?.member?.user?.id || interaction?.user?.id || ""), String(interaction?.member?.user?.username || interaction?.user?.username || "Unknown")); await discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ embeds: [{ title: "Quota Submission — Rejected", description: `<@${requestData.userId}> quota submission was rejected.`, color: 0xed4245, fields: [{ name: "Request ID", value: requestData.id }, { name: "Member", value: `<@${requestData.userId}> (${requestData.username})`, inline: true }, { name: "Quota (minutes)", value: `${requestData.quota} min`, inline: true }, { name: "Reason", value: reason }], footer: { text: "QUSM Quota System • Rejected" }, timestamp: new Date().toISOString() }], components: [] }) }); return json(ephemeral("❌ Quota rejected and the staff member has been notified.")); } catch (error) { console.error("Quota rejection failed", error); return json(ephemeral(`⚠️ Quota rejection failed: ${error instanceof Error ? error.message : "unknown error"}`)); }
   }
-
   return json(ephemeral("Unknown quota interaction."));
 }

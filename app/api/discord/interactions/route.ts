@@ -1,13 +1,10 @@
 import { verifyDiscordSignature } from "@/lib/discord/quota/security";
 import { handleGet, handlePost } from "@/lib/discord/quota/handler";
 import { jsonResponse } from "@/lib/discord/quota/discord-api";
-import { registerTicketCommands } from "@/lib/discord/tickets/commands";
 import { handleTicketPost } from "@/lib/discord/tickets/handler";
 
 export async function GET() {
-  const response = await handleGet();
-  try { await registerTicketCommands(); } catch (error) { console.error("[ticket] command registration failed", error); }
-  return response;
+  return handleGet();
 }
 
 export async function POST(request: Request) {

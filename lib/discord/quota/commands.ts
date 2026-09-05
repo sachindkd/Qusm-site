@@ -1,6 +1,8 @@
 import { STAFF_GUILD_ID, botToken, applicationId } from "./config";
 import { discordApi } from "./discord-api";
 
+const ALLOWED_COMMANDS = new Set(["quota-submit", "quota-leaderboard", "ticket-log"]);
+
 export async function registerQuotaCommands() {
   const base = `/applications/${applicationId()}/guilds/${STAFF_GUILD_ID}/commands`;
   const wanted = [
@@ -27,7 +29,9 @@ export async function registerQuotaCommands() {
   if (!botToken()) throw new Error("DISCORD_BOT_TOKEN is not configured");
   const existing = await discordApi(base);
   for (const command of Array.isArray(existing) ? existing : []) {
-    if (command.name === "quota" && command.id) await discordApi(`${base}/${command.id}`, { method: "DELETE" });
+    if (!command.id || !ALLOWED_COMMANDS.has(String(command.name || ""))) {
+      if (command.id) await discordApi(`${base}/${command.id}`, { method: "DELETE" });
+    }
   }
   for (const command of wanted) {
     const current = (Array.isArray(existing) ? existing : []).find((item: any) => item.name === command.name);

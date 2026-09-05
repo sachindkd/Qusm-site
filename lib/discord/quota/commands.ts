@@ -3,17 +3,11 @@ import { discordApi } from "./discord-api";
 
 const ALLOWED_COMMANDS = new Set(["quota-submit", "quota-leaderboard", "ticket-log"]);
 
-async function cleanupCommands(base: string) {
+async function deleteAllCommands(base: string) {
   const existing = await discordApi(base);
-  const kept = new Set<string>();
   for (const command of Array.isArray(existing) ? existing : []) {
-    const name = String(command.name || "");
-    const id = String(command.id || "");
-    if (!id || !ALLOWED_COMMANDS.has(name) || kept.has(name)) {
-      if (id) await discordApi(`${base}/${id}`, { method: "DELETE" });
-      continue;
-    }
-    kept.add(name);
+    const id = String(command?.id || "");
+    if (id) await discordApi(`${base}/${id}`, { method: "DELETE" });
   }
 }
 
@@ -23,15 +17,16 @@ export async function registerQuotaCommands() {
   const guildBase = `/applications/${applicationId()}/guilds/${STAFF_GUILD_ID}/commands`;
   const globalBase = `/applications/${applicationId()}/commands`;
 
-  // Old deployments may have registered commands globally. Remove those stale
-  // commands as well as stale/duplicate guild commands so Discord only exposes
-  // the current three-command whitelist.
-  await cleanupCommands(globalBase);
+  // Global commands are intentionally not used. Delete every global command,
+  // including stale commands left by older deployments, then keep only the
+  // three current commands in the Staff Team guild.
+  await deleteAllCommands(globalBase);
+
   const existing = await discordApi(guildBase);
   const kept = new Set<string>();
   for (const command of Array.isArray(existing) ? existing : []) {
-    const name = String(command.name || "");
-    const id = String(command.id || "");
+    const name = String(command?.name || "");
+    const id = String(command?.id || "");
     if (!id || !ALLOWED_COMMANDS.has(name) || kept.has(name)) {
       if (id) await discordApi(`${guildBase}/${id}`, { method: "DELETE" });
       continue;
@@ -53,7 +48,7 @@ export async function registerQuotaCommands() {
     },
     {
       name: "quota-leaderboard",
-      description: "Show the live quota leaderboard in Discord",
+      description: "Show the live QUSM quota and ticket leaderboard",
       type: 1,
       default_member_permissions: null,
       options: [],

@@ -35,6 +35,18 @@ async function handleSubmit(interaction: any) {
   return new Response(null, { status: 204 });
 }
 
+async function markReviewMessage(messageId: string, originalMessage: any, status: "Approved" | "Rejected", reason?: string) {
+  const embed = originalMessage?.embeds?.[0];
+  if (!embed) return;
+  await discordApi(`/channels/${TICKET_CHANNEL_ID}/messages/${messageId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      components: [],
+      embeds: [{ ...embed, title: `Ticket Log — ${status}`, description: `${String(embed.description || "").split("\n")[0]}\n\n**Status: ${status}**${reason ? `\n**Reason:** ${reason}` : ""}` }],
+    }),
+  });
+}
+
 async function handleButton(interaction: any) {
   const customId = String(interaction?.data?.custom_id || "");
   const approve = customId.match(/^ticket:approve:([0-9a-f-]{36}):([0-9a-f]{24})$/i);
@@ -66,7 +78,7 @@ async function finishApproval(interaction: any, match: RegExpMatchArray) {
     sheetUpdated = true;
     await markTicketApproved(requestId);
     await postApprovalLog(original.request, approverId, approverName);
-    await discordApi(`/channels/${TICKET_CHANNEL_ID}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ components: [] }) });
+    await markReviewMessage(messageId, original.message, "Approved");
     await interactionFollowup(interaction, { content: `✅ ${original.request.tickets} ticket${original.request.tickets === 1 ? "" : "s"} approved and added to the Staff Database.`, flags: 64 });
   } catch (error) {
     console.error("[ticket] approval failed", { interactionId: interaction.id, error });
@@ -92,7 +104,7 @@ async function finishRejection(interaction: any, match: RegExpMatchArray) {
     const rejectedBy = interactionUserId(interaction); const rejectedByUsername = interactionDisplayName(interaction) || rejectedBy;
     await postRejectionLog(original.request, reason, rejectedBy, rejectedByUsername);
     await dmRejection(original.request.userId, reason, original.request.tickets);
-    await discordApi(`/channels/${TICKET_CHANNEL_ID}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ components: [] }) });
+    await markReviewMessage(messageId, original.message, "Rejected", reason);
     await interactionFollowup(interaction, { content: `❌ ${original.request.tickets} ticket${original.request.tickets === 1 ? "" : "s"} rejected.`, flags: 64 });
   } catch (error) {
     console.error("[ticket] rejection failed", { interactionId: interaction.id, error });

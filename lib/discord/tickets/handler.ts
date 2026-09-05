@@ -4,8 +4,8 @@ import { attachTicketMessage, claimTicketApproval, createTicketRequest, getTicke
 import { LOGISTICS_ROLE_ID, STAFF_GUILD_ID, STAFF_ROLE_ID, TESTER_ROLE_ID } from "@/lib/discord/quota/config";
 import { discordApi, ephemeral, hasRole, interactionCallback, interactionFollowup, jsonResponse, modalValues, option } from "@/lib/discord/quota/discord-api";
 import { TICKET_CHANNEL_ID } from "./config";
-import { approveModal, getAndValidateReviewMessage, postReviewMessage, rejectModal } from "./messages";
-import { dmRejection, postApprovalLog, postRejectionLog } from "./logs";
+import { approveModal, postReviewMessage, rejectModal } from "./messages";
+import { dmRejection, getAndValidateReviewMessage, postApprovalLog, postRejectionLog } from "./logs";
 import { interactionDisplayName, interactionUserId, interactionUsername } from "@/lib/discord/quota/types";
 import { ticketSignature, type TicketRequest } from "./types";
 

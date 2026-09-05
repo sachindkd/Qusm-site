@@ -4,6 +4,7 @@ import "./live-v4.css";
 import "./ui-revamp.css";
 import "./profile-mobile-fix.css";
 import "./live/mobile-functional.css";
+import "./live/dala-preview.css";
 import Providers from "@/components/Providers";
 import PublicAuditLogButton from "@/components/PublicAuditLogButton";
 import NotificationCenter from "@/components/NotificationCenter";

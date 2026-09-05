@@ -1,18 +1,41 @@
 import { applicationId, botToken } from "./config";
 
+const MAX_429_RETRIES = 6;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function discordApi(path: string, init: RequestInit = {}) {
-  const response = await fetch(`https://discord.com/api/v10${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bot ${botToken()}`,
-      "Content-Type": "application/json",
-      ...(init.headers || {}),
-    },
-    cache: "no-store",
-  });
-  const text = await response.text();
-  if (!response.ok) throw new Error(`Discord API ${response.status}: ${text.slice(0, 300)}`);
-  return text ? JSON.parse(text) : {};
+  for (let attempt = 0; attempt <= MAX_429_RETRIES; attempt += 1) {
+    const response = await fetch(`https://discord.com/api/v10${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bot ${botToken()}`,
+        "Content-Type": "application/json",
+        ...(init.headers || {}),
+      },
+      cache: "no-store",
+    });
+    const text = await response.text();
+
+    if (response.ok) return text ? JSON.parse(text) : {};
+
+    if (response.status === 429 && attempt < MAX_429_RETRIES) {
+      let retryAfterMs = Number(response.headers.get("Retry-After")) * 1000;
+      try {
+        const body = JSON.parse(text);
+        if (Number.isFinite(Number(body?.retry_after))) retryAfterMs = Number(body.retry_after) * 1000;
+      } catch {}
+      if (!Number.isFinite(retryAfterMs) || retryAfterMs <= 0) retryAfterMs = 2000;
+      await sleep(Math.min(Math.max(retryAfterMs + 250, 1000), 15000));
+      continue;
+    }
+
+    throw new Error(`Discord API ${response.status}: ${text.slice(0, 300)}`);
+  }
+
+  throw new Error("Discord API rate limit retries exhausted");
 }
 
 export async function interactionCallback(interaction: any, payload: any) {

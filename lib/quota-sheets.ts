@@ -45,7 +45,6 @@ export async function processQuotaDirect(input: QuotaDirectInput | LegacyQuotaRe
     ? input
     : { userId: input.userId, username: input.username, minutes: input.quota, requestId: input.id, proof: input.proof, approvedBy: "", approvedByUsername: "" };
   if (!Number.isFinite(normalized.minutes) || normalized.minutes <= 0) throw new Error("Approved quota must be greater than 0 minutes.");
-  // Only read the username and quota columns. Approval never writes to Mod Logs or any other column.
   const values = await sheetsFetch(`/values/${encodeURIComponent(SHEET_NAME + "!B:E")}?valueRenderOption=UNFORMATTED_VALUE`);
   const rows: unknown[][] = Array.isArray(values.values) ? values.values : [];
   const wanted = normalize(normalized.username);
@@ -55,10 +54,36 @@ export async function processQuotaDirect(input: QuotaDirectInput | LegacyQuotaRe
   if (matches.length > 1) throw new Error(`Username "${normalized.username}" appears in ${matches.length} rows; update blocked to prevent changing the wrong staff record.`);
   const match = matches[0];
   const newTotal = match.current + normalized.minutes;
-  // Column E is the only cell changed by quota approval.
   await sheetsFetch(`/values/${encodeURIComponent(SHEET_NAME + "!E" + match.row)}?valueInputOption=USER_ENTERED`, { method: "PUT", body: JSON.stringify({ range: `${SHEET_NAME}!E${match.row}`, majorDimension: "ROWS", values: [[minutesToDuration(newTotal)]] }) });
   const verify = await sheetsFetch(`/values/${encodeURIComponent(SHEET_NAME + "!E" + match.row)}?valueRenderOption=UNFORMATTED_VALUE`);
   const verifiedMinutes = durationToMinutes(verify?.values?.[0]?.[0]);
   if (Math.abs(verifiedMinutes - newTotal) > 0.001) throw new Error(`Google Sheets verification failed: expected ${newTotal} minutes, read back ${verifiedMinutes} minutes.`);
   return { success: true, row: match.row, previousMinutes: match.current, addedMinutes: normalized.minutes, totalMinutes: newTotal };
+}
+
+export type TicketDirectInput = { userId: string; username: string; tickets: number; requestId: string; proof: string; approvedBy: string; approvedByUsername: string };
+
+export async function processTicketDirect(input: TicketDirectInput) {
+  if (!Number.isInteger(input.tickets) || input.tickets <= 0) throw new Error("Approved tickets must be a positive whole number.");
+  // Screenshot-confirmed database layout: B = Username, C = Rank, E = Mod Logs, F/G shifted view; Tickets Logs is Column G.
+  // Read B:G, but update only Column G so Mod Logs and every other column remain untouched.
+  const values = await sheetsFetch(`/values/${encodeURIComponent(SHEET_NAME + "!B:G")}?valueRenderOption=UNFORMATTED_VALUE`);
+  const rows: unknown[][] = Array.isArray(values.values) ? values.values : [];
+  const wanted = normalize(input.username);
+  const matches: { row: number; current: number }[] = [];
+  rows.forEach((cells, index) => {
+    if (normalize(cells?.[0]) === wanted) {
+      const raw = Number(cells?.[5]);
+      matches.push({ row: index + 1, current: Number.isFinite(raw) ? raw : 0 });
+    }
+  });
+  if (!matches.length) throw new Error(`Username "${input.username}" not found in Column B of "${SHEET_NAME}".`);
+  if (matches.length > 1) throw new Error(`Username "${input.username}" appears in ${matches.length} rows; update blocked to prevent changing the wrong staff record.`);
+  const match = matches[0];
+  const newTotal = match.current + input.tickets;
+  await sheetsFetch(`/values/${encodeURIComponent(SHEET_NAME + "!G" + match.row)}?valueInputOption=USER_ENTERED`, { method: "PUT", body: JSON.stringify({ range: `${SHEET_NAME}!G${match.row}`, majorDimension: "ROWS", values: [[newTotal]] }) });
+  const verify = await sheetsFetch(`/values/${encodeURIComponent(SHEET_NAME + "!G" + match.row)}?valueRenderOption=UNFORMATTED_VALUE`);
+  const verified = Number(verify?.values?.[0]?.[0]);
+  if (!Number.isFinite(verified) || verified !== newTotal) throw new Error(`Google Sheets verification failed: expected ${newTotal} tickets, read back ${verified}.`);
+  return { success: true, row: match.row, previousTickets: match.current, addedTickets: input.tickets, totalTickets: newTotal };
 }

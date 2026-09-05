@@ -5,13 +5,15 @@ import { LOGISTICS_ROLE_ID, QUOTA_CHANNEL_ID, STAFF_GUILD_ID, STAFF_ROLE_ID, TES
 import { discordApi, ephemeral, hasRole, interactionCallback, interactionFollowup, jsonResponse, modalValues, option } from "./discord-api";
 import { approveModal, dmRejection, getAndValidateReviewMessage, postApprovalLog, postRejectionLog, postReviewMessage, rejectModal } from "./messages";
 import { registerQuotaCommands } from "./commands";
+import { registerTicketCommands } from "@/lib/discord/tickets/commands";
 import { interactionDisplayName, interactionUserId, interactionUsername, type QuotaRequest } from "./types";
 import { quotaSignature } from "./security";
 
 export async function handleGet() {
   try {
     await registerQuotaCommands();
-    return jsonResponse({ success: true, commands: ["/quota-submit", "/quota-leaderboard"] });
+    await registerTicketCommands();
+    return jsonResponse({ success: true, commands: ["/quota-submit", "/quota-leaderboard", "/ticket-log"] });
   } catch (error) {
     console.error("[quota] command registration failed", error);
     return jsonResponse({ success: false, error: error instanceof Error ? error.message : "unknown error" }, 500);
@@ -93,14 +95,12 @@ async function finishApproval(interaction: any, match: RegExpMatchArray) {
     const approverName = interactionDisplayName(interaction) || approverId;
     await processQuotaDirect({ userId: original.request.userId, username: original.request.username, minutes: original.request.quota, requestId: original.request.id, proof: original.request.proof, approvedBy: approverId, approvedByUsername: approverName });
     sheetUpdated = true;
-    // Mark approved immediately after the Sheets write succeeds. Logging/UI cleanup must never leave it stuck in processing.
     await markQuotaApproved(requestId);
     await postApprovalLog(original.request, approverId, approverName);
     await discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ components: [] }) });
     await interactionFollowup(interaction, { content: `✅ ${original.request.quota} minutes approved and added to the Staff Database.`, flags: 64 });
   } catch (error) {
     console.error("[quota] approval failed", { interactionId: interaction.id, error });
-    // If the Sheets operation did not complete, unlock the request so a legitimate retry is possible.
     if (claimed && !sheetUpdated) {
       try { await releaseQuotaApproval(match[1]); } catch (releaseError) { console.error("[quota] failed to release approval claim", { requestId: match[1], releaseError }); }
     }

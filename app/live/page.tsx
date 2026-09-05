@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { ShieldCheck } from "lucide-react";
 import FBMRExperience from "./FBMRExperience";
+import AmbientConstellation from "./AmbientConstellation";
 import MobileNavigation from "@/components/MobileNavigation";
 import NSASection from "./NSASection";
 import RulesSection from "./RulesSection";
@@ -23,6 +24,7 @@ export default async function LivePage() {
 
   return (
     <>
+      <AmbientConstellation />
       <FBMRExperience />
       {showPermissionTester && (
         <Link

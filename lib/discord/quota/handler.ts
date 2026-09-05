@@ -61,6 +61,18 @@ async function handleSubmit(interaction: any) {
 
 function canReview(interaction: any) { return hasRole(interaction, LOGISTICS_ROLE_ID) || hasRole(interaction, TESTER_ROLE_ID); }
 
+async function markReviewMessage(messageId: string, originalMessage: any, status: "Approved" | "Rejected", reason?: string) {
+  const embed = originalMessage?.embeds?.[0];
+  if (!embed) return;
+  await discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages/${messageId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      components: [],
+      embeds: [{ ...embed, title: `Quota Submission — ${status}`, description: `${String(embed.description || "").split("\n")[0]}\n\n**Status: ${status}**${reason ? `\n**Reason:** ${reason}` : ""}` }],
+    }),
+  });
+}
+
 async function handleButton(interaction: any) {
   const customId = String(interaction?.data?.custom_id || "");
   const approve = customId.match(/^quota:approve:([0-9a-f-]{36}):([0-9a-f]{24})$/i);
@@ -78,32 +90,26 @@ async function finishApproval(interaction: any, match: RegExpMatchArray) {
   if (String(interaction.channel_id) !== QUOTA_CHANNEL_ID) return jsonResponse(ephemeral("⚠️ Invalid quota review channel."));
   const values = modalValues(interaction);
   if (String(values.confirm || "") !== "APPROVE") return jsonResponse(ephemeral("Approval cancelled. Type exactly APPROVE to confirm."));
-  let claimed = false;
-  let sheetUpdated = false;
+  let claimed = false; let sheetUpdated = false;
   try {
     await interactionCallback(interaction, { type: 5, data: { flags: 64 } });
-    const requestId = match[1];
-    const signature = match[2].toLowerCase();
-    const messageId = match[3];
+    const requestId = match[1]; const signature = match[2].toLowerCase(); const messageId = match[3];
     const state = await getQuotaRequestState(requestId);
     if (state !== "pending") return interactionFollowup(interaction, { content: `⚠️ This quota request is no longer pending (status: ${state || "not found"}).`, flags: 64 });
     const original = await getAndValidateReviewMessage(messageId, requestId, signature);
     if (!original) return interactionFollowup(interaction, { content: "⚠️ This quota approval request is invalid, outdated, or no longer pending.", flags: 64 });
     claimed = await claimQuotaApproval(requestId, interaction.id, interactionUserId(interaction), interactionUsername(interaction));
     if (!claimed) return interactionFollowup(interaction, { content: "⚠️ This quota request is already being processed or has been completed.", flags: 64 });
-    const approverId = interactionUserId(interaction);
-    const approverName = interactionDisplayName(interaction) || approverId;
+    const approverId = interactionUserId(interaction); const approverName = interactionDisplayName(interaction) || approverId;
     await processQuotaDirect({ userId: original.request.userId, username: original.request.username, minutes: original.request.quota, requestId: original.request.id, proof: original.request.proof, approvedBy: approverId, approvedByUsername: approverName });
     sheetUpdated = true;
     await markQuotaApproved(requestId);
     await postApprovalLog(original.request, approverId, approverName);
-    await discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ components: [] }) });
+    await markReviewMessage(messageId, original.message, "Approved");
     await interactionFollowup(interaction, { content: `✅ ${original.request.quota} minutes approved and added to the Staff Database.`, flags: 64 });
   } catch (error) {
     console.error("[quota] approval failed", { interactionId: interaction.id, error });
-    if (claimed && !sheetUpdated) {
-      try { await releaseQuotaApproval(match[1]); } catch (releaseError) { console.error("[quota] failed to release approval claim", { requestId: match[1], releaseError }); }
-    }
+    if (claimed && !sheetUpdated) { try { await releaseQuotaApproval(match[1]); } catch (releaseError) { console.error("[quota] failed to release approval claim", { requestId: match[1], releaseError }); } }
     try { await interactionFollowup(interaction, { content: `⚠️ Quota approval failed: ${error instanceof Error ? error.message : "unknown error"}`, flags: 64 }); } catch {}
   }
   return new Response(null, { status: 204 });
@@ -116,19 +122,16 @@ async function finishRejection(interaction: any, match: RegExpMatchArray) {
   if (!reason) return jsonResponse(ephemeral("A rejection reason is required."));
   try {
     await interactionCallback(interaction, { type: 5, data: { flags: 64 } });
-    const requestId = match[1];
-    const signature = match[2].toLowerCase();
-    const messageId = match[3];
+    const requestId = match[1]; const signature = match[2].toLowerCase(); const messageId = match[3];
     const state = await getQuotaRequestState(requestId);
     if (state !== "pending") return interactionFollowup(interaction, { content: `⚠️ This quota request is no longer pending (status: ${state || "not found"}).`, flags: 64 });
     const original = await getAndValidateReviewMessage(messageId, requestId, signature);
     if (!original) return interactionFollowup(interaction, { content: "⚠️ This quota rejection request is invalid, outdated, or no longer pending.", flags: 64 });
     if (!await markQuotaRejected(requestId)) return interactionFollowup(interaction, { content: "⚠️ This quota request is already being processed or has been completed.", flags: 64 });
-    const rejectedBy = interactionUserId(interaction);
-    const rejectedByUsername = interactionDisplayName(interaction) || rejectedBy;
+    const rejectedBy = interactionUserId(interaction); const rejectedByUsername = interactionDisplayName(interaction) || rejectedBy;
     await postRejectionLog(original.request, reason, rejectedBy, rejectedByUsername);
     await dmRejection(original.request.userId, reason, original.request.quota);
-    await discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ components: [] }) });
+    await markReviewMessage(messageId, original.message, "Rejected", reason);
     await interactionFollowup(interaction, { content: `❌ ${original.request.quota} minute quota rejected.`, flags: 64 });
   } catch (error) {
     console.error("[quota] rejection failed", { interactionId: interaction.id, error });

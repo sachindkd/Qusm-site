@@ -1,7 +1,7 @@
 import { TICKET_CHANNEL_ID } from "./config";
 import { LOGISTICS_ROLE_ID } from "@/lib/discord/quota/config";
 import { discordApi } from "@/lib/discord/quota/discord-api";
-import type { TicketRequest } from "./types";
+import { ticketSignature, type TicketRequest } from "./types";
 
 export async function postApprovalLog(request: TicketRequest, approvedBy: string, approvedByUsername: string) {
   const users = [...new Set([request.userId, approvedBy])];

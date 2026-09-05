@@ -28,13 +28,18 @@ export async function registerQuotaCommands() {
 
   if (!botToken()) throw new Error("DISCORD_BOT_TOKEN is not configured");
   const existing = await discordApi(base);
+  const kept = new Set<string>();
   for (const command of Array.isArray(existing) ? existing : []) {
-    if (!command.id || !ALLOWED_COMMANDS.has(String(command.name || ""))) {
-      if (command.id) await discordApi(`${base}/${command.id}`, { method: "DELETE" });
+    const name = String(command.name || "");
+    const id = String(command.id || "");
+    if (!id || !ALLOWED_COMMANDS.has(name) || kept.has(name)) {
+      if (id) await discordApi(`${base}/${id}`, { method: "DELETE" });
+      continue;
     }
+    kept.add(name);
   }
   for (const command of wanted) {
-    const current = (Array.isArray(existing) ? existing : []).find((item: any) => item.name === command.name);
+    const current = (Array.isArray(existing) ? existing : []).find((item: any) => item.name === command.name && kept.has(command.name));
     if (current?.id) await discordApi(`${base}/${current.id}`, { method: "PATCH", body: JSON.stringify(command) });
     else await discordApi(base, { method: "POST", body: JSON.stringify(command) });
   }

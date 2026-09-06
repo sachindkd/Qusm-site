@@ -1,7 +1,7 @@
 import { STAFF_GUILD_ID, botToken, applicationId } from "./config";
 import { discordApi } from "./discord-api";
 
-const ALLOWED_COMMANDS = new Set(["quota-submit", "quota-leaderboard", "ticket-log"]);
+const ALLOWED_COMMANDS = new Set(["quota-submit", "quota-leaderboard", "ticket-log", "botsecurity"]);
 
 async function deleteAllCommands(base: string) {
   const existing = await discordApi(base);
@@ -13,15 +13,9 @@ async function deleteAllCommands(base: string) {
 
 export async function registerQuotaCommands() {
   if (!botToken()) throw new Error("DISCORD_BOT_TOKEN is not configured");
-
   const guildBase = `/applications/${applicationId()}/guilds/${STAFF_GUILD_ID}/commands`;
   const globalBase = `/applications/${applicationId()}/commands`;
-
-  // Global commands are intentionally not used. Delete every global command,
-  // including stale commands left by older deployments, then keep only the
-  // three current commands in the Staff Team guild.
   await deleteAllCommands(globalBase);
-
   const existing = await discordApi(guildBase);
   const kept = new Set<string>();
   for (const command of Array.isArray(existing) ? existing : []) {
@@ -33,39 +27,25 @@ export async function registerQuotaCommands() {
     }
     kept.add(name);
   }
-
   const wanted = [
-    {
-      name: "quota-submit",
-      description: "Submit staff quota with a proof image",
-      type: 1,
-      default_member_permissions: null,
-      options: [
-        { type: 4, name: "minutes", description: "Quota completed in minutes", required: true, min_value: 1, max_value: 100000 },
-        { type: 11, name: "proof", description: "Attach the proof image directly", required: true },
-        { type: 3, name: "notes", description: "Optional notes for Logistics", required: false, max_length: 1000 },
-      ],
-    },
-    {
-      name: "quota-leaderboard",
-      description: "Show the live QUSM quota and ticket leaderboard",
-      type: 1,
-      default_member_permissions: null,
-      options: [],
-    },
-    {
-      name: "ticket-log",
-      description: "Submit completed staff tickets with proof for review",
-      type: 1,
-      default_member_permissions: null,
-      options: [
-        { type: 4, name: "tickets", description: "Number of tickets completed", required: true, min_value: 1, max_value: 100000 },
-        { type: 11, name: "proof", description: "Attach the ticket proof image directly", required: true },
-        { type: 3, name: "notes", description: "Optional notes for Logistics", required: false, max_length: 1000 },
-      ],
-    },
+    { name: "quota-submit", description: "Submit staff quota with a proof image", type: 1, default_member_permissions: null, options: [
+      { type: 4, name: "minutes", description: "Quota completed in minutes", required: true, min_value: 1, max_value: 100000 },
+      { type: 11, name: "proof", description: "Attach the proof image directly", required: true },
+      { type: 3, name: "notes", description: "Optional notes for Logistics", required: false, max_length: 1000 },
+    ]},
+    { name: "quota-leaderboard", description: "Show the live QUSM quota and ticket leaderboard", type: 1, default_member_permissions: null, options: [] },
+    { name: "ticket-log", description: "Submit completed staff tickets with proof for review", type: 1, default_member_permissions: null, options: [
+      { type: 4, name: "tickets", description: "Number of tickets completed", required: true, min_value: 1, max_value: 100000 },
+      { type: 11, name: "proof", description: "Attach the ticket proof image directly", required: true },
+      { type: 3, name: "notes", description: "Optional notes for Logistics", required: false, max_length: 1000 },
+    ]},
+    { name: "botsecurity", description: "Scan bots and monitor for bot/raid security threats", type: 1, default_member_permissions: "32", options: [
+      { type: 1, name: "scan", description: "Scan every bot currently in the server", options: [] },
+      { type: 1, name: "monitor", description: "Start security monitoring in this channel", options: [] },
+      { type: 1, name: "stop", description: "Stop security monitoring", options: [] },
+      { type: 1, name: "status", description: "Show security monitoring status", options: [] },
+    ]},
   ];
-
   for (const command of wanted) {
     const current = (Array.isArray(existing) ? existing : []).find((item: any) => item.name === command.name && kept.has(command.name));
     if (current?.id) await discordApi(`${guildBase}/${current.id}`, { method: "PATCH", body: JSON.stringify(command) });

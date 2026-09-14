@@ -5,7 +5,6 @@ const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
 const SHEET_ID = "16jQKspnUXHik7BBYkHWKd-wvPShFAyXjW5Cm3MuO470";
 const SHEET_NAME = "QUSM Staff Database";
-
 const INTERNSHIP_SHEET_ID = "12KuihiQ0DjnymiqX1cKaY6UzAPZi1OI41SStNQgtct0";
 const INTERNSHIP_SHEET_NAME = "QUSM Interns";
 
@@ -23,53 +22,19 @@ export async function getQuotaLeaderboard(): Promise<QuotaLeaderboardRow[]> { co
 export type QuotaDirectInput = { userId: string; username: string; minutes: number; requestId: string; proof: string; approvedBy: string; approvedByUsername: string };
 export type LegacyQuotaRequest = { id: string; userId: string; username: string; quota: number; proof: string; proofName: string; notes: string; createdAt: string };
 
-async function processQuotaInSheet(input: QuotaDirectInput | LegacyQuotaRequest, sheetId: string, sheetName: string, usernameColumn: string, quotaColumn: string) {
-  const normalized: QuotaDirectInput = "minutes" in input ? input : { userId: input.userId, username: input.username, minutes: input.quota, requestId: input.id, proof: input.proof, approvedBy: "", approvedByUsername: "" };
-  if (!Number.isFinite(normalized.minutes) || normalized.minutes <= 0) throw new Error("Approved quota must be greater than 0 minutes.");
-  const values = await sheetsFetch(sheetId, `/values/${encodeURIComponent(sheetName + "!A:G")}?valueRenderOption=UNFORMATTED_VALUE`);
-  const rows: unknown[][] = Array.isArray(values.values) ? values.values : [];
-  const wanted = normalize(normalized.username);
-  const usernameIndex = usernameColumn.charCodeAt(0) - 65;
-  const quotaIndex = quotaColumn.charCodeAt(0) - 65;
-  const matches: { row: number; current: number }[] = [];
-  rows.forEach((cells, index) => { if (normalize(cells?.[usernameIndex]) === wanted) matches.push({ row: index + 1, current: durationToMinutes(cells?.[quotaIndex]) }); });
-  if (!matches.length) throw new Error(`Username "${normalized.username}" not found in Column ${usernameColumn} of "${sheetName}".`);
-  if (matches.length > 1) throw new Error(`Username "${normalized.username}" appears in ${matches.length} rows; update blocked to prevent changing the wrong record.`);
-  const match = matches[0];
-  const newTotal = match.current + normalized.minutes;
-  await sheetsFetch(sheetId, `/values/${encodeURIComponent(`${sheetName}!${quotaColumn}${match.row}`)}?valueInputOption=USER_ENTERED`, { method: "PUT", body: JSON.stringify({ range: `${sheetName}!${quotaColumn}${match.row}`, majorDimension: "ROWS", values: [[minutesToDuration(newTotal)]] }) });
-  const verify = await sheetsFetch(sheetId, `/values/${encodeURIComponent(`${sheetName}!${quotaColumn}${match.row}`)}?valueRenderOption=UNFORMATTED_VALUE`);
-  const verifiedMinutes = durationToMinutes(verify?.values?.[0]?.[0]);
-  if (Math.abs(verifiedMinutes - newTotal) > 0.001) throw new Error(`Google Sheets verification failed: expected ${newTotal} minutes, read back ${verifiedMinutes} minutes.`);
-  return { success: true, row: match.row, previousMinutes: match.current, addedMinutes: normalized.minutes, totalMinutes: newTotal };
-}
-
+async function processQuotaInSheet(input: QuotaDirectInput | LegacyQuotaRequest, sheetId: string, sheetName: string, usernameColumn: string, quotaColumn: string) { const normalized: QuotaDirectInput = "minutes" in input ? input : { userId: input.userId, username: input.username, minutes: input.quota, requestId: input.id, proof: input.proof, approvedBy: "", approvedByUsername: "" }; if (!Number.isFinite(normalized.minutes) || normalized.minutes <= 0) throw new Error("Approved quota must be greater than 0 minutes."); const values = await sheetsFetch(sheetId, `/values/${encodeURIComponent(sheetName + "!A:G")}?valueRenderOption=UNFORMATTED_VALUE`); const rows: unknown[][] = Array.isArray(values.values) ? values.values : []; const wanted = normalize(normalized.username); const usernameIndex = usernameColumn.charCodeAt(0) - 65; const quotaIndex = quotaColumn.charCodeAt(0) - 65; const matches: { row: number; current: number }[] = []; rows.forEach((cells, index) => { if (normalize(cells?.[usernameIndex]) === wanted) matches.push({ row: index + 1, current: durationToMinutes(cells?.[quotaIndex]) }); }); if (!matches.length) throw new Error(`Username "${normalized.username}" not found in Column ${usernameColumn} of "${sheetName}".`); if (matches.length > 1) throw new Error(`Username "${normalized.username}" appears in ${matches.length} rows; update blocked to prevent changing the wrong record.`); const match = matches[0]; const newTotal = match.current + normalized.minutes; await sheetsFetch(sheetId, `/values/${encodeURIComponent(`${sheetName}!${quotaColumn}${match.row}`)}?valueInputOption=USER_ENTERED`, { method: "PUT", body: JSON.stringify({ range: `${sheetName}!${quotaColumn}${match.row}`, majorDimension: "ROWS", values: [[minutesToDuration(newTotal)]] }) }); const verify = await sheetsFetch(sheetId, `/values/${encodeURIComponent(`${sheetName}!${quotaColumn}${match.row}`)}?valueRenderOption=UNFORMATTED_VALUE`); const verifiedMinutes = durationToMinutes(verify?.values?.[0]?.[0]); if (Math.abs(verifiedMinutes - newTotal) > 0.001) throw new Error(`Google Sheets verification failed: expected ${newTotal} minutes, read back ${verifiedMinutes} minutes.`); return { success: true, row: match.row, previousMinutes: match.current, addedMinutes: normalized.minutes, totalMinutes: newTotal }; }
 export async function processQuotaDirect(input: QuotaDirectInput | LegacyQuotaRequest) { return processQuotaInSheet(input, SHEET_ID, SHEET_NAME, "B", "E"); }
 
 export type TicketDirectInput = { userId: string; username: string; tickets: number; requestId: string; proof: string; approvedBy: string; approvedByUsername: string };
 
-async function processTicketsInSheet(input: TicketDirectInput, sheetId: string, sheetName: string, usernameColumn: string, ticketColumn: string) {
-  if (!Number.isInteger(input.tickets) || input.tickets <= 0) throw new Error("Approved tickets must be a positive whole number.");
-  const values = await sheetsFetch(sheetId, `/values/${encodeURIComponent(sheetName + "!A:G")}?valueRenderOption=UNFORMATTED_VALUE`);
-  const rows: unknown[][] = Array.isArray(values.values) ? values.values : [];
-  const wanted = normalize(input.username);
-  const usernameIndex = usernameColumn.charCodeAt(0) - 65;
-  const ticketIndex = ticketColumn.charCodeAt(0) - 65;
-  const matches: { row: number; current: number }[] = [];
-  rows.forEach((cells, index) => { if (normalize(cells?.[usernameIndex]) === wanted) { const raw = Number(cells?.[ticketIndex]); matches.push({ row: index + 1, current: Number.isFinite(raw) ? raw : 0 }); } });
-  if (!matches.length) throw new Error(`Username "${input.username}" not found in Column ${usernameColumn} of "${sheetName}".`);
-  if (matches.length > 1) throw new Error(`Username "${input.username}" appears in ${matches.length} rows; update blocked to prevent changing the wrong record.`);
-  const match = matches[0];
-  const newTotal = match.current + input.tickets;
-  await sheetsFetch(sheetId, `/values/${encodeURIComponent(`${sheetName}!${ticketColumn}${match.row}`)}?valueInputOption=USER_ENTERED`, { method: "PUT", body: JSON.stringify({ range: `${sheetName}!${ticketColumn}${match.row}`, majorDimension: "ROWS", values: [[newTotal]] }) });
-  const verify = await sheetsFetch(sheetId, `/values/${encodeURIComponent(`${sheetName}!${ticketColumn}${match.row}`)}?valueRenderOption=UNFORMATTED_VALUE`);
-  const verified = Number(verify?.values?.[0]?.[0]);
-  if (!Number.isFinite(verified) || verified !== newTotal) throw new Error(`Google Sheets verification failed: expected ${newTotal} tickets, read back ${verified}.`);
-  return { success: true, row: match.row, previousTickets: match.current, addedTickets: input.tickets, totalTickets: newTotal };
-}
+function parseCombined(value: unknown) { const raw = String(value ?? "").trim(); const [timePartRaw, ticketsPartRaw] = raw.split("/", 2); let minutes = 0; const timePart = String(timePartRaw || "").trim(); const timeMatch = timePart.match(/^(\d+):(\d{1,2}):(\d{1,2})$/); if (timeMatch) minutes = Number(timeMatch[1]) * 60 + Number(timeMatch[2]) + Number(timeMatch[3]) / 60; else if (/^\d+(?:\.\d+)?$/.test(timePart)) minutes = Number(timePart); let tickets = 0; const ticketText = String(ticketsPartRaw || "").trim(); if (/^\d+$/.test(ticketText)) tickets = Number(ticketText); return { minutes, tickets }; }
+function formatCombined(minutes: number, tickets: number) { const totalSeconds = Math.max(0, Math.round(minutes * 60)); const hours = Math.floor(totalSeconds / 3600); const mins = Math.floor((totalSeconds % 3600) / 60); const secs = totalSeconds % 60; return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}/${tickets > 0 ? tickets : "Tickets"}`; }
+async function findInternRow(username: string) { const values = await sheetsFetch(INTERNSHIP_SHEET_ID, `/values/${encodeURIComponent(INTERNSHIP_SHEET_NAME + "!A:E")}?valueRenderOption=FORMATTED_VALUE`); const rows: unknown[][] = Array.isArray(values.values) ? values.values : []; const wanted = normalize(username); const matches: { row: number; combined: string }[] = []; rows.forEach((cells, index) => { if (normalize(cells?.[0]) === wanted) matches.push({ row: index + 1, combined: String(cells?.[4] ?? "") }); }); if (!matches.length) throw new Error(`Username "${username}" not found in Column A of "${INTERNSHIP_SHEET_NAME}".`); if (matches.length > 1) throw new Error(`Username "${username}" appears in ${matches.length} rows; update blocked to prevent changing the wrong record.`); return matches[0]; }
+async function writeInternCombined(row: number, minutes: number, tickets: number) { const value = formatCombined(minutes, tickets); const range = `${INTERNSHIP_SHEET_NAME}!E${row}`; await sheetsFetch(INTERNSHIP_SHEET_ID, `/values/${encodeURIComponent(range)}?valueInputOption=RAW`, { method: "PUT", body: JSON.stringify({ range, majorDimension: "ROWS", values: [[value]] }) }); const verify = await sheetsFetch(INTERNSHIP_SHEET_ID, `/values/${encodeURIComponent(range)}?valueRenderOption=FORMATTED_VALUE`); const verified = String(verify?.values?.[0]?.[0] ?? ""); if (verified !== value) throw new Error(`Google Sheets verification failed: expected "${value}", read back "${verified}".`); return value; }
 
+export async function processInternshipQuotaDirect(input: QuotaDirectInput) { if (!Number.isFinite(input.minutes) || input.minutes <= 0) throw new Error("Approved quota must be greater than 0 minutes."); const match = await findInternRow(input.username); const current = parseCombined(match.combined); const newMinutes = current.minutes + input.minutes; const value = await writeInternCombined(match.row, newMinutes, current.tickets); return { success: true, row: match.row, previousMinutes: current.minutes, addedMinutes: input.minutes, totalMinutes: newMinutes, tickets: current.tickets, value }; }
+
+export async function processInternshipTicketDirect(input: TicketDirectInput) { if (!Number.isInteger(input.tickets) || input.tickets <= 0) throw new Error("Approved tickets must be a positive whole number."); const match = await findInternRow(input.username); const current = parseCombined(match.combined); const newTickets = current.tickets + input.tickets; const value = await writeInternCombined(match.row, current.minutes, newTickets); return { success: true, row: match.row, previousTickets: current.tickets, addedTickets: input.tickets, totalTickets: newTickets, minutes: current.minutes, value }; }
+
+async function processTicketsInSheet(input: TicketDirectInput, sheetId: string, sheetName: string, usernameColumn: string, ticketColumn: string) { if (!Number.isInteger(input.tickets) || input.tickets <= 0) throw new Error("Approved tickets must be a positive whole number."); const values = await sheetsFetch(sheetId, `/values/${encodeURIComponent(sheetName + "!A:G")}?valueRenderOption=UNFORMATTED_VALUE`); const rows: unknown[][] = Array.isArray(values.values) ? values.values : []; const wanted = normalize(input.username); const usernameIndex = usernameColumn.charCodeAt(0) - 65; const ticketIndex = ticketColumn.charCodeAt(0) - 65; const matches: { row: number; current: number }[] = []; rows.forEach((cells, index) => { if (normalize(cells?.[usernameIndex]) === wanted) { const raw = Number(cells?.[ticketIndex]); matches.push({ row: index + 1, current: Number.isFinite(raw) ? raw : 0 }); } }); if (!matches.length) throw new Error(`Username "${input.username}" not found in Column ${usernameColumn} of "${sheetName}".`); if (matches.length > 1) throw new Error(`Username "${input.username}" appears in ${matches.length} rows; update blocked to prevent changing the wrong record.`); const match = matches[0]; const newTotal = match.current + input.tickets; await sheetsFetch(sheetId, `/values/${encodeURIComponent(`${sheetName}!${ticketColumn}${match.row}`)}?valueInputOption=USER_ENTERED`, { method: "PUT", body: JSON.stringify({ range: `${sheetName}!${ticketColumn}${match.row}`, majorDimension: "ROWS", values: [[newTotal]] }) }); const verify = await sheetsFetch(sheetId, `/values/${encodeURIComponent(`${sheetName}!${ticketColumn}${match.row}`)}?valueRenderOption=UNFORMATTED_VALUE`); const verified = Number(verify?.values?.[0]?.[0]); if (!Number.isFinite(verified) || verified !== newTotal) throw new Error(`Google Sheets verification failed: expected ${newTotal} tickets, read back ${verified}.`); return { success: true, row: match.row, previousTickets: match.current, addedTickets: input.tickets, totalTickets: newTotal }; }
 export async function processTicketDirect(input: TicketDirectInput) { return processTicketsInSheet(input, SHEET_ID, SHEET_NAME, "B", "G"); }
-
-// Internship sheet layout: usernames are in Column A and the combined Quota/Tickets field is Column E.
-// Interns no longer use automated quota tracking; ticket logs are written directly to Column E.
-export async function processInternshipTicketDirect(input: TicketDirectInput) { return processTicketsInSheet(input, INTERNSHIP_SHEET_ID, INTERNSHIP_SHEET_NAME, "A", "E"); }

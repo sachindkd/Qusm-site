@@ -11,13 +11,14 @@ export function rejectModal(requestId: string, signature: string, messageId: str
 }
 export async function postReviewMessage(request: TicketRequest, displayName: string) {
   const signature = ticketSignature(request);
+  const internship = request.program === "internship";
   return discordApi(`/channels/${TICKET_CHANNEL_ID}/messages`, { method: "POST", body: JSON.stringify({
     content: `<@&${LOGISTICS_ROLE_ID}>`,
-    embeds: [{ title: "Ticket Log — Pending Review", description: `<@${request.userId}> submitted completed tickets for Logistics review.`, fields: [
-      { name: "Request ID", value: request.id }, { name: "Member", value: `<@${request.userId}> (${request.username})`, inline: true }, { name: "Display Name", value: displayName || request.username, inline: true }, { name: "Tickets", value: `${request.tickets}`, inline: true },
+    embeds: [{ title: internship ? "Internship Ticket Log — Pending Review" : "Ticket Log — Pending Review", description: `<@${request.userId}> submitted ${internship ? "completed Internship Program tickets" : "completed tickets"} for Logistics review.`, fields: [
+      { name: "Request ID", value: request.id }, { name: "Member", value: `<@${request.userId}> (${request.username})`, inline: true }, { name: "Display Name", value: displayName || request.username, inline: true }, ...(internship ? [{ name: "Program", value: "Internship Program", inline: true }] : []), { name: "Tickets", value: `${request.tickets}`, inline: true },
       { name: "Proof", value: `[${request.proofName || "View proof image"}](${request.proof})` }, { name: "Notes", value: request.notes || "—" },
-    ], image: { url: request.proof }, footer: { text: "QUSM Ticket System • Staff Team" }, timestamp: request.createdAt }],
-    components: [{ type: 1, components: [{ type: 2, style: 3, label: "Approve & Add Tickets", custom_id: `ticket:approve:${request.id}:${signature}` }, { type: 2, style: 4, label: "Reject", custom_id: `ticket:reject:${request.id}:${signature}` }] }],
+    ], image: { url: request.proof }, footer: { text: internship ? "QUSM Internship Program • Ticket System" : "QUSM Ticket System • Staff Team" }, timestamp: request.createdAt }],
+    components: [{ type: 1, components: [{ type: 2, style: 3, label: internship ? "Approve & Add Internship Tickets" : "Approve & Add Tickets", custom_id: `ticket:approve:${request.id}:${signature}` }, { type: 2, style: 4, label: "Reject", custom_id: `ticket:reject:${request.id}:${signature}` }] }],
     allowed_mentions: { users: [request.userId], roles: [LOGISTICS_ROLE_ID] },
   }) });
 }

@@ -38,6 +38,10 @@ export async function discordApi(path: string, init: RequestInit = {}) {
   throw new Error("Discord API rate limit retries exhausted");
 }
 
+export async function getGuildMember(guildId: string, userId: string) {
+  return discordApi(`/guilds/${guildId}/members/${userId}`);
+}
+
 export async function interactionCallback(interaction: any, payload: any) {
   return fetch(`https://discord.com/api/v10/interactions/${interaction.id}/${interaction.token}/callback`, {
     method: "POST",
@@ -67,6 +71,10 @@ export function ephemeral(content: string) {
 
 export function hasRole(interaction: any, roleId: string): boolean {
   return Array.isArray(interaction?.member?.roles) && interaction.member.roles.includes(roleId);
+}
+
+export function hasMemberRole(member: any, roleId: string): boolean {
+  return Array.isArray(member?.roles) && member.roles.includes(roleId);
 }
 
 export function option(interaction: any, name: string) {

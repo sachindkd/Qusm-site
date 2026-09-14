@@ -1,9 +1,15 @@
 import { verifyDiscordSignature } from "@/lib/discord/quota/security";
 import { handleGet, handlePost } from "@/lib/discord/quota/handler";
 import { jsonResponse } from "@/lib/discord/quota/discord-api";
+import { runQuotaReminderCheck } from "@/lib/discord/quota/reminders";
 import { handleTicketPost } from "@/lib/discord/tickets/handler";
 
 export async function GET() {
+  try {
+    await runQuotaReminderCheck("startup");
+  } catch (error) {
+    console.error("[quota-reminder] startup scan failed", error);
+  }
   return handleGet();
 }
 
@@ -13,6 +19,7 @@ export async function POST(request: Request) {
   const signature = request.headers.get("x-signature-ed25519") || "";
   if (!verifyDiscordSignature(body, timestamp, signature)) return jsonResponse({ error: "invalid signature" }, 401);
   try {
+    await runQuotaReminderCheck("startup");
     const interaction = JSON.parse(body);
     const customId = String(interaction?.data?.custom_id || "");
     const commandName = String(interaction?.data?.name || "");

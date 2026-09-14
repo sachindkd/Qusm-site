@@ -45,13 +45,6 @@ async function processQuotaInSheet(input: QuotaDirectInput | LegacyQuotaRequest,
 }
 
 export async function processQuotaDirect(input: QuotaDirectInput | LegacyQuotaRequest) { return processQuotaInSheet(input, SHEET_ID, SHEET_NAME, "B", "E"); }
-export async function processInternshipQuotaDirect(input: QuotaDirectInput | LegacyQuotaRequest) { return processQuotaInSheet(input, INTERNSHIP_SHEET_ID, INTERNSHIP_SHEET_NAME, "A", "E"); }
-
-export async function hasStaffTicketColumn() {
-  const values = await sheetsFetch(SHEET_ID, `/values/${encodeURIComponent(`${SHEET_NAME}!G1:G10`)}?valueRenderOption=UNFORMATTED_VALUE`);
-  const rows: unknown[][] = Array.isArray(values.values) ? values.values : [];
-  return rows.some((cells) => normalize(cells?.[0]) === "tickets");
-}
 
 export type TicketDirectInput = { userId: string; username: string; tickets: number; requestId: string; proof: string; approvedBy: string; approvedByUsername: string };
 
@@ -76,9 +69,7 @@ async function processTicketsInSheet(input: TicketDirectInput, sheetId: string, 
 }
 
 export async function processTicketDirect(input: TicketDirectInput) { return processTicketsInSheet(input, SHEET_ID, SHEET_NAME, "B", "G"); }
-export async function processInternshipTicketDirect(input: TicketDirectInput) {
-  const header = await sheetsFetch(INTERNSHIP_SHEET_ID, `/values/${encodeURIComponent(`${INTERNSHIP_SHEET_NAME}!G4`)}?valueRenderOption=UNFORMATTED_VALUE`);
-  const currentHeader = String(header?.values?.[0]?.[0] ?? "").trim();
-  if (!currentHeader) await sheetsFetch(INTERNSHIP_SHEET_ID, `/values/${encodeURIComponent(`${INTERNSHIP_SHEET_NAME}!G4`)}?valueInputOption=USER_ENTERED`, { method: "PUT", body: JSON.stringify({ range: `${INTERNSHIP_SHEET_NAME}!G4`, majorDimension: "ROWS", values: [["Tickets"]] }) });
-  return processTicketsInSheet(input, INTERNSHIP_SHEET_ID, INTERNSHIP_SHEET_NAME, "A", "G");
-}
+
+// Internship sheet layout: usernames are in Column A and the combined Quota/Tickets field is Column E.
+// Interns no longer use automated quota tracking; ticket logs are written directly to Column E.
+export async function processInternshipTicketDirect(input: TicketDirectInput) { return processTicketsInSheet(input, INTERNSHIP_SHEET_ID, INTERNSHIP_SHEET_NAME, "A", "E"); }

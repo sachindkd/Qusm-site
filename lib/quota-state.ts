@@ -27,9 +27,13 @@ async function initQuotaState() {
       approved_by TEXT,
       approved_by_username TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      reminder_sent_at TIMESTAMPTZ
     )`;
+    await q`ALTER TABLE quota_requests ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ`;
     await q`CREATE INDEX IF NOT EXISTS quota_requests_status_idx ON quota_requests(status)`;
+    await q`CREATE INDEX IF NOT EXISTS quota_requests_pending_created_idx ON quota_requests(status, created_at)`;
+    await q`CREATE INDEX IF NOT EXISTS quota_requests_reminder_idx ON quota_requests(status, reminder_sent_at)`;
     initialized = true;
   })();
   try { await initializing; } finally { initializing = null; }
@@ -44,8 +48,8 @@ export async function createQuotaRequest(input: {
 }) {
   await initQuotaState();
   const q = sql();
-  await q`INSERT INTO quota_requests (request_id, user_id, username, minutes, signature, status)
-    VALUES (${input.requestId}, ${input.userId}, ${input.username}, ${input.minutes}, ${input.signature}, 'pending')`;
+  await q`INSERT INTO quota_requests (request_id, user_id, username, minutes, signature, status, reminder_sent_at)
+    VALUES (${input.requestId}, ${input.userId}, ${input.username}, ${input.minutes}, ${input.signature}, 'pending', NULL)`;
 }
 
 export async function attachQuotaMessage(requestId: string, messageId: string) {
@@ -63,8 +67,6 @@ export async function getQuotaRequestState(requestId: string): Promise<QuotaAppr
   const row = rows[0];
   if (!row) return undefined;
   const status = row.status as QuotaApprovalState;
-  // A crashed/timeout approval can otherwise leave the request permanently locked.
-  // Only recover processing claims that have been untouched for 10 minutes.
   if (status === "processing") {
     const updatedAt = new Date(String(row.updated_at)).getTime();
     if (Number.isFinite(updatedAt) && Date.now() - updatedAt >= 10 * 60 * 1000) {

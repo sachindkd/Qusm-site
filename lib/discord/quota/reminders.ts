@@ -62,7 +62,7 @@ async function sendReminder(request: PendingQuota) {
           { name: "Pending Since", value: `<t:${Math.floor(new Date(request.created_at).getTime() / 1000)}:F>`, inline: true },
           { name: "Waiting", value: age, inline: true },
           { name: "Request ID", value: request.request_id },
-          { name: "Review Message", value: request.message_id ? `https://discord.com/channels/@me/${QUOTA_CHANNEL_ID}/${request.message_id}` : "Unavailable" },
+          { name: "Review Message", value: `https://discord.com/channels/${process.env.DISCORD_GUILD_ID || "@me"}/${QUOTA_CHANNEL_ID}/${request.message_id}` },
         ],
         footer: { text: "QUSM Quota System • 24-hour review reminder" },
         timestamp: new Date().toISOString(),
@@ -77,14 +77,14 @@ export async function scanPendingQuotaReminders(reason: "startup" | "periodic") 
   await initReminderState();
   const q = sql();
   const now = Date.now();
-  const rows = await q<PendingQuota[]>`
+  const rows = await q`
     SELECT request_id, user_id, username, minutes, message_id, created_at, updated_at, status, reminder_sent_at
     FROM quota_requests
     WHERE status = 'pending'
       AND created_at <= NOW() - INTERVAL '24 hours'
       AND reminder_sent_at IS NULL
     ORDER BY created_at ASC
-  `;
+  ` as PendingQuota[];
 
   let sent = 0;
   for (const row of rows) {

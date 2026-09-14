@@ -11,13 +11,16 @@ import { ticketSignature, type TicketRequest } from "./types";
 
 function canReview(interaction: any) { return hasRole(interaction, LOGISTICS_ROLE_ID) || hasRole(interaction, TESTER_ROLE_ID); }
 
-async function dmMissingTicketColumn(userId: string) {
+async function dmMissingTicketColumn(userId: string, confirmed = false) {
   const dm = await discordApi("/users/@me/channels", { method: "POST", body: JSON.stringify({ recipient_id: userId }) });
-  return discordApi(`/channels/${dm.id}/messages`, { method: "POST", body: JSON.stringify({ content: "⚠️ Your ticket log was cancelled because the **Tickets column has not been added to the Google Staff Database yet**. Please wait until Logistics confirms the column has been added, then submit your ticket log again." }) });
+  const content = confirmed
+    ? "✅ Logistics has confirmed that the **Tickets column has now been added** to the Google Staff Database. Your previous ticket request was cancelled, so please submit your ticket log again."
+    : "⚠️ Your ticket log was cancelled because the **Tickets column has not been added to the Google Staff Database yet**. Please wait until Logistics confirms the column has been added, then submit your ticket log again.";
+  return discordApi(`/channels/${dm.id}/messages`, { method: "POST", body: JSON.stringify({ content }) });
 }
 
 async function postMissingTicketColumnLog(request: TicketRequest) {
-  const message = await discordApi(`/channels/${TICKET_LOG_CHANNEL_ID}/messages`, {
+  return discordApi(`/channels/${TICKET_LOG_CHANNEL_ID}/messages`, {
     method: "POST",
     body: JSON.stringify({
       content: `<@&${LOGISTICS_ROLE_ID}>`,
@@ -39,7 +42,6 @@ async function postMissingTicketColumnLog(request: TicketRequest) {
       allowed_mentions: { users: [request.userId], roles: [LOGISTICS_ROLE_ID] },
     }),
   });
-  return message;
 }
 
 async function handleSubmit(interaction: any) {
@@ -56,9 +58,6 @@ async function handleSubmit(interaction: any) {
     const contentType = String(attachment?.content_type || "").toLowerCase();
     if (!Number.isInteger(tickets) || tickets <= 0 || tickets > 100000 || !proof || (contentType && !contentType.startsWith("image/"))) return interactionFollowup(interaction, { content: "Invalid ticket log. Tickets must be a positive whole number and proof must be an image.", flags: 64 });
     const request: TicketRequest = { id: randomUUID(), userId: interactionUserId(interaction), username: interactionUsername(interaction), tickets, proof, proofName, notes, createdAt: new Date().toISOString(), ...(internship ? { program: "internship" as const } : {}) };
-
-    // The Staff Database currently has no Tickets column. Do not create a normal review request that can later fail.
-    // Internship requests keep their existing separate-sheet behavior, including its automatic G-column header setup.
     if (!internship && !(await hasStaffTicketColumn())) {
       await createTicketRequest({ requestId: request.id, userId: request.userId, username: request.username, tickets: request.tickets, signature: ticketSignature(request) });
       await markTicketRejected(request.id);
@@ -66,7 +65,6 @@ async function handleSubmit(interaction: any) {
       await dmMissingTicketColumn(request.userId);
       return interactionFollowup(interaction, { content: "⚠️ Your ticket log was cancelled because the Tickets column has not been added to the Staff Database yet. Logistics has been notified.", flags: 64 });
     }
-
     await createTicketRequest({ requestId: request.id, userId: request.userId, username: request.username, tickets: request.tickets, signature: ticketSignature(request) });
     const message = await postReviewMessage(request, interactionDisplayName(interaction));
     await attachTicketMessage(request.id, String(message.id));
@@ -94,8 +92,8 @@ async function handleButton(interaction: any) {
     const userId = missingColumn[2];
     try {
       await interactionCallback(interaction, { type: 5, data: { flags: 64 } });
-      await dmMissingTicketColumn(userId);
-      await discordApi(`/channels/${TICKET_LOG_CHANNEL_ID}/messages/${String(interaction.message?.id || "")}`, { method: "PATCH", body: JSON.stringify({ components: [], embeds: [{ ...(interaction.message?.embeds?.[0] || {}), title: "✅ Ticket Log Cancelled — Column Confirmation", description: `${String(interaction.message?.embeds?.[0]?.description || "")}\n\n**Logistics confirmed:** The Tickets column has been added. The submitter was DM'd to submit the ticket log again.`, color: 0x57f287 }] }) });
+      await dmMissingTicketColumn(userId, true);
+      await discordApi(`/channels/${TICKET_LOG_CHANNEL_ID}/messages/${String(interaction.message?.id || "")}`, { method: "PATCH", body: JSON.stringify({ components: [], embeds: [{ ...(interaction.message?.embeds?.[0] || {}), title: "✅ Ticket Log Cancelled — Column Confirmed", description: `${String(interaction.message?.embeds?.[0]?.description || "")}\n\n**Logistics confirmed:** The Tickets column has been added. The submitter was DM'd to submit the ticket log again.`, color: 0x57f287 }] }) });
       return interactionFollowup(interaction, { content: `✅ Confirmed. <@${userId}> has been DM'd to submit the ticket log again. Request: ${requestId}`, flags: 64 });
     } catch (error) {
       console.error("[ticket] missing-column confirmation failed", { requestId, userId, error });
@@ -103,7 +101,6 @@ async function handleButton(interaction: any) {
       return new Response(null, { status: 204 });
     }
   }
-
   const approve = customId.match(/^ticket:approve:([0-9a-f-]{36}):([0-9a-f]{24})$/i);
   const reject = customId.match(/^ticket:reject:([0-9a-f-]{36}):([0-9a-f]{24})$/i);
   const match = approve || reject;

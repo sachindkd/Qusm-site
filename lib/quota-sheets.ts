@@ -6,7 +6,6 @@ const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
 const SHEET_ID = "16jQKspnUXHik7BBYkHWKd-wvPShFAyXjW5Cm3MuO470";
 const SHEET_NAME = "QUSM Staff Database";
 
-// Internship Program uses the separate Google database shown in the QUSM Interns sheet.
 const INTERNSHIP_SHEET_ID = "12KuihiQ0DjnymiqX1cKaY6UzAPZi1OI41SStNQgtct0";
 const INTERNSHIP_SHEET_NAME = "QUSM Interns";
 
@@ -46,9 +45,12 @@ async function processQuotaInSheet(input: QuotaDirectInput | LegacyQuotaRequest,
 }
 
 export async function processQuotaDirect(input: QuotaDirectInput | LegacyQuotaRequest) { return processQuotaInSheet(input, SHEET_ID, SHEET_NAME, "B", "E"); }
+export async function processInternshipQuotaDirect(input: QuotaDirectInput | LegacyQuotaRequest) { return processQuotaInSheet(input, INTERNSHIP_SHEET_ID, INTERNSHIP_SHEET_NAME, "A", "E"); }
 
-export async function processInternshipQuotaDirect(input: QuotaDirectInput | LegacyQuotaRequest) {
-  return processQuotaInSheet(input, INTERNSHIP_SHEET_ID, INTERNSHIP_SHEET_NAME, "A", "E");
+export async function hasStaffTicketColumn() {
+  const values = await sheetsFetch(SHEET_ID, `/values/${encodeURIComponent(`${SHEET_NAME}!G1:G10`)}?valueRenderOption=UNFORMATTED_VALUE`);
+  const rows: unknown[][] = Array.isArray(values.values) ? values.values : [];
+  return rows.some((cells) => normalize(cells?.[0]) === "tickets");
 }
 
 export type TicketDirectInput = { userId: string; username: string; tickets: number; requestId: string; proof: string; approvedBy: string; approvedByUsername: string };
@@ -74,13 +76,9 @@ async function processTicketsInSheet(input: TicketDirectInput, sheetId: string, 
 }
 
 export async function processTicketDirect(input: TicketDirectInput) { return processTicketsInSheet(input, SHEET_ID, SHEET_NAME, "B", "G"); }
-
 export async function processInternshipTicketDirect(input: TicketDirectInput) {
-  // Column G is reserved for the Internship Program ticket quota. Add the header automatically if it is blank.
   const header = await sheetsFetch(INTERNSHIP_SHEET_ID, `/values/${encodeURIComponent(`${INTERNSHIP_SHEET_NAME}!G4`)}?valueRenderOption=UNFORMATTED_VALUE`);
   const currentHeader = String(header?.values?.[0]?.[0] ?? "").trim();
-  if (!currentHeader) {
-    await sheetsFetch(INTERNSHIP_SHEET_ID, `/values/${encodeURIComponent(`${INTERNSHIP_SHEET_NAME}!G4`)}?valueInputOption=USER_ENTERED`, { method: "PUT", body: JSON.stringify({ range: `${INTERNSHIP_SHEET_NAME}!G4`, majorDimension: "ROWS", values: [["Tickets"]] }) });
-  }
+  if (!currentHeader) await sheetsFetch(INTERNSHIP_SHEET_ID, `/values/${encodeURIComponent(`${INTERNSHIP_SHEET_NAME}!G4`)}?valueInputOption=USER_ENTERED`, { method: "PUT", body: JSON.stringify({ range: `${INTERNSHIP_SHEET_NAME}!G4`, majorDimension: "ROWS", values: [["Tickets"]] }) });
   return processTicketsInSheet(input, INTERNSHIP_SHEET_ID, INTERNSHIP_SHEET_NAME, "A", "G");
 }

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { processTicketDirect } from "@/lib/quota-sheets";
+import { processInternshipTicketDirect, processTicketDirect } from "@/lib/quota-sheets";
 import { attachTicketMessage, claimTicketApproval, createTicketRequest, getTicketRequestState, markTicketApproved, markTicketRejected, releaseTicketApproval } from "@/lib/ticket-state";
-import { LOGISTICS_ROLE_ID, STAFF_GUILD_ID, STAFF_ROLE_ID, TESTER_ROLE_ID } from "@/lib/discord/quota/config";
+import { INTERNSHIP_ROLE_ID, LOGISTICS_ROLE_ID, STAFF_GUILD_ID, STAFF_ROLE_ID, TESTER_ROLE_ID } from "@/lib/discord/quota/config";
 import { discordApi, ephemeral, hasRole, interactionCallback, interactionFollowup, jsonResponse, modalValues, option } from "@/lib/discord/quota/discord-api";
 import { TICKET_CHANNEL_ID } from "./config";
 import { approveModal, postReviewMessage, rejectModal } from "./messages";
@@ -12,7 +12,9 @@ import { ticketSignature, type TicketRequest } from "./types";
 function canReview(interaction: any) { return hasRole(interaction, LOGISTICS_ROLE_ID) || hasRole(interaction, TESTER_ROLE_ID); }
 
 async function handleSubmit(interaction: any) {
-  if (!hasRole(interaction, STAFF_ROLE_ID)) return jsonResponse(ephemeral("You need the Staff Team role to submit ticket logs."));
+  const internship = hasRole(interaction, INTERNSHIP_ROLE_ID);
+  // Internship Program takes precedence over Staff Team. A member with both roles is logged to QUSM Interns.
+  if (!internship && !hasRole(interaction, STAFF_ROLE_ID)) return jsonResponse(ephemeral("You need the Staff Team role or Internship Program role to submit ticket logs."));
   try {
     await interactionCallback(interaction, { type: 5, data: { flags: 64 } });
     const tickets = Number(option(interaction, "tickets")?.value);
@@ -23,11 +25,11 @@ async function handleSubmit(interaction: any) {
     const proofName = String(attachment?.filename || "Proof image");
     const contentType = String(attachment?.content_type || "").toLowerCase();
     if (!Number.isInteger(tickets) || tickets <= 0 || tickets > 100000 || !proof || (contentType && !contentType.startsWith("image/"))) return interactionFollowup(interaction, { content: "Invalid ticket log. Tickets must be a positive whole number and proof must be an image.", flags: 64 });
-    const request: TicketRequest = { id: randomUUID(), userId: interactionUserId(interaction), username: interactionUsername(interaction), tickets, proof, proofName, notes, createdAt: new Date().toISOString() };
+    const request: TicketRequest = { id: randomUUID(), userId: interactionUserId(interaction), username: interactionUsername(interaction), tickets, proof, proofName, notes, createdAt: new Date().toISOString(), ...(internship ? { program: "internship" as const } : {}) };
     await createTicketRequest({ requestId: request.id, userId: request.userId, username: request.username, tickets: request.tickets, signature: ticketSignature(request) });
     const message = await postReviewMessage(request, interactionDisplayName(interaction));
     await attachTicketMessage(request.id, String(message.id));
-    await interactionFollowup(interaction, { content: `✅ Your ${request.tickets} ticket${request.tickets === 1 ? "" : "s"} were submitted to Logistics for review.`, flags: 64 });
+    await interactionFollowup(interaction, { content: internship ? `✅ Your ${request.tickets} Internship Program ticket${request.tickets === 1 ? "" : "s"} were submitted to Logistics for review.` : `✅ Your ${request.tickets} ticket${request.tickets === 1 ? "" : "s"} were submitted to Logistics for review.`, flags: 64 });
   } catch (error) {
     console.error("[ticket] submit failed", { interactionId: interaction.id, error });
     try { await interactionFollowup(interaction, { content: `⚠️ Could not submit your ticket log: ${error instanceof Error ? error.message : "unknown error"}`, flags: 64 }); } catch {}
@@ -42,7 +44,7 @@ async function markReviewMessage(messageId: string, originalMessage: any, status
     method: "PATCH",
     body: JSON.stringify({
       components: [],
-      embeds: [{ ...embed, title: `Ticket Log — ${status}`, description: `${String(embed.description || "").split("\n")[0]}\n\n**Status: ${status}**${reason ? `\n**Reason:** ${reason}` : ""}` }],
+      embeds: [{ ...embed, title: `${String(embed.title || "Ticket Log").replace(" — Pending Review", "")} — ${status}`, description: `${String(embed.description || "").split("\n")[0]}\n\n**Status: ${status}**${reason ? `\n**Reason:** ${reason}` : ""}` }],
     }),
   });
 }
@@ -74,12 +76,16 @@ async function finishApproval(interaction: any, match: RegExpMatchArray) {
     claimed = await claimTicketApproval(requestId, interaction.id, interactionUserId(interaction), interactionUsername(interaction));
     if (!claimed) return interactionFollowup(interaction, { content: "⚠️ This ticket log is already being processed or has been completed.", flags: 64 });
     const approverId = interactionUserId(interaction); const approverName = interactionDisplayName(interaction) || approverId;
-    await processTicketDirect({ userId: original.request.userId, username: original.request.username, tickets: original.request.tickets, requestId: original.request.id, proof: original.request.proof, approvedBy: approverId, approvedByUsername: approverName });
+    if (original.request.program === "internship") {
+      await processInternshipTicketDirect({ userId: original.request.userId, username: original.request.username, tickets: original.request.tickets, requestId: original.request.id, proof: original.request.proof, approvedBy: approverId, approvedByUsername: approverName });
+    } else {
+      await processTicketDirect({ userId: original.request.userId, username: original.request.username, tickets: original.request.tickets, requestId: original.request.id, proof: original.request.proof, approvedBy: approverId, approvedByUsername: approverName });
+    }
     sheetUpdated = true;
     await markTicketApproved(requestId);
     await postApprovalLog(original.request, approverId, approverName);
     await markReviewMessage(messageId, original.message, "Approved");
-    await interactionFollowup(interaction, { content: `✅ ${original.request.tickets} ticket${original.request.tickets === 1 ? "" : "s"} approved and added to the Staff Database.`, flags: 64 });
+    await interactionFollowup(interaction, { content: original.request.program === "internship" ? `✅ ${original.request.tickets} Internship Program ticket${original.request.tickets === 1 ? "" : "s"} approved and added to QUSM Interns.` : `✅ ${original.request.tickets} ticket${original.request.tickets === 1 ? "" : "s"} approved and added to the Staff Database.`, flags: 64 });
   } catch (error) {
     console.error("[ticket] approval failed", { interactionId: interaction.id, error });
     if (claimed && !sheetUpdated) { try { await releaseTicketApproval(match[1]); } catch (releaseError) { console.error("[ticket] failed to release approval claim", { requestId: match[1], releaseError }); } }
@@ -105,7 +111,7 @@ async function finishRejection(interaction: any, match: RegExpMatchArray) {
     await postRejectionLog(original.request, reason, rejectedBy, rejectedByUsername);
     await dmRejection(original.request.userId, reason, original.request.tickets);
     await markReviewMessage(messageId, original.message, "Rejected", reason);
-    await interactionFollowup(interaction, { content: `❌ ${original.request.tickets} ticket${original.request.tickets === 1 ? "" : "s"} rejected.`, flags: 64 });
+    await interactionFollowup(interaction, { content: original.request.program === "internship" ? `❌ ${original.request.tickets} Internship Program ticket${original.request.tickets === 1 ? "" : "s"} rejected.` : `❌ ${original.request.tickets} ticket${original.request.tickets === 1 ? "" : "s"} rejected.`, flags: 64 });
   } catch (error) {
     console.error("[ticket] rejection failed", { interactionId: interaction.id, error });
     try { await interactionFollowup(interaction, { content: `⚠️ Ticket log rejection failed: ${error instanceof Error ? error.message : "unknown error"}`, flags: 64 }); } catch {}

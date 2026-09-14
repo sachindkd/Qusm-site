@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getQuotaLeaderboard, processInternshipQuotaDirect, processQuotaDirect } from "@/lib/quota-sheets";
+import { getQuotaLeaderboard, processQuotaDirect } from "@/lib/quota-sheets";
 import { attachQuotaMessage, claimQuotaApproval, createQuotaRequest, getQuotaRequestState, markQuotaApproved, markQuotaRejected, releaseQuotaApproval } from "@/lib/quota-state";
 import { INTERNSHIP_ROLE_ID, LOGISTICS_ROLE_ID, QUOTA_CHANNEL_ID, STAFF_GUILD_ID, STAFF_ROLE_ID, TESTER_ROLE_ID } from "./config";
 import { discordApi, ephemeral, getGuildMember, hasMemberRole, hasRole, interactionCallback, interactionFollowup, jsonResponse, modalValues, option } from "./discord-api";
@@ -42,8 +42,8 @@ async function handleLeaderboard(interaction: any) {
 
 async function handleSubmit(interaction: any) {
   const internship = hasRole(interaction, INTERNSHIP_ROLE_ID);
-  // Submission UI is role-gated, but the final destination is decided again from the live Discord role at approval time.
-  if (!internship && !hasRole(interaction, STAFF_ROLE_ID)) return jsonResponse(ephemeral("You need the Staff Team role or Internship Program role to submit quota."));
+  if (internship) return jsonResponse(ephemeral("Internship Program members do not use quota tracking. Please use **/ticket-log** instead."));
+  if (!hasRole(interaction, STAFF_ROLE_ID)) return jsonResponse(ephemeral("You need the Staff Team role to submit quota."));
   try {
     await interactionCallback(interaction, { type: 5, data: { flags: 64 } });
     const minutes = Number(option(interaction, "minutes")?.value);
@@ -54,21 +54,20 @@ async function handleSubmit(interaction: any) {
     const proofName = String(attachment?.filename || "Proof image");
     const contentType = String(attachment?.content_type || "").toLowerCase();
     if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 100000 || !proof || (contentType && !contentType.startsWith("image/"))) return interactionFollowup(interaction, { content: "Invalid quota submission. Minutes must be positive and proof must be an image.", flags: 64 });
-    const request: QuotaRequest = { id: randomUUID(), userId: interactionUserId(interaction), username: interactionUsername(interaction), quota: Math.round(minutes), proof, proofName, notes, createdAt: new Date().toISOString(), ...(internship ? { program: "internship" as const } : {}) };
+    const request: QuotaRequest = { id: randomUUID(), userId: interactionUserId(interaction), username: interactionUsername(interaction), quota: Math.round(minutes), proof, proofName, notes, createdAt: new Date().toISOString() };
     await createQuotaRequest({ requestId: request.id, userId: request.userId, username: request.username, minutes: request.quota, signature: quotaSignature(request) });
     const message = await postReviewMessage(request, interactionDisplayName(interaction));
     await attachQuotaMessage(request.id, String(message.id));
-    await interactionFollowup(interaction, { content: internship ? `✅ Your ${request.quota} minute Internship Program quota was submitted to Logistics for review.` : `✅ Your ${request.quota} minute quota was submitted to Logistics for review.`, flags: 64 });
+    await interactionFollowup(interaction, { content: `✅ Your ${request.quota} minute quota was submitted to Logistics for review.`, flags: 64 });
   } catch (error) { console.error("[quota] submit failed", { interactionId: interaction.id, error }); try { await interactionFollowup(interaction, { content: `⚠️ Could not submit your quota: ${error instanceof Error ? error.message : "unknown error"}`, flags: 64 }); } catch {} }
   return new Response(null, { status: 204 });
 }
+
 function canReview(interaction: any) { return hasRole(interaction, LOGISTICS_ROLE_ID) || hasRole(interaction, TESTER_ROLE_ID); }
 async function markReviewMessage(messageId: string, originalMessage: any, status: "Approved" | "Rejected", reason?: string) { const embed = originalMessage?.embeds?.[0]; if (!embed) return; await discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ components: [], embeds: [{ ...embed, title: `${String(embed.title || "Quota Submission").replace(" — Pending Review", "")} — ${status}`, description: `${String(embed.description || "").split("\n")[0]}\n\n**Status: ${status}**${reason ? `\n**Reason:** ${reason}` : ""}` }] }) }); }
 async function handleButton(interaction: any) { const customId = String(interaction?.data?.custom_id || ""); const approve = customId.match(/^quota:approve:([0-9a-f-]{36}):([0-9a-f]{24})$/i); const reject = customId.match(/^quota:reject:([0-9a-f-]{36}):([0-9a-f]{24})$/i); const match = approve || reject; if (!match) return jsonResponse(ephemeral("Unknown quota action.")); if (!canReview(interaction)) return jsonResponse(ephemeral(`Only Logistics or an approved tester can ${approve ? "approve" : "reject"} quota.`)); const messageId = String(interaction?.message?.id || ""); if (String(interaction.channel_id) !== QUOTA_CHANNEL_ID || !messageId) return jsonResponse(ephemeral("⚠️ Invalid quota review message.")); return jsonResponse(approve ? approveModal(match[1], match[2].toLowerCase(), messageId) : rejectModal(match[1], match[2].toLowerCase(), messageId)); }
-async function getLiveProgram(request: QuotaRequest, guildId: string) {
-  const member = await getGuildMember(guildId, request.userId);
-  return hasMemberRole(member, INTERNSHIP_ROLE_ID) ? ("internship" as const) : undefined;
-}
+async function getLiveProgram(request: QuotaRequest, guildId: string) { const member = await getGuildMember(guildId, request.userId); return hasMemberRole(member, INTERNSHIP_ROLE_ID) ? ("internship" as const) : undefined; }
+
 async function finishApproval(interaction: any, match: RegExpMatchArray) {
   if (!canReview(interaction)) return jsonResponse(ephemeral("Only Logistics or an approved tester can approve quota."));
   if (String(interaction.channel_id) !== QUOTA_CHANNEL_ID) return jsonResponse(ephemeral("⚠️ Invalid quota review channel."));
@@ -85,15 +84,20 @@ async function finishApproval(interaction: any, match: RegExpMatchArray) {
     const liveProgram = await getLiveProgram(original.request, STAFF_GUILD_ID);
     const effectiveRequest: QuotaRequest = { ...original.request, ...(liveProgram ? { program: liveProgram } : {}) };
     if (liveProgram === "internship") {
-      await processInternshipQuotaDirect({ userId: effectiveRequest.userId, username: effectiveRequest.username, minutes: effectiveRequest.quota, requestId: effectiveRequest.id, proof: effectiveRequest.proof, approvedBy: approverId, approvedByUsername: approverName });
-    } else {
-      await processQuotaDirect({ userId: effectiveRequest.userId, username: effectiveRequest.username, minutes: effectiveRequest.quota, requestId: effectiveRequest.id, proof: effectiveRequest.proof, approvedBy: approverId, approvedByUsername: approverName });
+      const reason = "Internship Program quota tracking has been removed. Internship members should use /ticket-log instead.";
+      await markQuotaRejected(requestId);
+      await postRejectionLog(effectiveRequest, reason, approverId, approverName);
+      await dmRejection(effectiveRequest.userId, reason, effectiveRequest.quota);
+      await markReviewMessage(messageId, original.message, "Rejected", reason);
+      await interactionFollowup(interaction, { content: "❌ This Internship Program quota request was rejected because internship quota tracking has been removed. Use /ticket-log for internship activity.", flags: 64 });
+      return new Response(null, { status: 204 });
     }
+    await processQuotaDirect({ userId: effectiveRequest.userId, username: effectiveRequest.username, minutes: effectiveRequest.quota, requestId: effectiveRequest.id, proof: effectiveRequest.proof, approvedBy: approverId, approvedByUsername: approverName });
     sheetUpdated = true;
     await markQuotaApproved(requestId);
     await postApprovalLog(effectiveRequest, approverId, approverName);
     await markReviewMessage(messageId, original.message, "Approved");
-    await interactionFollowup(interaction, { content: liveProgram === "internship" ? `✅ ${effectiveRequest.quota} Internship Program minutes approved and added to QUSM Interns.` : `✅ ${effectiveRequest.quota} minutes approved and added to the Staff Database.`, flags: 64 });
+    await interactionFollowup(interaction, { content: `✅ ${effectiveRequest.quota} minutes approved and added to the Staff Database.`, flags: 64 });
   } catch (error) {
     console.error("[quota] approval failed", { interactionId: interaction.id, error });
     if (claimed && !sheetUpdated) { try { await releaseQuotaApproval(match[1]); } catch {} }
@@ -101,5 +105,7 @@ async function finishApproval(interaction: any, match: RegExpMatchArray) {
   }
   return new Response(null, { status: 204 });
 }
+
 async function finishRejection(interaction: any, match: RegExpMatchArray) { if (!canReview(interaction)) return jsonResponse(ephemeral("Only Logistics or an approved tester can reject quota.")); if (String(interaction.channel_id) !== QUOTA_CHANNEL_ID) return jsonResponse(ephemeral("⚠️ Invalid quota review channel.")); const reason = String(modalValues(interaction).reason || "").trim(); if (!reason) return jsonResponse(ephemeral("A rejection reason is required.")); try { await interactionCallback(interaction, { type: 5, data: { flags: 64 } }); const requestId = match[1]; const signature = match[2].toLowerCase(); const messageId = match[3]; const state = await getQuotaRequestState(requestId); if (state !== "pending") return interactionFollowup(interaction, { content: `⚠️ This quota request is no longer pending (status: ${state || "not found"}).`, flags: 64 }); const original = await getAndValidateReviewMessage(messageId, requestId, signature); if (!original) return interactionFollowup(interaction, { content: "⚠️ This quota rejection request is invalid, outdated, or no longer pending.", flags: 64 }); if (!await markQuotaRejected(requestId)) return interactionFollowup(interaction, { content: "⚠️ This quota request is already being processed or has been completed.", flags: 64 }); const rejectedBy = interactionUserId(interaction); const rejectedByUsername = interactionDisplayName(interaction) || rejectedBy; const liveProgram = await getLiveProgram(original.request, STAFF_GUILD_ID); const effectiveRequest: QuotaRequest = { ...original.request, ...(liveProgram ? { program: liveProgram } : {}) }; await postRejectionLog(effectiveRequest, reason, rejectedBy, rejectedByUsername); await dmRejection(effectiveRequest.userId, reason, effectiveRequest.quota); await markReviewMessage(messageId, original.message, "Rejected", reason); await interactionFollowup(interaction, { content: liveProgram === "internship" ? `❌ ${effectiveRequest.quota} Internship Program minutes rejected.` : `❌ ${effectiveRequest.quota} minute quota rejected.`, flags: 64 }); } catch (error) { console.error("[quota] rejection failed", { interactionId: interaction.id, error }); try { await interactionFollowup(interaction, { content: `⚠️ Quota rejection failed: ${error instanceof Error ? error.message : "unknown error"}`, flags: 64 }); } catch {} } return new Response(null, { status: 204 }); }
+
 export async function handlePost(interaction: any) { if (interaction.type === 1) return jsonResponse({ type: 1 }); if (interaction.guild_id !== STAFF_GUILD_ID) return jsonResponse(ephemeral("This quota system is only available in the Staff Team server.")); if (interaction.type === 2 && interaction.data?.name === "botsecurity") return handleBotSecurity(interaction); if (interaction.type === 2 && interaction.data?.name === "quota-leaderboard") return handleLeaderboard(interaction); if (interaction.type === 2 && interaction.data?.name === "quota-submit") return handleSubmit(interaction); if (interaction.type === 3) return handleButton(interaction); if (interaction.type === 5) { const customId = String(interaction?.data?.custom_id || ""); const approval = customId.match(/^qac:([0-9a-f-]{36}):([0-9a-f]{24}):(\d+)$/i); if (approval) return finishApproval(interaction, approval); const rejection = customId.match(/^qrj:([0-9a-f-]{36}):([0-9a-f]{24}):(\d+)$/i); if (rejection) return finishRejection(interaction, rejection); } return jsonResponse(ephemeral("Unsupported quota interaction.")); }

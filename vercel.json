@@ -1,7 +1,13 @@
 {
   "rewrites": [{ "source": "/", "destination": "/live" }],
-  "crons": [{
-    "path": "/api/cron/cleanup-developer-media",
-    "schedule": "0 3 * * *"
-  }]
+  "crons": [
+    {
+      "path": "/api/cron/cleanup-developer-media",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/quota-reminders",
+      "schedule": "0 */4 * * *"
+    }
+  ]
 }

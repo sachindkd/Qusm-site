@@ -13,6 +13,7 @@ export function quotaSignature(request: QuotaRequest): string {
     proof: request.proof,
     proofName: request.proofName,
     notes: request.notes,
+    program: request.program,
   });
   return createHmac("sha256", quotaSecret()).update(payload).digest("hex").slice(0, 24);
 }

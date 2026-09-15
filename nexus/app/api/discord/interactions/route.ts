@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { verify } from '@noble/ed25519';
-import { assertAuthorized } from '../../../security/access';
-import { createDynamicPlan } from '../../../core/ai-runtime';
-import { executeCapability } from '../../../tools/executor';
+import { assertAuthorized } from '../../../../security/access';
+import { createDynamicPlan } from '../../../../core/ai-runtime';
+import { executeCapability } from '../../../../tools/executor';
 
 export const runtime = 'nodejs';
 

@@ -2,9 +2,6 @@ name: NEXUS Discord Worker
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - nexus-bootstrap
 
 permissions:
   actions: write

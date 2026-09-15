@@ -2,11 +2,11 @@ import WebSocket from 'ws';
 import { investigateAndRespond } from '../security/analysis';
 import { NEXUS_ALLOWED_GUILD_ID, isAuthorized } from '../security/access';
 import { sendMessage, member } from '../discord/rest';
-import { generateNexusReply } from '../core/ai-runtime';
+import { decideAgentTurn, createDynamicPlan, generateExecutionReport, generateNexusReply } from '../core/ai-runtime';
+import { executeCapability } from '../tools/executor';
 
 const GATEWAY = 'wss://gateway.discord.gg/?v=10&encoding=json';
 const WINDOW_MS = 30_000;
-const MAX_BUFFER = 150;
 type GatewayPayload = { op: number; d: any; s?: number; t?: string };
 
 export class NexusGatewayWorker {
@@ -64,24 +64,36 @@ export class NexusGatewayWorker {
       const authorId = String(message.author?.id || '');
       const content = String(message.content || '').trim();
       this.signals.push({ guildId, type: 'message_create', userId: authorId, channelId: message.channel_id, data: { contentLength: content.length }, at: now });
-
-      // NEXUS replies when a user directly mentions it: @NEXUS hello
+      if (authorId === this.botUserId) return;
       const mentioned = !!this.botUserId && Array.isArray(message.mentions) && message.mentions.some((u: any) => String(u?.id) === this.botUserId);
-      const mentionText = this.botUserId ? content.replace(new RegExp(`<@!?${this.botUserId}>`, 'g'), '').trim() : '';
-      if (mentioned && authorId !== this.botUserId && mentionText) {
-        try {
-          const user = await member(guildId, authorId) as any;
-          const roleIds = Array.isArray(user?.roles) ? user.roles.map(String) : [];
-          if (!isAuthorized({ guildId, userId: authorId, roleIds })) {
-            await sendMessage(guildId, String(message.channel_id), 'NEXUS access denied: you are not authorized to use NEXUS.');
-          } else {
-            const reply = await generateNexusReply(mentionText, guildId, authorId);
-            await sendMessage(guildId, String(message.channel_id), reply.slice(0, 1900));
-          }
-        } catch (error) {
-          console.error('[NEXUS mention]', error);
-          try { await sendMessage(guildId, String(message.channel_id), 'NEXUS could not process that request right now.'); } catch {}
+      if (!mentioned) return;
+      const mentionText = content.replace(new RegExp(`<@!?${this.botUserId}>`, 'g'), '').trim();
+      if (!mentionText) return;
+      try {
+        const user = await member(guildId, authorId) as any;
+        const roleIds = Array.isArray(user?.roles) ? user.roles.map(String) : [];
+        if (!isAuthorized({ guildId, userId: authorId, roleIds })) {
+          await sendMessage(guildId, String(message.channel_id), 'NEXUS access denied: you are not authorized to use NEXUS.');
+          return;
         }
+        const channelId = String(message.channel_id);
+        const decision = await decideAgentTurn(mentionText, guildId, authorId, channelId);
+        if (decision.mode === 'conversation') {
+          await sendMessage(guildId, channelId, String(decision.response || await generateNexusReply(mentionText, guildId, authorId, channelId)).slice(0, 1900));
+          return;
+        }
+        const goal = String(decision.goal);
+        const plan = await createDynamicPlan(goal, guildId, authorId, channelId);
+        const results: unknown[] = [];
+        for (const step of plan.steps.slice(0, 12)) {
+          const result = await executeCapability({ guildId, userId: authorId, channelId }, step.capability, { ...step.input, guildId, channelId });
+          results.push({ capability: step.capability, ok: result.ok, result: result.result, error: result.error });
+          if (!result.ok) break;
+        }
+        await sendMessage(guildId, channelId, (await generateExecutionReport(goal, guildId, authorId, plan, results)).slice(0, 1900));
+      } catch (error) {
+        console.error('[NEXUS agent]', error);
+        try { await sendMessage(guildId, String(message.channel_id), `NEXUS error: ${error instanceof Error ? error.message : 'request failed'}`); } catch {}
       }
     }
     if (type === 'GUILD_MEMBER_ADD') this.signals.push({ guildId, type: 'guild_member_add', userId: payload.d.user?.id, data: {}, at: now });

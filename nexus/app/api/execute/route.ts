@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { executeCapability } from '../../../tools/executor';
 import { DynamicExecutionPlan } from '../../../core/ai-plan';
+import { assertAuthorized } from '../../../security/access';
 
 export const runtime = 'nodejs';
+
+const MAX_PLAN_STEPS = 12;
 
 function authorized(req: Request) {
   const configured = process.env.NEXUS_CONTROL_KEY;
@@ -21,6 +24,16 @@ export async function POST(req: Request) {
     const plan = body.plan as DynamicExecutionPlan | undefined;
     if (!guildId || !plan || !Array.isArray(plan.steps)) {
       return NextResponse.json({ error: 'guildId and a dynamic execution plan are required.' }, { status: 400 });
+    }
+
+    // The control endpoint is still tenant-scoped even though it is server-to-server.
+    assertAuthorized({ guildId, roleIds: [process.env.NEXUS_ALLOWED_ROLE_ID || ''] });
+
+    if (plan.steps.length === 0) {
+      return NextResponse.json({ error: 'Execution plan contains no steps.' }, { status: 400 });
+    }
+    if (plan.steps.length > MAX_PLAN_STEPS) {
+      return NextResponse.json({ error: `Execution plan exceeds the ${MAX_PLAN_STEPS}-step safety bound.` }, { status: 400 });
     }
 
     const results = [];

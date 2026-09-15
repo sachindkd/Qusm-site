@@ -1,10 +1,12 @@
 import { chooseModelClass } from '../core';
 import { planningPrompt, DynamicExecutionPlan } from './ai-plan';
 
+const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
+
 function modelFor(goal: string) {
   return chooseModelClass(goal) === 'reasoning'
-    ? (process.env.NEXUS_AI_REASONING_MODEL || 'gemini-2.5-flash')
-    : (process.env.NEXUS_AI_ROUTINE_MODEL || 'gemini-2.5-flash');
+    ? (process.env.NEXUS_AI_REASONING_MODEL || DEFAULT_GEMINI_MODEL)
+    : (process.env.NEXUS_AI_ROUTINE_MODEL || DEFAULT_GEMINI_MODEL);
 }
 
 function parseJson(text: string): unknown {
@@ -16,18 +18,18 @@ async function generate(model: string, prompt: string): Promise<string> {
   const apiKey = process.env.NEXUS_GEMINI_API_KEY;
   if (!apiKey) throw new Error('NEXUS_GEMINI_API_KEY is not configured.');
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
       'x-goog-api-key': apiKey,
+      'Api-Revision': '2026-05-20',
     },
     body: JSON.stringify({
-      contents: [{
-        role: 'user',
-        parts: [{ text: prompt }],
-      }],
+      model,
+      input: prompt,
     }),
+    cache: 'no-store',
   });
 
   const raw = await response.text();
@@ -39,18 +41,24 @@ async function generate(model: string, prompt: string): Promise<string> {
   }
 
   if (!response.ok) {
-    const message = data?.error?.message || `Gemini API request failed with HTTP ${response.status}.`;
+    const message = data?.error?.message || data?.errors?.[0]?.message || `Gemini API request failed with HTTP ${response.status}.`;
     throw new Error(`Gemini API: ${message}`);
   }
 
-  const text = data?.candidates?.[0]?.content?.parts
-    ?.map((p: { text?: string }) => p.text || '')
-    .join('')
-    .trim() || '';
+  const text = Array.isArray(data?.steps)
+    ? data.steps
+        .filter((step: any) => step?.type === 'model_output')
+        .flatMap((step: any) => Array.isArray(step?.content) ? step.content : [])
+        .filter((part: any) => part?.type === 'text' && typeof part?.text === 'string')
+        .map((part: any) => part.text)
+        .join('')
+        .trim()
+    : '';
 
   if (!text) {
-    const reason = data?.candidates?.[0]?.finishReason;
-    throw new Error(`Gemini returned no text${reason ? ` (finish reason: ${reason})` : ''}.`);
+    const errorMessage = data?.errors?.[0]?.message;
+    if (errorMessage) throw new Error(`Gemini API: ${errorMessage}`);
+    throw new Error(`Gemini returned no text${data?.status ? ` (status: ${data.status})` : ''}.`);
   }
 
   return text;

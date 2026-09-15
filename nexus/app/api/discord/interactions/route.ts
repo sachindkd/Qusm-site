@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verify } from '@noble/ed25519';
+import { verifyAsync } from '@noble/ed25519';
 import { assertAuthorized } from '../../../../security/access';
 import { createDynamicPlan } from '../../../../core/ai-runtime';
 import { executeCapability } from '../../../../tools/executor';
@@ -34,17 +34,25 @@ export async function POST(req: Request) {
   const publicKey = process.env.NEXUS_DISCORD_PUBLIC_KEY;
   const applicationId = process.env.NEXUS_DISCORD_CLIENT_ID;
   if (!publicKey || !applicationId) return NextResponse.json({ error: 'NEXUS configuration error: Discord public key or application ID is missing.' }, { status: 503 });
-  const signature = req.headers.get('x-signature-ed25519'); const timestamp = req.headers.get('x-signature-timestamp');
+  const signature = req.headers.get('x-signature-ed25519');
+  const timestamp = req.headers.get('x-signature-timestamp');
   if (!signature || !timestamp) return NextResponse.json({ error: 'Discord error: missing interaction signature.' }, { status: 401 });
   const raw = await req.text();
-  try { if (!(await verify(signature, new TextEncoder().encode(timestamp + raw), publicKey))) return NextResponse.json({ error: 'Discord error: invalid interaction signature.' }, { status: 401 }); } catch { return NextResponse.json({ error: 'Discord error: signature verification failed.' }, { status: 401 }); }
+  try {
+    const valid = await verifyAsync(signature, new TextEncoder().encode(timestamp + raw), publicKey);
+    if (!valid) return NextResponse.json({ error: 'Discord error: invalid interaction signature.' }, { status: 401 });
+  } catch (error) {
+    console.error('NEXUS Discord signature verification failed:', error);
+    return NextResponse.json({ error: 'Discord error: signature verification failed.' }, { status: 401 });
+  }
 
   let body: any;
   try { body = JSON.parse(raw); } catch { return NextResponse.json({ error: 'NEXUS error: invalid Discord JSON payload.' }, { status: 400 }); }
   if (body.type === 1) return NextResponse.json({ type: 1 });
   if (body.type !== 2) return NextResponse.json({ type: 4, data: { content: 'NEXUS error: unsupported Discord interaction type.' } });
 
-  const guildId = String(body.guild_id || ''); const userId = String(body.member?.user?.id || body.user?.id || '');
+  const guildId = String(body.guild_id || '');
+  const userId = String(body.member?.user?.id || body.user?.id || '');
   const roleIds = Array.isArray(body.member?.roles) ? body.member.roles.map(String) : [];
   try { assertAuthorized({ guildId, userId, roleIds }); } catch (error) { return NextResponse.json({ type: 4, data: { content: errorLabel(error) } }); }
 

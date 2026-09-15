@@ -3,7 +3,7 @@ import { planningPrompt, DynamicExecutionPlan } from './ai-plan';
 
 function modelFor(goal: string) {
   return chooseModelClass(goal) === 'reasoning'
-    ? (process.env.NEXUS_AI_REASONING_MODEL || 'gemini-2.5-pro')
+    ? (process.env.NEXUS_AI_REASONING_MODEL || 'gemini-2.5-flash')
     : (process.env.NEXUS_AI_ROUTINE_MODEL || 'gemini-2.5-flash');
 }
 

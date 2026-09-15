@@ -46,14 +46,27 @@ function safeError(error: unknown): string { return error instanceof Error ? err
 async function groq(messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>): Promise<string> {
   const apiKey = process.env.NEXUS_GROQ_API_KEY;
   if (!apiKey) throw new Error('Configuration error: NEXUS_GROQ_API_KEY is not configured.');
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: process.env.NEXUS_AI_MODEL || 'openai/gpt-oss-120b', messages, temperature: 0.2 }), cache: 'no-store' });
-  const raw = await response.text();
-  let data: any = null;
-  try { data = raw ? JSON.parse(raw) : null; } catch { throw new Error(`Groq error: non-JSON response (HTTP ${response.status}).`); }
-  if (!response.ok) throw new Error(`Groq error: ${data?.error?.message || `HTTP ${response.status}`}`);
-  const text = data?.choices?.[0]?.message?.content?.trim();
-  if (!text) throw new Error('Groq error: empty response.');
-  return text;
+  const compact = messages.map((m) => ({ ...m, content: m.content.length > 18000 ? `${m.content.slice(0, 18000)}\n[context truncated]` : m.content }));
+  const body = { model: process.env.NEXUS_AI_MODEL || 'openai/gpt-oss-120b', messages: compact, temperature: 0.2, max_tokens: 1400 };
+  let lastError = '';
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, body: JSON.stringify(body), cache: 'no-store' });
+    const raw = await response.text();
+    let data: any = null;
+    try { data = raw ? JSON.parse(raw) : null; } catch { throw new Error(`Groq error: non-JSON response (HTTP ${response.status}).`); }
+    if (response.ok) {
+      const text = data?.choices?.[0]?.message?.content?.trim();
+      if (!text) throw new Error('Groq error: empty response.');
+      return text;
+    }
+    lastError = String(data?.error?.message || `HTTP ${response.status}`);
+    const limited = response.status === 429 || /rate limit|tokens per minute|TPM/i.test(lastError);
+    if (!limited || attempt === 2) break;
+    const match = lastError.match(/try again in\s+([0-9.]+)s/i);
+    const waitMs = Math.min(30000, Math.max(1000, Math.ceil(Number(match?.[1] || 2) * 1000)));
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+  }
+  throw new Error(`Groq error: ${lastError}`);
 }
 async function channelContext(channelId?: string) {
   if (!channelId) return '(no channel context)';
@@ -217,14 +230,24 @@ function resolvePath(results: any[], path: string) {
 }
 async function reportExecution(goal: string, context: NexusContext, plan: DynamicExecutionPlan, results: unknown[], s: MemoryState) {
   const statePayload = { guildId: context.guildId, status: s.status || 'failed', objective: goal, nextStepIndex: s.nextStepIndex ?? 0, plan, results, failure: s.failure || null };
-  let report: string;
+  const successful = results.filter((r: any) => r?.ok === true && !String(r?.stepId || '').includes(':plan-verification')).length;
+  const total = plan.steps.length;
+  const failed = results.find((r: any) => r?.ok === false);
   try {
-    report = await groq([
-      { role: 'system', content: 'You are NEXUS reporting actual execution. Use only supplied results. Never claim success without ok=true and verified mutations. Clearly state whether execution completed, failed, or is paused. Always include exact progress such as “Execution stopped after Step X of Y; next step is Z” when not complete. Summarize objective, completed work, useful findings, verification, issues, deliberate non-changes, manual/external requirements, and security notes. Keep under 1800 characters for Discord. Do not mention internal state markers.' },
-      { role: 'user', content: `Objective: ${goal}\nPlan: ${JSON.stringify(plan)}\nResults: ${JSON.stringify(results)}\nStatus: ${s.status}\nNext step index: ${s.nextStepIndex}\nFailure: ${JSON.stringify(s.failure || null)}\nGuild: ${context.guildId}` },
+    const compactResults = JSON.stringify(results).slice(0, 12000);
+    return await groq([
+      { role: 'system', content: 'You are NEXUS. Produce a concise execution report from supplied evidence only. Never invent success. State completed steps, failed/pending steps, and verification status. Return plain Discord-friendly text.' },
+      { role: 'user', content: `Objective: ${goal}\nStatus: ${s.status}\nProgress: ${successful}/${total}\nFailure: ${failed ? JSON.stringify(failed).slice(0, 2500) : 'none'}\nResults: ${compactResults}` },
     ]);
   } catch (error) {
-    report = `NEXUS execution ${s.status || 'failed'}. ${s.failure?.message || safeError(error)}\nCompleted steps: ${(results as any[]).filter((r) => r?.ok === true).length}/${plan.steps.length}.`;
+    const reason = safeError(error);
+    return [
+      `NEXUS execution ${s.status === 'completed' ? 'completed' : 'stopped'}.`,
+      `Progress: ${successful}/${total} steps succeeded.`,
+      failed ? `Failed step: ${String((failed as any).stepId || 'unknown')}. ${String((failed as any).error || 'Execution failed.')}` : '',
+      s.status !== 'completed' ? `Next step: ${s.nextStepIndex ?? 0}.` : '',
+      `NEXUS_EXECUTION_STATE: ${JSON.stringify(statePayload)}`,
+      `Report generation warning: ${reason}`,
+    ].filter(Boolean).join('\n');
   }
-  return `${report.trim()}\n\n${STATE_MARKER} ${JSON.stringify(statePayload)}`;
 }

@@ -15,14 +15,45 @@ function parseJson(text: string): unknown {
 async function generate(model: string, prompt: string): Promise<string> {
   const apiKey = process.env.NEXUS_GEMINI_API_KEY;
   if (!apiKey) throw new Error('NEXUS_GEMINI_API_KEY is not configured.');
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] }),
+    headers: {
+      'content-type': 'application/json',
+      'x-goog-api-key': apiKey,
+    },
+    body: JSON.stringify({
+      contents: [{
+        role: 'user',
+        parts: [{ text: prompt }],
+      }],
+    }),
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data?.error?.message || 'AI provider request failed.');
-  return data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || '').join('').trim() || '';
+
+  const raw = await response.text();
+  let data: any = null;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch {
+    throw new Error(`Gemini returned a non-JSON response (HTTP ${response.status}).`);
+  }
+
+  if (!response.ok) {
+    const message = data?.error?.message || `Gemini API request failed with HTTP ${response.status}.`;
+    throw new Error(`Gemini API: ${message}`);
+  }
+
+  const text = data?.candidates?.[0]?.content?.parts
+    ?.map((p: { text?: string }) => p.text || '')
+    .join('')
+    .trim() || '';
+
+  if (!text) {
+    const reason = data?.candidates?.[0]?.finishReason;
+    throw new Error(`Gemini returned no text${reason ? ` (finish reason: ${reason})` : ''}.`);
+  }
+
+  return text;
 }
 
 export async function generateNexusReply(message: string, guildId: string, userId: string): Promise<string> {

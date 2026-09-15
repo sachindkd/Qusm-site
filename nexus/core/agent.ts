@@ -36,32 +36,17 @@ function remember(c: NexusContext, role: 'user' | 'assistant', content: string) 
 }
 function history(c: NexusContext) {
   const s = state(c);
-  return {
-    messages: s.messages,
-    objective: s.objective,
-    plan: s.plan,
-    results: s.results,
-    status: s.status,
-    nextStepIndex: s.nextStepIndex,
-    failure: s.failure,
-  };
+  return { messages: s.messages, objective: s.objective, plan: s.plan, results: s.results, status: s.status, nextStepIndex: s.nextStepIndex, failure: s.failure };
 }
 function parseJson(text: string): any {
   const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
   try { return JSON.parse(cleaned); } catch { return null; }
 }
-function safeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error || 'Unknown execution error');
-}
+function safeError(error: unknown): string { return error instanceof Error ? error.message : String(error || 'Unknown execution error'); }
 async function groq(messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>): Promise<string> {
   const apiKey = process.env.NEXUS_GROQ_API_KEY;
   if (!apiKey) throw new Error('Configuration error: NEXUS_GROQ_API_KEY is not configured.');
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: process.env.NEXUS_AI_MODEL || 'openai/gpt-oss-120b', messages, temperature: 0.2 }),
-    cache: 'no-store',
-  });
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: process.env.NEXUS_AI_MODEL || 'openai/gpt-oss-120b', messages, temperature: 0.2 }), cache: 'no-store' });
   const raw = await response.text();
   let data: any = null;
   try { data = raw ? JSON.parse(raw) : null; } catch { throw new Error(`Groq error: non-JSON response (HTTP ${response.status}).`); }
@@ -75,46 +60,31 @@ async function channelContext(channelId?: string) {
   try {
     const { messages } = await import('../discord/rest');
     const rows = await messages(channelId, 50);
-    return Array.isArray(rows)
-      ? rows.reverse().map((m: any) => `${m?.author?.global_name || m?.author?.username || m?.author?.id || 'user'}: ${m?.content || ''}`).filter(Boolean).join('\n').slice(-16000)
-      : '(no channel context)';
-  } catch {
-    return '(channel context unavailable)';
-  }
+    return Array.isArray(rows) ? rows.reverse().map((m: any) => `${m?.author?.global_name || m?.author?.username || m?.author?.id || 'user'}: ${m?.content || ''}`).filter(Boolean).join('\n').slice(-16000) : '(no channel context)';
+  } catch { return '(channel context unavailable)'; }
 }
-function containsMutation(plan: DynamicExecutionPlan) {
-  return plan.steps.some((s) => ['change', 'destructive'].includes(getCapabilityCatalog().find((c) => c.name === s.capability)?.risk || 'read'));
+function containsMutation(plan: DynamicExecutionPlan) { return plan.steps.some((s) => ['change', 'destructive'].includes(getCapabilityCatalog().find((c) => c.name === s.capability)?.risk || 'read')); }
+function executionStateForPrompt(s: MemoryState): string { return JSON.stringify({ objective: s.objective, status: s.status, nextStepIndex: s.nextStepIndex, plan: s.plan, completedResults: s.results, failure: s.failure }); }
+function extractPersistedState(text: string): any | null {
+  const matches = [...text.matchAll(/NEXUS_EXECUTION_STATE:\s*(\{[^\n]+\})/g)];
+  if (!matches.length) return null;
+  const candidate = matches[matches.length - 1]?.[1];
+  if (!candidate) return null;
+  const parsed = parseJson(candidate);
+  return parsed && typeof parsed === 'object' ? parsed : null;
 }
-function executionStateForPrompt(s: MemoryState): string {
-  return JSON.stringify({
-    objective: s.objective,
-    status: s.status,
-    nextStepIndex: s.nextStepIndex,
-    plan: s.plan,
-    completedResults: s.results,
-    failure: s.failure,
-  });
-}
-function extractPersistedState(text: string): Partial<MemoryState> | null {
-  const markerIndex = text.lastIndexOf(STATE_MARKER);
-  if (markerIndex < 0) return null;
-  const raw = text.slice(markerIndex + STATE_MARKER.length).trim().split('\n')[0].trim();
-  const parsed = parseJson(raw);
-  if (!parsed || typeof parsed !== 'object') return null;
-  return parsed;
-}
-function hydrateFromDiscord(c: NexusContext, contextText: string) {
-  const s = state(c);
-  const persisted = extractPersistedState(contextText);
-  if (!persisted || persisted.guildId && persisted.guildId !== c.guildId) return;
-  if (persisted.objective && !s.objective) s.objective = String(persisted.objective);
+function mergePersistedState(s: MemoryState, persisted: any, guildId: string) {
+  if (!persisted || persisted.guildId !== guildId) return;
+  if (persisted.objective && (!s.objective || !s.plan)) s.objective = String(persisted.objective);
   if (persisted.plan && !s.plan) s.plan = persisted.plan as DynamicExecutionPlan;
-  if (Array.isArray(persisted.results) && !s.results?.length) s.results = persisted.results;
+  if (Array.isArray(persisted.results) && (!s.results || s.results.length < persisted.results.length)) s.results = persisted.results;
   if (persisted.status) s.status = persisted.status as ExecutionStatus;
   if (Number.isInteger(persisted.nextStepIndex)) s.nextStepIndex = Number(persisted.nextStepIndex);
   if (persisted.failure && typeof persisted.failure === 'object') s.failure = persisted.failure as MemoryState['failure'];
 }
-
+function hydrateFromDiscord(c: NexusContext, contextText: string) {
+  mergePersistedState(state(c), extractPersistedState(contextText), c.guildId);
+}
 export async function decide(message: string, context: NexusContext) {
   const recentChannel = await channelContext(context.channelId);
   hydrateFromDiscord(context, recentChannel);
@@ -137,52 +107,39 @@ export async function decide(message: string, context: NexusContext) {
   if (parsed.mode === 'execute' && !String(parsed.goal || '').trim()) return { mode: 'conversation' as const, response: String(parsed.response || 'Tell me what you want me to do.') };
   return parsed as { mode: 'conversation' | 'execute'; response?: string; goal?: string };
 }
-
 export async function converse(message: string, context: NexusContext) {
   const recentChannel = await channelContext(context.channelId);
   hydrateFromDiscord(context, recentChannel);
-  const text = await groq([{
-    role: 'system',
-    content: 'You are NEXUS. Be natural, concise, and honest. Use supplied context to answer follow-ups. Never claim an action happened unless execution results prove it. If an execution is paused or failed, state that clearly and explain what remains.',
-  }, {
-    role: 'user',
-    content: `Guild: ${context.guildId}\nMemory: ${JSON.stringify(history(context))}\nDiscord context:\n${recentChannel}\nMessage: ${message}`,
-  }]);
-  remember(context, 'user', message);
-  remember(context, 'assistant', text);
-  return text;
+  const text = await groq([
+    { role: 'system', content: 'You are NEXUS. Be natural, concise, and honest. Use supplied context to answer follow-ups. Never claim an action happened unless execution results prove it. If an execution is paused or failed, state that clearly and explain what remains.' },
+    { role: 'user', content: `Guild: ${context.guildId}\nMemory: ${JSON.stringify(history(context))}\nDiscord context:\n${recentChannel}\nMessage: ${message}` },
+  ]);
+  remember(context, 'user', message); remember(context, 'assistant', text); return text;
 }
-
 function mergeExecutionResults(previous: any[] | undefined, current: any[]): any[] {
-  if (!previous?.length) return current;
   const byStep = new Map<string, any>();
-  for (const item of previous) if (item?.stepId) byStep.set(String(item.stepId), item);
-  for (const item of current) if (item?.stepId) byStep.set(String(item.stepId), item);
+  for (const item of previous || []) if (item?.stepId) byStep.set(String(item.stepId), item);
+  for (const item of current || []) if (item?.stepId) byStep.set(String(item.stepId), item);
   return [...byStep.values()];
 }
-
+function isSameObjective(a: string | undefined, b: string): boolean {
+  return Boolean(a && b && a.trim().toLowerCase() === b.trim().toLowerCase());
+}
+function wantsContinuation(message: string): boolean {
+  return /\b(continue|resume|retry|finish|proceed|carry on|keep going)\b/i.test(message);
+}
 export async function runAgentTurn(message: string, context: NexusContext, forcedGoal?: string): Promise<AgentTurnResult> {
   if (context.guildId !== NEXUS_ALLOWED_GUILD_ID) throw new Error('Authorization error: NEXUS is disabled outside the authorized guild.');
-
   const recentChannel = await channelContext(context.channelId);
   hydrateFromDiscord(context, recentChannel);
   const s = state(context);
   const decision = forcedGoal ? { mode: 'execute' as const, goal: forcedGoal } : await decide(message, context);
   if (decision.mode === 'conversation') return { mode: 'conversation', response: await converse(message, context) };
-
   const requestedGoal = String(decision.goal || message).trim();
-  const canResume = Boolean(s.plan && s.objective && ['paused', 'failed', 'running'].includes(s.status || '') && (s.nextStepIndex || 0) < s.plan.steps.length);
-  const sameObjective = canResume && String(s.objective).trim() === requestedGoal.trim();
+  const resumable = Boolean(s.plan && s.objective && ['paused', 'failed', 'running'].includes(s.status || '') && (s.nextStepIndex || 0) < s.plan.steps.length);
+  const sameObjective = resumable && (isSameObjective(s.objective, requestedGoal) || wantsContinuation(message));
   const goal = sameObjective ? String(s.objective) : requestedGoal;
-
-  if (!sameObjective) {
-    s.objective = goal;
-    s.plan = undefined;
-    s.results = [];
-    s.failure = undefined;
-    s.nextStepIndex = 0;
-    s.status = 'planned';
-  }
+  if (!sameObjective) { s.objective = goal; s.plan = undefined; s.results = []; s.failure = undefined; s.nextStepIndex = 0; s.status = 'planned'; }
 
   const { createDynamicPlan } = await import('./ai-runtime');
   let plan = s.plan;
@@ -191,69 +148,41 @@ export async function runAgentTurn(message: string, context: NexusContext, force
     if (plan.steps.length > MAX_STEPS) plan.steps = plan.steps.slice(0, MAX_STEPS);
     s.plan = plan;
   }
-
-  s.status = 'running';
-  s.failure = undefined;
-  const results: any[] = mergeExecutionResults(s.results, []);
+  s.status = 'running'; s.failure = undefined;
+  const results = mergeExecutionResults(s.results, []);
   const completed = new Set(results.filter((r) => r?.ok === true && !String(r.stepId).includes(':plan-verification')).map((r) => String(r.stepId)));
   let startIndex = Math.max(0, Number.isInteger(s.nextStepIndex) ? Number(s.nextStepIndex) : 0);
   while (startIndex < plan.steps.length && completed.has(plan.steps[startIndex].id)) startIndex += 1;
   s.nextStepIndex = startIndex;
-
   try {
     if (containsMutation(plan) && !plan.steps.some((x) => x.capability === 'inspect_server') && !results.some((x) => x?.stepId === '__safety_inspection')) {
       const inspection = await inspectServerForRuntime(context.guildId);
       results.push({ stepId: '__safety_inspection', capability: 'inspect_server', ok: true, result: inspection, automatic: true });
       s.results = mergeExecutionResults(s.results, results);
     }
-
     for (let index = startIndex; index < plan.steps.length; index += 1) {
       const step = plan.steps[index];
       s.nextStepIndex = index;
       s.results = mergeExecutionResults(s.results, results);
       const input = resolveReferences(step.input, results);
       let result: any;
-      try {
-        result = await executeAndVerify(context, step.capability, { ...input, guildId: context.guildId, channelId: context.channelId });
-      } catch (error) {
-        const messageText = safeError(error);
-        result = { ok: false, result: null, error: messageText };
-      }
-
+      try { result = await executeAndVerify(context, step.capability, { ...input, guildId: context.guildId, channelId: context.channelId }); }
+      catch (error) { result = { ok: false, result: null, error: safeError(error) }; }
       const row = { stepId: step.id, capability: step.capability, purpose: step.purpose, ok: result.ok, result: result.result, verification: result.verification, error: result.error };
-      const merged = mergeExecutionResults(results, [row]);
-      results.splice(0, results.length, ...merged);
-      s.results = merged;
+      results.splice(0, results.length, ...mergeExecutionResults(results, [row]));
+      s.results = results.slice();
       s.nextStepIndex = index + (result.ok && !(result.verification && !result.verification.ok) ? 1 : 0);
-
       if (!result.ok || result.verification && !result.verification.ok) {
         s.status = 'failed';
         s.failure = { stepId: step.id, message: String(result.error || result.verification?.error || 'Step failed or verification failed.') };
         break;
       }
-
       if (step.verification) {
         let verification: any;
-        try {
-          verification = await executeAndVerify(context, step.verification.capability, {
-            ...resolveReferences(step.verification.input, results),
-            guildId: context.guildId,
-            channelId: context.channelId,
-          });
-        } catch (error) {
-          verification = { ok: false, result: null, error: safeError(error) };
-        }
-        const verificationRow = {
-          stepId: `${step.id}:plan-verification`,
-          capability: step.verification.capability,
-          verification: true,
-          ok: verification.ok,
-          result: verification.result,
-          error: verification.error,
-        };
-        const verifiedMerged = mergeExecutionResults(results, [verificationRow]);
-        results.splice(0, results.length, ...verifiedMerged);
-        s.results = verifiedMerged;
+        try { verification = await executeAndVerify(context, step.verification.capability, { ...resolveReferences(step.verification.input, results), guildId: context.guildId, channelId: context.channelId }); }
+        catch (error) { verification = { ok: false, result: null, error: safeError(error) }; }
+        results.splice(0, results.length, ...mergeExecutionResults(results, [{ stepId: `${step.id}:plan-verification`, capability: step.verification.capability, verification: true, ok: verification.ok, result: verification.result, error: verification.error }]));
+        s.results = results.slice();
         if (!verification.ok) {
           s.nextStepIndex = index;
           s.status = 'failed';
@@ -261,30 +190,20 @@ export async function runAgentTurn(message: string, context: NexusContext, force
           break;
         }
       }
-
       s.nextStepIndex = index + 1;
-      s.results = mergeExecutionResults(s.results, results);
+      s.results = results.slice();
     }
-
-    if ((s.nextStepIndex || 0) >= plan.steps.length) {
-      s.status = 'completed';
-      s.nextStepIndex = plan.steps.length;
-    } else if (s.status !== 'failed') {
-      s.status = 'paused';
-    }
+    if ((s.nextStepIndex || 0) >= plan.steps.length) { s.status = 'completed'; s.nextStepIndex = plan.steps.length; }
+    else if (s.status !== 'failed') s.status = 'paused';
   } catch (error) {
     s.status = 'failed';
     s.failure = { stepId: plan.steps[s.nextStepIndex || 0]?.id || 'runtime', message: safeError(error) };
   }
-
-  s.plan = plan;
-  s.results = mergeExecutionResults(s.results, results);
+  s.plan = plan; s.results = mergeExecutionResults(s.results, results);
   const report = await reportExecution(goal, context, plan, s.results, s);
-  remember(context, 'user', message);
-  remember(context, 'assistant', report);
+  remember(context, 'user', message); remember(context, 'assistant', report);
   return { mode: 'execute', response: report, plan, results: s.results };
 }
-
 function resolveReferences(value: unknown, results: any[]): any {
   if (typeof value === 'string') return value.replace(/\{\{([^}]+)\}\}/g, (_, path) => String(resolvePath(results, String(path)) ?? ''));
   if (Array.isArray(value)) return value.map((v) => resolveReferences(v, results));
@@ -292,35 +211,18 @@ function resolveReferences(value: unknown, results: any[]): any {
   return value;
 }
 function resolvePath(results: any[], path: string) {
-  const [stepId, ...parts] = path.split('.');
-  const item = results.find((r) => r?.stepId === stepId);
-  let current: any = item;
-  for (const part of parts) {
-    if (current == null) return undefined;
-    current = current[part];
-  }
+  const [stepId, ...parts] = path.split('.'); const item = results.find((r) => r?.stepId === stepId); let current: any = item;
+  for (const part of parts) { if (current == null) return undefined; current = current[part]; }
   return current;
 }
-
 async function reportExecution(goal: string, context: NexusContext, plan: DynamicExecutionPlan, results: unknown[], s: MemoryState) {
-  const statePayload = {
-    guildId: context.guildId,
-    status: s.status || 'failed',
-    objective: goal,
-    nextStepIndex: s.nextStepIndex ?? 0,
-    plan,
-    results,
-    failure: s.failure || null,
-  };
+  const statePayload = { guildId: context.guildId, status: s.status || 'failed', objective: goal, nextStepIndex: s.nextStepIndex ?? 0, plan, results, failure: s.failure || null };
   let report: string;
   try {
-    report = await groq([{
-      role: 'system',
-      content: 'You are NEXUS reporting actual execution. Use only supplied results. Never claim success without ok=true and verified mutations. Clearly state whether execution completed, failed, or is paused. Always include exact progress such as “Execution stopped after Step X of Y; next step is Z” when not complete. Summarize objective, plan, completed work, useful findings, verification, issues, deliberate non-changes, manual/external requirements, and security notes. Keep under 1800 characters for Discord. Do not mention internal state markers.',
-    }, {
-      role: 'user',
-      content: `Objective: ${goal}\nPlan: ${JSON.stringify(plan)}\nResults: ${JSON.stringify(results)}\nStatus: ${s.status}\nNext step index: ${s.nextStepIndex}\nFailure: ${JSON.stringify(s.failure || null)}\nGuild: ${context.guildId}`,
-    }]);
+    report = await groq([
+      { role: 'system', content: 'You are NEXUS reporting actual execution. Use only supplied results. Never claim success without ok=true and verified mutations. Clearly state whether execution completed, failed, or is paused. Always include exact progress such as “Execution stopped after Step X of Y; next step is Z” when not complete. Summarize objective, completed work, useful findings, verification, issues, deliberate non-changes, manual/external requirements, and security notes. Keep under 1800 characters for Discord. Do not mention internal state markers.' },
+      { role: 'user', content: `Objective: ${goal}\nPlan: ${JSON.stringify(plan)}\nResults: ${JSON.stringify(results)}\nStatus: ${s.status}\nNext step index: ${s.nextStepIndex}\nFailure: ${JSON.stringify(s.failure || null)}\nGuild: ${context.guildId}` },
+    ]);
   } catch (error) {
     report = `NEXUS execution ${s.status || 'failed'}. ${s.failure?.message || safeError(error)}\nCompleted steps: ${(results as any[]).filter((r) => r?.ok === true).length}/${plan.steps.length}.`;
   }

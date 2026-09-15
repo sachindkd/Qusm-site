@@ -1,15 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { verifyAsync } from '@noble/ed25519';
 import { assertAuthorized } from '../../../../security/access';
 import { createDynamicPlan } from '../../../../core/ai-runtime';
 import { executeCapability } from '../../../../tools/executor';
 
 export const runtime = 'nodejs';
-
-async function interactionCallback(applicationId: string, token: string, body: unknown) {
-  const response = await fetch(`https://discord.com/api/v10/interactions/${applicationId}/${token}/callback`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-  if (!response.ok) throw new Error(`Discord callback error: HTTP ${response.status}`);
-}
 
 async function followup(applicationId: string, token: string, content: string) {
   const response = await fetch(`https://discord.com/api/v10/webhooks/${applicationId}/${token}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content: content.slice(0, 1900) }) });
@@ -30,13 +25,35 @@ function summarize(results: Array<{ capability: string; ok: boolean; error?: str
   return `**NEXUS execution complete**\n${succeeded}/${results.length} steps succeeded.${failed.length ? `\nFailed: ${failed.map(r => `${r.capability}: ${errorLabel(r.error || 'Unknown execution error')}`).join('; ')}` : ''}`;
 }
 
+async function runObjective(applicationId: string, token: string, goal: string, guildId: string, userId: string) {
+  try {
+    const plan = await createDynamicPlan(goal, guildId);
+    const results: Array<{ capability: string; ok: boolean; error?: string }> = [];
+    for (const step of plan.steps.slice(0, 12)) {
+      try {
+        const result = await executeCapability({ guildId, userId }, step.capability, { ...step.input, guildId });
+        results.push({ capability: step.capability, ok: result.ok, error: result.error });
+        if (!result.ok) break;
+      } catch (error) {
+        results.push({ capability: step.capability, ok: false, error: errorLabel(error) });
+        break;
+      }
+    }
+    await followup(applicationId, token, `${summarize(results)}\nModel: ${plan.modelClass}.`);
+  } catch (error) {
+    try { await followup(applicationId, token, errorLabel(error)); } catch (followupError) { console.error('NEXUS follow-up failed:', followupError); }
+  }
+}
+
 export async function POST(req: Request) {
   const publicKey = process.env.NEXUS_DISCORD_PUBLIC_KEY;
   const applicationId = process.env.NEXUS_DISCORD_CLIENT_ID;
   if (!publicKey || !applicationId) return NextResponse.json({ error: 'NEXUS configuration error: Discord public key or application ID is missing.' }, { status: 503 });
+
   const signature = req.headers.get('x-signature-ed25519');
   const timestamp = req.headers.get('x-signature-timestamp');
   if (!signature || !timestamp) return NextResponse.json({ error: 'Discord error: missing interaction signature.' }, { status: 401 });
+
   const raw = await req.text();
   try {
     const valid = await verifyAsync(signature, new TextEncoder().encode(timestamp + raw), publicKey);
@@ -60,24 +77,12 @@ export async function POST(req: Request) {
   const goal = String(body.data?.options?.find((x: { name: string }) => x.name === 'goal')?.value || '').trim();
   if (!goal) return NextResponse.json({ type: 4, data: { content: 'NEXUS error: give me an objective to work on.' } });
 
-  try {
-    await interactionCallback(applicationId, body.token, { type: 5, data: { content: 'NEXUS is planning and executing the objective…' } });
-    const plan = await createDynamicPlan(goal, guildId);
-    const results: Array<{ capability: string; ok: boolean; error?: string }> = [];
-    for (const step of plan.steps.slice(0, 12)) {
-      try {
-        const result = await executeCapability({ guildId, userId }, step.capability, { ...step.input, guildId });
-        results.push({ capability: step.capability, ok: result.ok, error: result.error });
-        if (!result.ok) break;
-      } catch (error) {
-        results.push({ capability: step.capability, ok: false, error: errorLabel(error) });
-        break;
-      }
-    }
-    await followup(applicationId, body.token, `${summarize(results)}\nModel: ${plan.modelClass}.`);
-    return new Response(null, { status: 200 });
-  } catch (error) {
-    try { await followup(applicationId, body.token, errorLabel(error)); } catch {}
-    return new Response(null, { status: 200 });
-  }
+  const token = String(body.token || '');
+  if (!token) return NextResponse.json({ type: 4, data: { content: 'NEXUS error: Discord interaction token is missing.' } });
+
+  // A Discord interaction must receive its initial response within 3 seconds.
+  // Return the deferred response directly; AI planning and tool execution run
+  // in Next.js after() so the acknowledgement cannot be delayed by Gemini/API calls.
+  after(async () => runObjective(applicationId, token, goal, guildId, userId));
+  return NextResponse.json({ type: 5, data: { content: 'NEXUS is planning and executing the objective…' } });
 }

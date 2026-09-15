@@ -3,6 +3,7 @@ import * as discord from '../discord/rest';
 
 const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b';
 const MAX_CONVERSATION_MESSAGES = 20;
+const MAX_PLAN_STEPS = 12;
 type ConversationMessage = { role: 'user' | 'assistant'; content: string };
 const conversations = new Map<string, ConversationMessage[]>();
 
@@ -11,12 +12,50 @@ function key(guildId: string, userId: string): string { return `${guildId}:${use
 function history(guildId: string, userId: string): ConversationMessage[] { return conversations.get(key(guildId, userId)) || []; }
 function remember(guildId: string, userId: string, role: 'user' | 'assistant', content: string) { conversations.set(key(guildId, userId), [...history(guildId, userId), { role, content }].slice(-MAX_CONVERSATION_MESSAGES)); }
 function historyText(items: ConversationMessage[]): string { return items.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n'); }
-function parseJson(text: string): any { const cleaned = text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim(); try { return JSON.parse(cleaned); } catch { return null; } }
 
-async function generate(prompt: string): Promise<string> {
+function parseJson(text: string): any {
+  const cleaned = text
+    .replace(/^\s*```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim();
+  try { return JSON.parse(cleaned); } catch { /* continue with fenced/prose recovery */ }
+
+  const starts = [...cleaned].map((c, i) => c === '{' ? i : -1).filter((i) => i >= 0);
+  for (const start of starts) {
+    let depth = 0;
+    let quoted = false;
+    let escaped = false;
+    for (let i = start; i < cleaned.length; i += 1) {
+      const c = cleaned[i];
+      if (quoted) {
+        if (escaped) escaped = false;
+        else if (c === '\\') escaped = true;
+        else if (c === '"') quoted = false;
+        continue;
+      }
+      if (c === '"') { quoted = true; continue; }
+      if (c === '{') depth += 1;
+      else if (c === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          try { return JSON.parse(cleaned.slice(start, i + 1)); } catch { break; }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+async function generate(prompt: string, options: { json?: boolean } = {}): Promise<string> {
   const apiKey = process.env.NEXUS_GROQ_API_KEY;
   if (!apiKey) throw new Error('NEXUS_GROQ_API_KEY is not configured.');
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: modelFor(), messages: [{ role: 'user', content: prompt }], temperature: 0.2 }), cache: 'no-store' });
+  const body: Record<string, unknown> = {
+    model: modelFor(),
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.2,
+  };
+  if (options.json) body.response_format = { type: 'json_object' };
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, body: JSON.stringify(body), cache: 'no-store' });
   const raw = await response.text(); let data: any = null;
   try { data = raw ? JSON.parse(raw) : null; } catch { throw new Error(`Groq returned a non-JSON response (HTTP ${response.status}).`); }
   if (!response.ok) throw new Error(`Groq API: ${data?.error?.message || `request failed with HTTP ${response.status}`}`);
@@ -37,7 +76,7 @@ export async function generateNexusReply(message: string, guildId: string, userI
 export type AgentDecision = { mode: 'conversation' | 'execute'; response?: string; goal?: string };
 export async function decideAgentTurn(message: string, guildId: string, userId: string, channelId: string = ''): Promise<AgentDecision> {
   const prior = history(guildId, userId); const channelContext = await discordHistory(channelId);
-  const raw = await generate(['You are the decision layer of NEXUS.', 'Decide whether the message is conversation or asks NEXUS to perform an objective.', 'Resolve references from context. For an objective, return a concise self-contained goal. Do not perform actions here.', 'Return ONLY JSON: {"mode":"conversation"|"execute","response":"string?","goal":"string?"}', `Guild: ${guildId}`, `User: ${userId}`, `Recent context:\n${historyText(prior) || '(none)'}`, `Channel context:\n${channelContext || '(none)'}`, `Message: ${message}`].join('\n\n'));
+  const raw = await generate(['You are the decision layer of NEXUS.', 'Decide whether the message is conversation or asks NEXUS to perform an objective.', 'Resolve references from context. For an objective, return a concise self-contained goal. Do not perform actions here.', 'Return ONLY JSON: {"mode":"conversation"|"execute","response":"string?","goal":"string?"}', `Guild: ${guildId}`, `User: ${userId}`, `Recent context:\n${historyText(prior) || '(none)'}`, `Channel context:\n${channelContext || '(none)'}`, `Message: ${message}`].join('\n\n'), { json: true });
   const parsed = parseJson(raw) as AgentDecision | null;
   if (!parsed || !['conversation', 'execute'].includes(parsed.mode)) return { mode: 'conversation', response: raw };
   if (parsed.mode === 'execute' && !String(parsed.goal || '').trim()) return { mode: 'conversation', response: String(parsed.response || 'Tell me what you want me to do.') };
@@ -49,11 +88,45 @@ export async function generateExecutionReport(goal: string, guildId: string, use
   remember(guildId, userId, 'user', goal); remember(guildId, userId, 'assistant', report); return report;
 }
 
+function validatePlan(value: any): value is DynamicExecutionPlan {
+  return Boolean(
+    value &&
+    typeof value === 'object' &&
+    typeof value.intent === 'string' &&
+    Array.isArray(value.steps) &&
+    value.steps.length > 0 &&
+    value.steps.every((step: any) =>
+      step && typeof step === 'object' &&
+      typeof step.id === 'string' && step.id.trim() &&
+      typeof step.capability === 'string' && step.capability.trim() &&
+      typeof step.purpose === 'string' &&
+      step.input && typeof step.input === 'object' && !Array.isArray(step.input)
+    )
+  );
+}
+
 export async function createDynamicPlan(goal: string, guildId: string, userId: string = '', channelId: string = ''): Promise<DynamicExecutionPlan> {
   const prior = userId ? history(guildId, userId) : []; const channelContext = await discordHistory(channelId);
-  const text = await generate(planningPrompt(goal, guildId, `${historyText(prior)}\n${channelContext}`.trim()));
-  const plan = parseJson(text) as DynamicExecutionPlan | null;
-  if (!plan || !Array.isArray(plan.steps) || plan.steps.length === 0) throw new Error('AI returned an empty or invalid execution plan.');
-  if (plan.steps.length > 12) plan.steps = plan.steps.slice(0, 12);
+  const prompt = planningPrompt(goal, guildId, `${historyText(prior)}\n${channelContext}`.trim());
+  let text = await generate(prompt, { json: true });
+  let plan = parseJson(text) as DynamicExecutionPlan | null;
+
+  // JSON mode normally guarantees an object, but recover from transient/model formatting failures
+  // with one tightly scoped repair call rather than failing the whole objective immediately.
+  if (!validatePlan(plan)) {
+    text = await generate([
+      'Repair the following NEXUS execution-plan response.',
+      'Return ONLY a valid JSON object matching this schema:',
+      '{"intent":string,"modelClass":"ai","steps":[{"id":string,"capability":string,"purpose":string,"input":object,"verify":string?,"verification":{"capability":string,"input":object}?}],"uncertainties":string[]}',
+      'Do not invent capabilities. Preserve the intended objective and use only the supplied response.',
+      `Objective: ${goal}`,
+      `Invalid planner response:\n${text.slice(0, 12000)}`,
+    ].join('\n\n'), { json: true });
+    plan = parseJson(text) as DynamicExecutionPlan | null;
+  }
+
+  if (!validatePlan(plan)) throw new Error('AI returned an empty or invalid execution plan after JSON recovery.');
+  if (!Array.isArray(plan.uncertainties)) plan.uncertainties = [];
+  if (plan.steps.length > MAX_PLAN_STEPS) plan.steps = plan.steps.slice(0, MAX_PLAN_STEPS);
   return { ...plan, modelClass: 'ai' };
 }

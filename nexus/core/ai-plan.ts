@@ -1,5 +1,4 @@
 import { getCapabilityCatalog } from './capabilities';
-import { chooseModelClass, NexusPlan } from '../core';
 
 export type DynamicPlanStep = {
   id: string;
@@ -11,38 +10,30 @@ export type DynamicPlanStep = {
 
 export type DynamicExecutionPlan = {
   intent: string;
-  modelClass: 'routine' | 'reasoning';
+  modelClass: 'ai';
   steps: DynamicPlanStep[];
   uncertainties: string[];
 };
 
-export function planningPrompt(goal: string, guildId: string): string {
+export function planningPrompt(goal: string, guildId: string, conversation: string = ''): string {
   const catalog = getCapabilityCatalog()
     .map((c) => `${c.name}: ${c.description}; inputs=${JSON.stringify(c.inputSchema)}; risk=${c.risk}`)
     .join('\n');
 
   return [
-    'You are NEXUS. Convert the user objective into a dynamic execution plan.',
-    'Do not route from fixed user commands. Determine the workflow from the objective and available capabilities.',
-    'Use only capabilities from the catalog. The guildId is a hard tenant boundary.',
-    'For destructive changes, prefer inspecting and verifying first. Never invent successful execution.',
+    'You are NEXUS, an autonomous Discord AI agent.',
+    'Understand the objective and conversation context, then create the best executable workflow using the available capabilities.',
+    'Do not use fixed command routing. Decide dynamically which capabilities are needed.',
+    'Use only capabilities from the catalog.',
+    'The guildId is a hard tenant boundary. Never target another guild.',
+    'Inspect before destructive changes when appropriate and include verification steps.',
+    'IMPORTANT: Return at least one executable step. Never return an empty steps array.',
+    'Every step capability must exactly match a capability name from the catalog.',
+    'Return ONLY valid JSON. No markdown and no commentary.',
+    'JSON schema: {"intent":string,"modelClass":"ai","steps":[{"id":string,"capability":string,"purpose":string,"input":object,"verify":string}],"uncertainties":string[]}',
     `Current guildId: ${guildId}`,
-    `User objective: ${goal}`,
-    'Available capabilities:',
-    catalog,
-    'Return strict JSON with: intent, modelClass, steps[], uncertainties[]. Each step must include id, capability, purpose, input, verify.',
+    `Recent conversation:\n${conversation || '(none)'}`,
+    `Current objective: ${goal}`,
+    `Available capabilities:\n${catalog}`,
   ].join('\n\n');
-}
-
-export function fallbackDynamicPlan(goal: string, guildId: string): DynamicExecutionPlan {
-  const modelClass = chooseModelClass(goal);
-  return {
-    intent: goal,
-    modelClass,
-    steps: [
-      { id: 'inspect', capability: 'inspect_server', purpose: 'Understand current server state before making changes.', input: { guildId }, verify: 'A current server snapshot is available.' },
-      { id: 'plan', capability: 'send_message', purpose: 'Keep execution deferred until AI planning is configured.', input: { guildId, channelId: '', content: 'NEXUS planning is not configured yet.' }, verify: 'No server mutation is performed by the fallback.' },
-    ],
-    uncertainties: ['NEXUS_GEMINI_API_KEY is not configured or the AI planner was unavailable.'],
-  };
 }

@@ -1,7 +1,7 @@
 import WebSocket from 'ws';
 import { investigateAndRespond } from '../security/analysis';
 import { NEXUS_ALLOWED_GUILD_ID, isAuthorized } from '../security/access';
-import { sendMessage, members } from '../discord/rest';
+import { sendMessage, member } from '../discord/rest';
 import { generateNexusReply } from '../core/ai-runtime';
 
 const GATEWAY = 'wss://gateway.discord.gg/?v=10&encoding=json';
@@ -15,6 +15,7 @@ export class NexusGatewayWorker {
   private securityTimer?: NodeJS.Timeout;
   private sequence: number | null = null;
   private reconnectMs = 1000;
+  private botUserId = '';
   private signals: any[] = [];
   private processing = false;
 
@@ -40,6 +41,10 @@ export class NexusGatewayWorker {
   private send(payload: object) { if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(payload)); }
   private async handle(payload: GatewayPayload, token: string) {
     if (payload.s !== undefined) this.sequence = payload.s;
+    if (payload.op === 0 && payload.t === 'READY') {
+      this.botUserId = String(payload.d?.user?.id || '');
+      console.log(`[NEXUS] Logged in as ${payload.d?.user?.username || 'bot'} (${this.botUserId}).`);
+    }
     if (payload.op === 10) {
       const interval = Number(payload.d.heartbeat_interval || 41250);
       if (this.heartbeat) clearInterval(this.heartbeat);
@@ -60,16 +65,13 @@ export class NexusGatewayWorker {
       const content = String(message.content || '').trim();
       this.signals.push({ guildId, type: 'message_create', userId: authorId, channelId: message.channel_id, data: { contentLength: content.length }, at: now });
 
-      // Ignore NEXUS's own messages and answer direct mentions.
-      const botId = String(message.author?.id || '');
-      const mentioned = Array.isArray(message.mentions) && message.mentions.some((u: any) => String(u?.id) === botId);
-      const mentionText = content.replace(new RegExp(`<@!?${botId}>`, 'g'), '').trim();
-      if (mentioned && authorId !== botId && mentionText) {
+      // NEXUS replies when a user directly mentions it: @NEXUS hello
+      const mentioned = !!this.botUserId && Array.isArray(message.mentions) && message.mentions.some((u: any) => String(u?.id) === this.botUserId);
+      const mentionText = this.botUserId ? content.replace(new RegExp(`<@!?${this.botUserId}>`, 'g'), '').trim() : '';
+      if (mentioned && authorId !== this.botUserId && mentionText) {
         try {
-          // Authorization is checked against the user's role in the guild before NEXUS replies.
-          const userMembers = await members(guildId, authorId, 10) as any[];
-          const member = Array.isArray(userMembers) ? userMembers.find(m => String(m?.user?.id) === authorId) : null;
-          const roleIds = Array.isArray(member?.roles) ? member.roles.map(String) : [];
+          const user = await member(guildId, authorId) as any;
+          const roleIds = Array.isArray(user?.roles) ? user.roles.map(String) : [];
           if (!isAuthorized({ guildId, userId: authorId, roleIds })) {
             await sendMessage(guildId, String(message.channel_id), 'NEXUS access denied: you are not authorized to use NEXUS.');
           } else {
@@ -78,7 +80,7 @@ export class NexusGatewayWorker {
           }
         } catch (error) {
           console.error('[NEXUS mention]', error);
-          await sendMessage(guildId, String(message.channel_id), 'NEXUS could not process that request right now.');
+          try { await sendMessage(guildId, String(message.channel_id), 'NEXUS could not process that request right now.'); } catch {}
         }
       }
     }

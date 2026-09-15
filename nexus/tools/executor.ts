@@ -25,10 +25,17 @@ export async function executeCapability(context: NexusServerContext, capability:
         case 'kick_member': return discord.kickMember(context.guildId, String(input.userId), input.reason ? String(input.reason) : undefined);
         case 'ban_member': return discord.banMember(context.guildId, String(input.userId), input.reason ? String(input.reason) : undefined);
         case 'send_message': return discord.sendMessage(context.guildId, String(input.channelId), String(input.content));
+        case 'search_server_history': {
+          const channelId = String(input.channelId || context.channelId || '');
+          if (!channelId) throw new Error('A Discord channel is required for conversation history.');
+          const query = String(input.query || '').toLowerCase().trim();
+          const rows = await discord.messages(channelId, Number(input.limit ?? 50));
+          if (!Array.isArray(rows)) return [];
+          return rows.filter((m: any) => !query || String(m?.content || '').toLowerCase().includes(query)).slice(0, 25);
+        }
         case 'query_public_data':
           if (String(input.provider || '').toLowerCase() !== 'roblox') throw new Error('Only the Roblox public provider is enabled.');
           return investigateRoblox(String(input.subject));
-        case 'search_server_history': throw new Error('History provider is intentionally disabled until persistent storage is enabled.');
         default: throw new Error(`No executor is registered for '${capability}'.`);
       }
     });

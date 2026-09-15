@@ -4,13 +4,8 @@ type DiscordRequestOptions = { method?: string; body?: unknown; reason?: string 
 export class DiscordApiError extends Error { status: number; details: unknown; constructor(status: number, details: unknown) { super(`Discord API request failed with status ${status}`); this.status = status; this.details = details; } }
 function token() { const value = process.env.NEXUS_DISCORD_BOT_TOKEN; if (!value) throw new Error('Configuration error: NEXUS_DISCORD_BOT_TOKEN is not configured.'); return value; }
 function assertGuild(guildId: string) { if (guildId !== NEXUS_ALLOWED_GUILD_ID) throw new Error('Authorization error: cross-guild Discord operation rejected.'); }
-async function request(path: string, options: DiscordRequestOptions = {}) {
-  const headers: Record<string, string> = { Authorization: `Bot ${token()}`, 'Content-Type': 'application/json', 'User-Agent': 'NEXUS/1.0 (+Discord AI operations)' };
-  if (options.reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(options.reason.slice(0, 512));
-  const response = await fetch(`${DISCORD_API}${path}`, { method: options.method || 'GET', headers, body: options.body === undefined ? undefined : JSON.stringify(options.body), cache: 'no-store' });
-  const text = await response.text(); let data: unknown = null; try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-  if (!response.ok) throw new DiscordApiError(response.status, data); return data;
-}
+async function request(path: string, options: DiscordRequestOptions = {}) { const headers: Record<string, string> = { Authorization: `Bot ${token()}`, 'Content-Type': 'application/json', 'User-Agent': 'NEXUS/1.0 (+Discord AI operations)' }; if (options.reason) headers['X-Audit-Log-Reason'] = encodeURIComponent(options.reason.slice(0, 512)); const response = await fetch(`${DISCORD_API}${path}`, { method: options.method || 'GET', headers, body: options.body === undefined ? undefined : JSON.stringify(options.body), cache: 'no-store' }); const text = await response.text(); let data: unknown = null; try { data = text ? JSON.parse(text) : null; } catch { data = text; } if (!response.ok) throw new DiscordApiError(response.status, data); return data; }
+export async function discordRequest(path: string, options: DiscordRequestOptions = {}) { const match = path.match(/\/guilds\/([^/]+)/); if (match) assertGuild(decodeURIComponent(match[1])); return request(path, options); }
 export async function guild(guildId: string) { assertGuild(guildId); return request(`/guilds/${encodeURIComponent(guildId)}?with_counts=true`); }
 export async function channels(guildId: string) { assertGuild(guildId); return request(`/guilds/${encodeURIComponent(guildId)}/channels`); }
 export async function roles(guildId: string) { assertGuild(guildId); return request(`/guilds/${encodeURIComponent(guildId)}/roles`); }

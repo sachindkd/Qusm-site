@@ -1,7 +1,8 @@
 import WebSocket from 'ws';
-import { investigateAndRespond, SecuritySignal } from '../security/analysis';
-import { NEXUS_ALLOWED_GUILD_ID } from '../security/access';
-import { sendMessage } from '../discord/rest';
+import { investigateAndRespond } from '../security/analysis';
+import { NEXUS_ALLOWED_GUILD_ID, isAuthorized } from '../security/access';
+import { sendMessage, members } from '../discord/rest';
+import { generateNexusReply } from '../core/ai-runtime';
 
 const GATEWAY = 'wss://gateway.discord.gg/?v=10&encoding=json';
 const WINDOW_MS = 30_000;
@@ -14,7 +15,7 @@ export class NexusGatewayWorker {
   private securityTimer?: NodeJS.Timeout;
   private sequence: number | null = null;
   private reconnectMs = 1000;
-  private signals: SecuritySignal[] = [];
+  private signals: any[] = [];
   private processing = false;
 
   start() {
@@ -52,17 +53,40 @@ export class NexusGatewayWorker {
     const type = String(payload.t || '');
     const guildId = String(payload.d.guild_id);
     const now = Date.now();
-    if (type === 'MESSAGE_CREATE') this.push({ guildId, type: 'message_create', userId: payload.d.author?.id, channelId: payload.d.channel_id, data: { contentLength: String(payload.d.content || '').length }, at: now });
-    if (type === 'GUILD_MEMBER_ADD') this.push({ guildId, type: 'guild_member_add', userId: payload.d.user?.id, data: {}, at: now });
-    if (type === 'GUILD_ROLE_UPDATE') this.push({ guildId, type: 'guild_role_update', data: { roleId: payload.d.role?.id, permissions: payload.d.role?.permissions }, at: now });
-    if (type === 'GUILD_ROLE_CREATE') this.push({ guildId, type: 'guild_role_update', data: { roleId: payload.d.role?.id, created: true }, at: now });
-    if (type === 'GUILD_ROLE_DELETE') this.push({ guildId, type: 'guild_role_update', data: { roleId: payload.d.role_id, deleted: true }, at: now });
-    if (type === 'GUILD_AUDIT_LOG_ENTRY_CREATE') this.push({ guildId, type: 'audit_log_entry', userId: payload.d.user_id, data: payload.d, at: now });
-  }
-  private push(signal: SecuritySignal) {
-    this.signals.push(signal);
-    const cutoff = Date.now() - WINDOW_MS;
-    this.signals = this.signals.filter(s => s.at >= cutoff).slice(-MAX_BUFFER);
+
+    if (type === 'MESSAGE_CREATE') {
+      const message = payload.d;
+      const authorId = String(message.author?.id || '');
+      const content = String(message.content || '').trim();
+      this.signals.push({ guildId, type: 'message_create', userId: authorId, channelId: message.channel_id, data: { contentLength: content.length }, at: now });
+
+      // Ignore NEXUS's own messages and answer direct mentions.
+      const botId = String(message.author?.id || '');
+      const mentioned = Array.isArray(message.mentions) && message.mentions.some((u: any) => String(u?.id) === botId);
+      const mentionText = content.replace(new RegExp(`<@!?${botId}>`, 'g'), '').trim();
+      if (mentioned && authorId !== botId && mentionText) {
+        try {
+          // Authorization is checked against the user's role in the guild before NEXUS replies.
+          const userMembers = await members(guildId, authorId, 10) as any[];
+          const member = Array.isArray(userMembers) ? userMembers.find(m => String(m?.user?.id) === authorId) : null;
+          const roleIds = Array.isArray(member?.roles) ? member.roles.map(String) : [];
+          if (!isAuthorized({ guildId, userId: authorId, roleIds })) {
+            await sendMessage(guildId, String(message.channel_id), 'NEXUS access denied: you are not authorized to use NEXUS.');
+          } else {
+            const reply = await generateNexusReply(mentionText, guildId, authorId);
+            await sendMessage(guildId, String(message.channel_id), reply.slice(0, 1900));
+          }
+        } catch (error) {
+          console.error('[NEXUS mention]', error);
+          await sendMessage(guildId, String(message.channel_id), 'NEXUS could not process that request right now.');
+        }
+      }
+    }
+    if (type === 'GUILD_MEMBER_ADD') this.signals.push({ guildId, type: 'guild_member_add', userId: payload.d.user?.id, data: {}, at: now });
+    if (type === 'GUILD_ROLE_UPDATE') this.signals.push({ guildId, type: 'guild_role_update', data: { roleId: payload.d.role?.id, permissions: payload.d.role?.permissions }, at: now });
+    if (type === 'GUILD_ROLE_CREATE') this.signals.push({ guildId, type: 'guild_role_update', data: { roleId: payload.d.role?.id, created: true }, at: now });
+    if (type === 'GUILD_ROLE_DELETE') this.signals.push({ guildId, type: 'guild_role_update', data: { roleId: payload.d.role_id, deleted: true }, at: now });
+    if (type === 'GUILD_AUDIT_LOG_ENTRY_CREATE') this.signals.push({ guildId, type: 'audit_log_entry', userId: payload.d.user_id, data: payload.d, at: now });
   }
   private async flushSecurity() {
     if (this.processing || this.signals.length < 3) return;

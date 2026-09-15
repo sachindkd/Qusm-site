@@ -11,6 +11,7 @@ export async function guild(guildId: string) { return discordRequest(`/guilds/${
 export async function channels(guildId: string) { return discordRequest(`/guilds/${encodeURIComponent(guildId)}/channels`); }
 export async function roles(guildId: string) { return discordRequest(`/guilds/${encodeURIComponent(guildId)}/roles`); }
 export async function members(guildId: string, query = '', limit = 50) { const params = new URLSearchParams({ limit: String(Math.min(Math.max(limit, 1), 1000)) }); if (query) params.set('query', query); return discordRequest(`/guilds/${encodeURIComponent(guildId)}/members?${params}`); }
+export async function member(guildId: string, userId: string) { return discordRequest(`/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(userId)}`); }
 export async function auditLog(guildId: string, limit = 50) { return discordRequest(`/guilds/${encodeURIComponent(guildId)}/audit-logs?limit=${Math.min(Math.max(limit, 1), 100)}`); }
 export async function createChannel(guildId: string, input: { name: string; type?: number; parentId?: string; topic?: string }) { return discordRequest(`/guilds/${encodeURIComponent(guildId)}/channels`, { method: 'POST', body: { name: input.name, type: input.type ?? 0, parent_id: input.parentId, topic: input.topic } }); }
 export async function editChannel(guildId: string, channelId: string, changes: Record<string, unknown>) { void guildId; return discordRequest(`/channels/${encodeURIComponent(channelId)}`, { method: 'PATCH', body: changes }); }

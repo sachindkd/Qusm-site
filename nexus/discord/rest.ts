@@ -24,32 +24,7 @@ export async function timeoutMember(guildId: string, userId: string, durationSec
 export async function kickMember(guildId: string, userId: string, reason?: string) { assertGuild(guildId); await member(guildId, userId); return request(`/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(userId)}`, { method: 'DELETE', reason }); }
 export async function banMember(guildId: string, userId: string, reason?: string) { assertGuild(guildId); await member(guildId, userId); return request(`/guilds/${encodeURIComponent(guildId)}/bans/${encodeURIComponent(userId)}`, { method: 'PUT', reason, body: { delete_message_seconds: 0 } }); }
 
-const DISCORD_MESSAGE_LIMIT = 2000;
 const NEXUS_MESSAGE_BUDGET = 1900;
-function cleanUserFacingMessage(content: string): string {
-  let output = String(content || '');
-  output = output.replace(/\n?NEXUS_EXECUTION_STATE:\s*\{[^\n]*\}/g, '');
-  output = output.replace(/```(?:json|javascript|typescript|text)?/gi, '').replace(/```/g, '');
-  output = output.replace(/\*\*NEXUS Execution Report\*\*[\s\S]*?(?=\n\s*\*\*Findings\*\*|$)/i, '');
-  output = output.replace(/^\s*\*\*Findings\*\*\s*$/gim, '');
-  output = output.replace(/^\s*\*\*Authoritative Execution Results\*\*\s*$/gim, '');
-  const lines = output.split('\n');
-  const kept: string[] = [];
-  let inTable = false;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    const isTable = trimmed.startsWith('|') && trimmed.endsWith('|');
-    const isSeparator = /^\|?\s*:?-{2,}/.test(trimmed);
-    if (isTable || (inTable && isSeparator)) { inTable = true; continue; }
-    if (inTable && !trimmed) { inTable = false; continue; }
-    if (inTable) continue;
-    kept.push(line);
-  }
-  output = kept.join('\n');
-  output = output.replace(/^\s*\d+\.\s+[^\n]+—\s+(?:COMPLETED|FAILED|PENDING).*$/gim, '');
-  output = output.replace(/\n{3,}/g, '\n\n').trim();
-  return output || 'I completed the request, but there was no additional user-facing detail to report.';
-}
 function splitMessage(content: string, limit = NEXUS_MESSAGE_BUDGET): string[] {
   if (content.length <= limit) return [content];
   const chunks: string[] = [];
@@ -71,8 +46,7 @@ function splitMessage(content: string, limit = NEXUS_MESSAGE_BUDGET): string[] {
 export async function sendMessage(guildId: string, channelId: string, content: string, embeds?: unknown[], reason?: string) {
   await channel(guildId, channelId);
   if (!content && !embeds?.length) throw new Error('Validation error: message content or embeds are required.');
-  const cleanedContent = content ? cleanUserFacingMessage(content) : '';
-  const chunks = cleanedContent ? splitMessage(cleanedContent) : [''];
+  const chunks = content ? splitMessage(String(content)) : [''];
   const sent: unknown[] = [];
   for (let index = 0; index < chunks.length; index += 1) {
     const body = { content: chunks[index], embeds: index === 0 ? embeds?.slice(0, 10) : undefined };

@@ -1,0 +1,54 @@
+name: NEXUS output patch
+on:
+  push:
+    branches: [nexus-bootstrap]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch NEXUS output
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('nexus/core/agent.ts')
+          s=p.read_text()
+          old="const report = await reportExecution(goal, context, plan, s.results, s);"
+          new=old+"\n  const userResponse = cleanUserResponse(report);"
+          s=s.replace(old,new)
+          old2="remember(context, 'assistant', report);\n  return { mode: 'execute', response: report, plan, results: s.results };"
+          new2="remember(context, 'assistant', userResponse);\n  return { mode: 'execute', response: userResponse, plan, results: s.results };"
+          s=s.replace(old2,new2)
+          marker="function resolveReferences(value: unknown, results: any[]): any {"
+          helper="""function cleanUserResponse(text: string): string {
+            let output = String(text || '').replace(/\\n?NEXUS_EXECUTION_STATE:\\s*\\{[^\\n]*\\}/g, '').trim();
+            output = output.replace(/```(?:json|javascript|typescript|text)?/gi, '').replace(/```/g, '').trim();
+            output = output.replace(/^\\s*Authoritative Execution Results\\s*$/gim, '').replace(/^\\s*Execution Results\\s*$/gim, '').trim();
+            return output || 'I completed the request.';
+          }
+
+          """
+          if marker in s and 'function cleanUserResponse' not in s:
+              s=s.replace(marker,helper+marker)
+          p.write_text(s)
+
+          p=Path('nexus/discord/rest.ts')
+          s=p.read_text()
+          s=s.replace("const DISCORD_MESSAGE_LIMIT = 2000;","const DISCORD_MESSAGE_LIMIT = 2000;\nconst NEXUS_MESSAGE_BUDGET = 1900;")
+          s=s.replace("function splitMessage(content: string, limit = DISCORD_MESSAGE_LIMIT): string[] {","function splitMessage(content: string, limit = NEXUS_MESSAGE_BUDGET): string[] {")
+          s=s.replace("if (cut < Math.floor(limit * 0.5)) cut = remaining.lastIndexOf(' ', limit);","if (cut < Math.floor(limit * 0.5)) cut = remaining.lastIndexOf(' ', limit);\n    if (cut < Math.floor(limit * 0.5)) {\n      const sentence = Math.max(remaining.lastIndexOf('. ', limit), remaining.lastIndexOf('? ', limit), remaining.lastIndexOf('! ', limit));\n      if (sentence > Math.floor(limit * 0.5)) cut = sentence + 1;\n    }")
+          s=s.replace("const chunks = content ? splitMessage(content) : [''];","const cleanedContent = content ? content.replace(/\\n?NEXUS_EXECUTION_STATE:\\s*\\{[^\\n]*\\}/g, '').trim() : '';\n  const chunks = cleanedContent ? splitMessage(cleanedContent) : [''];")
+          s=s.replace("chunks[index].slice(0, DISCORD_MESSAGE_LIMIT)","chunks[index]")
+          p.write_text(s)
+          PY
+      - name: Commit patch
+        run: |
+          rm -f .github/workflows/nexus-output-patch.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add nexus/core/agent.ts nexus/discord/rest.ts .github/workflows/nexus-output-patch.yml
+          git diff --cached --quiet || git commit -m 'Polish NEXUS conversational output and message delivery'
+          git push

@@ -23,7 +23,34 @@ export async function assignRole(guildId: string, userId: string, roleId: string
 export async function timeoutMember(guildId: string, userId: string, durationSeconds: number, reason?: string) { assertGuild(guildId); await member(guildId, userId); const clamped = Math.min(Math.max(Math.floor(durationSeconds), 1), 2419200); return request(`/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(userId)}`, { method: 'PATCH', reason, body: { communication_disabled_until: new Date(Date.now() + clamped * 1000).toISOString() } }); }
 export async function kickMember(guildId: string, userId: string, reason?: string) { assertGuild(guildId); await member(guildId, userId); return request(`/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(userId)}`, { method: 'DELETE', reason }); }
 export async function banMember(guildId: string, userId: string, reason?: string) { assertGuild(guildId); await member(guildId, userId); return request(`/guilds/${encodeURIComponent(guildId)}/bans/${encodeURIComponent(userId)}`, { method: 'PUT', reason, body: { delete_message_seconds: 0 } }); }
-export async function sendMessage(guildId: string, channelId: string, content: string, embeds?: unknown[], reason?: string) { await channel(guildId, channelId); if (!content && !embeds?.length) throw new Error('Validation error: message content or embeds are required.'); return request(`/channels/${encodeURIComponent(channelId)}/messages`, { method: 'POST', reason, body: { content: content.slice(0, 2000), embeds: embeds?.slice(0, 10) } }); }
+
+const DISCORD_MESSAGE_LIMIT = 2000;
+function splitMessage(content: string, limit = DISCORD_MESSAGE_LIMIT): string[] {
+  if (content.length <= limit) return [content];
+  const chunks: string[] = [];
+  let remaining = content;
+  while (remaining.length > limit) {
+    let cut = remaining.lastIndexOf('\n', limit);
+    if (cut < Math.floor(limit * 0.5)) cut = remaining.lastIndexOf(' ', limit);
+    if (cut < 1) cut = limit;
+    chunks.push(remaining.slice(0, cut));
+    remaining = remaining.slice(cut).replace(/^\s+/, '');
+  }
+  if (remaining.length) chunks.push(remaining);
+  return chunks;
+}
+
+export async function sendMessage(guildId: string, channelId: string, content: string, embeds?: unknown[], reason?: string) {
+  await channel(guildId, channelId);
+  if (!content && !embeds?.length) throw new Error('Validation error: message content or embeds are required.');
+  const chunks = content ? splitMessage(content) : [''];
+  const sent: unknown[] = [];
+  for (let index = 0; index < chunks.length; index += 1) {
+    const body = { content: chunks[index].slice(0, DISCORD_MESSAGE_LIMIT), embeds: index === 0 ? embeds?.slice(0, 10) : undefined };
+    sent.push(await request(`/channels/${encodeURIComponent(channelId)}/messages`, { method: 'POST', reason, body }));
+  }
+  return sent.length === 1 ? sent[0] : sent;
+}
 export async function createEmbed(guildId: string, channelId: string, embed: unknown, reason?: string) { return sendMessage(guildId, channelId, '', [embed], reason); }
 export async function webhooks(guildId: string, channelId: string) { await channel(guildId, channelId); return request(`/channels/${encodeURIComponent(channelId)}/webhooks`); }
 export async function createWebhook(guildId: string, channelId: string, name: string, avatar?: string, reason?: string) { await channel(guildId, channelId); return request(`/channels/${encodeURIComponent(channelId)}/webhooks`, { method: 'POST', reason, body: { name: name.slice(0, 80), avatar } }); }

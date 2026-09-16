@@ -228,26 +228,40 @@ function resolvePath(results: any[], path: string) {
   for (const part of parts) { if (current == null) return undefined; current = current[part]; }
   return current;
 }
+function authoritativeStepLines(plan: DynamicExecutionPlan, results: any[]): string[] {
+  const byStep = new Map<string, any>();
+  for (const result of results) if (result?.stepId && !String(result.stepId).includes(':plan-verification')) byStep.set(String(result.stepId), result);
+  return plan.steps.map((step, index) => {
+    const result = byStep.get(step.id);
+    if (!result) return `${index + 1}. ${step.id} — PENDING — ${step.purpose}`;
+    const verification = result.verification ? `; verification=${result.verification.ok === true ? 'passed' : 'failed'}` : '';
+    return `${index + 1}. ${step.id} — ${result.ok === true ? 'COMPLETED' : 'FAILED'}${verification} — ${step.purpose}${result.error ? ` — error: ${String(result.error)}` : ''}`;
+  });
+}
 async function reportExecution(goal: string, context: NexusContext, plan: DynamicExecutionPlan, results: unknown[], s: MemoryState) {
   const statePayload = { guildId: context.guildId, status: s.status || 'failed', objective: goal, nextStepIndex: s.nextStepIndex ?? 0, plan, results, failure: s.failure || null };
   const successful = results.filter((r: any) => r?.ok === true && !String(r?.stepId || '').includes(':plan-verification')).length;
   const total = plan.steps.length;
   const failed = results.find((r: any) => r?.ok === false);
+  const truth = authoritativeStepLines(plan, results as any[]);
+  const header = [
+    '**NEXUS Execution Report**',
+    `**Objective:** ${goal}`,
+    `**Status:** ${s.status === 'completed' ? 'Completed' : s.status === 'failed' ? 'Failed / stopped' : 'Paused'}`,
+    `**Progress:** ${successful}/${total} execution steps completed`,
+    '',
+    '**Authoritative Execution Results**',
+    ...truth,
+  ].join('\n');
   try {
-    const compactResults = JSON.stringify(results).slice(0, 12000);
-    return await groq([
-      { role: 'system', content: 'You are NEXUS. Produce a concise execution report from supplied evidence only. Never invent success. State completed steps, failed/pending steps, and verification status. Return plain Discord-friendly text.' },
-      { role: 'user', content: `Objective: ${goal}\nStatus: ${s.status}\nProgress: ${successful}/${total}\nFailure: ${failed ? JSON.stringify(failed).slice(0, 2500) : 'none'}\nResults: ${compactResults}` },
+    const compactResults = JSON.stringify(results).slice(0, 10000);
+    const narrative = await groq([
+      { role: 'system', content: 'You are NEXUS. Summarize execution evidence. The authoritative step-status list is ground truth. NEVER contradict it: COMPLETED means the runtime returned ok=true; FAILED means it returned ok=false; PENDING means no result exists. Never say a completed action was not performed. Never invent actions. Add only findings supported by the supplied results. Keep the narrative concise.' },
+      { role: 'user', content: `Objective: ${goal}\nAuthoritative step status:\n${truth.join('\n')}\nRaw execution results:\n${compactResults}` },
     ]);
+    return `${header}\n\n**Findings**\n${narrative}\n\n${s.status !== 'completed' ? `**Next:** Execution stopped at step ${s.nextStepIndex ?? 0}.` : '**Verification:** Completed steps are based on runtime execution results.'}\n${STATE_MARKER} ${JSON.stringify(statePayload)}`;
   } catch (error) {
     const reason = safeError(error);
-    return [
-      `NEXUS execution ${s.status === 'completed' ? 'completed' : 'stopped'}.`,
-      `Progress: ${successful}/${total} steps succeeded.`,
-      failed ? `Failed step: ${String((failed as any).stepId || 'unknown')}. ${String((failed as any).error || 'Execution failed.')}` : '',
-      s.status !== 'completed' ? `Next step: ${s.nextStepIndex ?? 0}.` : '',
-      `NEXUS_EXECUTION_STATE: ${JSON.stringify(statePayload)}`,
-      `Report generation warning: ${reason}`,
-    ].filter(Boolean).join('\n');
+    return `${header}\n\n${failed ? `**Failure:** ${String((failed as any).stepId || 'unknown')} — ${String((failed as any).error || 'Execution failed.')}` : ''}\n${s.status !== 'completed' ? `**Next:** Execution stopped at step ${s.nextStepIndex ?? 0}.` : '**Verification:** Completed steps are based on runtime execution results.'}\n${STATE_MARKER} ${JSON.stringify(statePayload)}\nReport generation warning: ${reason}`.replace(/\n+/g, '\n');
   }
 }

@@ -3,7 +3,7 @@ import { getCapabilityCatalog } from './capabilities';
 import type { DynamicExecutionPlan } from './ai-plan';
 import { executeAndVerify } from '../tools/execute-verified';
 import { inspectServerForRuntime } from '../tools/runtime';
-import { generateExecutionResponse } from './ai-runtime';
+import { generateExecutionResponse, decideAgentTurn } from './ai-runtime';
 
 export type NexusContext = { guildId: string; channelId?: string; userId?: string };
 export type AgentTurnResult = { mode: 'conversation' | 'execute'; response: string; plan?: DynamicExecutionPlan; results?: unknown[] };
@@ -38,73 +38,15 @@ function history(c: NexusContext) {
   const s = state(c);
   return { messages: s.messages, objective: s.objective, plan: s.plan, results: s.results, status: s.status, nextStepIndex: s.nextStepIndex, failure: s.failure };
 }
-function parseJson(text: string): any {
-  const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-  try { return JSON.parse(cleaned); } catch { return null; }
-}
 function safeError(error: unknown): string { return error instanceof Error ? error.message : String(error || 'Unknown execution error'); }
-async function groq(messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>): Promise<string> {
-  const apiKey = process.env.NEXUS_GROQ_API_KEY;
-  if (!apiKey) throw new Error('Configuration error: NEXUS_GROQ_API_KEY is not configured.');
-  const compact = messages.map((m) => ({ ...m, content: m.content.length > 18000 ? `${m.content.slice(0, 18000)}\n[context truncated]` : m.content }));
-  const body = { model: process.env.NEXUS_AI_MODEL || 'openai/gpt-oss-120b', messages: compact, temperature: 0.2, max_tokens: 2400 };
-  let lastError = '';
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, body: JSON.stringify(body), cache: 'no-store' });
-    const raw = await response.text();
-    let data: any = null;
-    try { data = raw ? JSON.parse(raw) : null; } catch { throw new Error(`Groq error: non-JSON response (HTTP ${response.status}).`); }
-    if (response.ok) {
-      const text = data?.choices?.[0]?.message?.content?.trim();
-      if (!text) throw new Error('Groq error: empty response.');
-      return text;
-    }
-    lastError = String(data?.error?.message || `HTTP ${response.status}`);
-    const limited = response.status === 429 || /rate limit|tokens per minute|TPM/i.test(lastError);
-    if (!limited || attempt === 2) break;
-    const match = lastError.match(/try again in\s+([0-9.]+)s/i);
-    const waitMs = Math.min(30000, Math.max(1000, Math.ceil(Number(match?.[1] || 2) * 1000)));
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
-  }
-  throw new Error(`Groq error: ${lastError}`);
-}
-async function channelContext(channelId?: string) {
-  if (!channelId) return '(no channel context)';
-  try {
-    const { messages } = await import('../discord/rest');
-    const rows = await messages(channelId, 50);
-    return Array.isArray(rows) ? rows.reverse().map((m: any) => `${m?.author?.global_name || m?.author?.username || m?.author?.id || 'user'}: ${m?.content || ''}`).filter(Boolean).join('\n').slice(-16000) : '(no channel context)';
-  } catch { return '(channel context unavailable)'; }
-}
 function containsMutation(plan: DynamicExecutionPlan) { return plan.steps.some((s) => ['change', 'destructive'].includes(getCapabilityCatalog().find((c) => c.name === s.capability)?.risk || 'read')); }
 function executionStateForPrompt(s: MemoryState): string { return JSON.stringify({ objective: s.objective, status: s.status, nextStepIndex: s.nextStepIndex, plan: s.plan, completedResults: s.results, failure: s.failure }); }
 export async function decide(message: string, context: NexusContext) {
-  const recentChannel = await channelContext(context.channelId);
-  const prompt = [
-    'You are the unified decision layer of NEXUS.',
-    'Classify the current message using conversation, prior execution state, and recent Discord context.',
-    'Choose conversation for chatting, questions, explanations, or discussing results without requesting an action.',
-    'Choose execute when the user asks NEXUS to investigate, inspect, create, modify, moderate, configure, resume, continue, retry, or perform an objective.',
-    'Resolve references such as this, that, it, continue, change it, undo that, and what did you change using context.',
-    'If there is a paused/failed execution with a valid next step and the user asks to continue/retry/resume, preserve that objective and prior completed results instead of starting over.',
-    'Reason from intent; do not use regex or keyword-only routing.',
-    'Return ONLY JSON: {"mode":"conversation"|"execute","response":"...","goal":"..."}.',
-    `Authoritative guild: ${context.guildId}`,
-    `Current execution state: ${executionStateForPrompt(state(context))}`,
-    `Discord channel context:\n${recentChannel}`,
-    `Current message: ${message}`,
-  ].join('\n\n');
-  const parsed = parseJson(await groq([{ role: 'system', content: prompt }]));
-  if (!parsed || !['conversation', 'execute'].includes(parsed.mode)) return { mode: 'conversation' as const, response: String(parsed?.response || 'I could not determine the request.') };
-  if (parsed.mode === 'execute' && !String(parsed.goal || '').trim()) return { mode: 'conversation' as const, response: String(parsed.response || 'Tell me what you want me to do.') };
-  return parsed as { mode: 'conversation' | 'execute'; response?: string; goal?: string };
+  return decideAgentTurn(message, context.guildId, context.userId || '', context.channelId || '');
 }
 export async function converse(message: string, context: NexusContext) {
-  const recentChannel = await channelContext(context.channelId);
-  const text = await groq([
-    { role: 'system', content: 'You are NEXUS. Be natural, concise, and honest. Use supplied context to answer follow-ups. Never claim an action happened unless execution results prove it. Do not describe your internal workflow.' },
-    { role: 'user', content: `Guild: ${context.guildId}\nMemory: ${JSON.stringify(history(context))}\nDiscord context:\n${recentChannel}\nMessage: ${message}` },
-  ]);
+  const { generateNexusReply } = await import('./ai-runtime');
+  const text = await generateNexusReply(message, context.guildId, context.userId || '', context.channelId || '');
   remember(context, 'user', message); remember(context, 'assistant', text); return text;
 }
 function mergeExecutionResults(previous: any[] | undefined, current: any[]): any[] {
@@ -117,7 +59,6 @@ function isSameObjective(a: string | undefined, b: string): boolean { return Boo
 function wantsContinuation(message: string): boolean { return /\b(continue|resume|retry|finish|proceed|carry on|keep going)\b/i.test(message); }
 export async function runAgentTurn(message: string, context: NexusContext, forcedGoal?: string): Promise<AgentTurnResult> {
   if (context.guildId !== NEXUS_ALLOWED_GUILD_ID) throw new Error('Authorization error: NEXUS is disabled outside the authorized guild.');
-  const recentChannel = await channelContext(context.channelId);
   const s = state(context);
   const decision = forcedGoal ? { mode: 'execute' as const, goal: forcedGoal } : await decide(message, context);
   if (decision.mode === 'conversation') return { mode: 'conversation', response: await converse(message, context) };

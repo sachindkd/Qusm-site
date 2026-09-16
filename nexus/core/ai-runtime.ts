@@ -5,7 +5,7 @@ const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b';
 const MAX_CONVERSATION_MESSAGES = 20;
 const MAX_PLAN_STEPS = 12;
 const MAX_PROMPT_CHARS = 24000;
-const MAX_GENERATION_TOKENS = 1800;
+const MAX_GENERATION_TOKENS = 2400;
 const MAX_RATE_LIMIT_RETRIES = 2;
 type ConversationMessage = { role: 'user' | 'assistant'; content: string };
 const conversations = new Map<string, ConversationMessage[]>();
@@ -79,7 +79,7 @@ export async function decideAgentTurn(message: string, guildId: string, userId: 
 }
 
 export async function generateExecutionReport(goal: string, guildId: string, userId: string, plan: DynamicExecutionPlan, results: unknown[]): Promise<string> {
-  const report = await generate(['You are NEXUS reporting an executed objective.', 'Use ONLY supplied execution results as evidence. Do not invent facts or claim failed steps succeeded.', 'For investigations/public data, summarize verified facts and useful findings. For changes, state exactly what succeeded or failed. If evidence is incomplete, say so. Keep it useful for Discord.', `Guild: ${guildId}`, `User: ${userId}`, `Objective: ${goal}`, `Plan: ${JSON.stringify(plan.steps)}`, `Execution results: ${JSON.stringify(results)}`].join('\n\n'));
+  const report = await generate(['You are NEXUS speaking directly to the user. Write only the final answer they should see, like a natural conversational AI assistant.', 'Use only supplied evidence. Do not invent facts or claim failed actions succeeded.', 'Never mention tools, capabilities, execution steps, plans, progress, statuses, internal state, raw results, or how you worked. Never use tables or an execution-report format. Never use headings such as Objective, Status, Progress, Authoritative Execution Results, or Findings. Do not list what you did. Just answer the user's request directly. For investigations, state the useful verified facts and risk assessment when supported. For changes, state the resulting change and any real remaining issue. Use natural paragraphs or simple factual bullets.', `Guild: ${guildId}`, `User: ${userId}`, `Objective: ${goal}`, `Plan: ${JSON.stringify(plan.steps)}`, `Execution results: ${JSON.stringify(results)}`].join('\n\n'));
   remember(guildId, userId, 'user', goal); remember(guildId, userId, 'assistant', report); return report;
 }
 

@@ -214,9 +214,17 @@ export async function runAgentTurn(message: string, context: NexusContext, force
   }
   s.plan = plan; s.results = mergeExecutionResults(s.results, results);
   const report = await reportExecution(goal, context, plan, s.results, s);
-  remember(context, 'user', message); remember(context, 'assistant', report);
-  return { mode: 'execute', response: report, plan, results: s.results };
+  const userResponse = cleanUserResponse(report);
+  remember(context, 'user', message); remember(context, 'assistant', userResponse);
+  return { mode: 'execute', response: userResponse, plan, results: s.results };
 }
+function cleanUserResponse(text: string): string {
+  let output = String(text || '').replace(/\n?NEXUS_EXECUTION_STATE:\s*\{[^\n]*\}/g, '').trim();
+  output = output.replace(/```(?:json|javascript|typescript|text)?/gi, '').replace(/```/g, '').trim();
+  output = output.replace(/^\s*Authoritative Execution Results\s*$/gim, '').replace(/^\s*Execution Results\s*$/gim, '').trim();
+  return output || 'I completed the request.';
+}
+
 function resolveReferences(value: unknown, results: any[]): any {
   if (typeof value === 'string') return value.replace(/\{\{([^}]+)\}\}/g, (_, path) => String(resolvePath(results, String(path)) ?? ''));
   if (Array.isArray(value)) return value.map((v) => resolveReferences(v, results));

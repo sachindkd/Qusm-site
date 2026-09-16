@@ -25,13 +25,18 @@ export async function kickMember(guildId: string, userId: string, reason?: strin
 export async function banMember(guildId: string, userId: string, reason?: string) { assertGuild(guildId); await member(guildId, userId); return request(`/guilds/${encodeURIComponent(guildId)}/bans/${encodeURIComponent(userId)}`, { method: 'PUT', reason, body: { delete_message_seconds: 0 } }); }
 
 const DISCORD_MESSAGE_LIMIT = 2000;
-function splitMessage(content: string, limit = DISCORD_MESSAGE_LIMIT): string[] {
+const NEXUS_MESSAGE_BUDGET = 1900;
+function splitMessage(content: string, limit = NEXUS_MESSAGE_BUDGET): string[] {
   if (content.length <= limit) return [content];
   const chunks: string[] = [];
   let remaining = content;
   while (remaining.length > limit) {
     let cut = remaining.lastIndexOf('\n', limit);
     if (cut < Math.floor(limit * 0.5)) cut = remaining.lastIndexOf(' ', limit);
+    if (cut < Math.floor(limit * 0.5)) {
+      const sentence = Math.max(remaining.lastIndexOf('. ', limit), remaining.lastIndexOf('? ', limit), remaining.lastIndexOf('! ', limit));
+      if (sentence > Math.floor(limit * 0.5)) cut = sentence + 1;
+    }
     if (cut < 1) cut = limit;
     chunks.push(remaining.slice(0, cut));
     remaining = remaining.slice(cut).replace(/^\s+/, '');
@@ -43,10 +48,11 @@ function splitMessage(content: string, limit = DISCORD_MESSAGE_LIMIT): string[] 
 export async function sendMessage(guildId: string, channelId: string, content: string, embeds?: unknown[], reason?: string) {
   await channel(guildId, channelId);
   if (!content && !embeds?.length) throw new Error('Validation error: message content or embeds are required.');
-  const chunks = content ? splitMessage(content) : [''];
+  const cleanedContent = content ? content.replace(/\n?NEXUS_EXECUTION_STATE:\s*\{[^\n]*\}/g, '').trim() : '';
+  const chunks = cleanedContent ? splitMessage(cleanedContent) : [''];
   const sent: unknown[] = [];
   for (let index = 0; index < chunks.length; index += 1) {
-    const body = { content: chunks[index].slice(0, DISCORD_MESSAGE_LIMIT), embeds: index === 0 ? embeds?.slice(0, 10) : undefined };
+    const body = { content: chunks[index], embeds: index === 0 ? embeds?.slice(0, 10) : undefined };
     sent.push(await request(`/channels/${encodeURIComponent(channelId)}/messages`, { method: 'POST', reason, body }));
   }
   return sent.length === 1 ? sent[0] : sent;

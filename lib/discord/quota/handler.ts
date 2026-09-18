@@ -28,7 +28,6 @@ async function handlePerformanceReport(interaction: any, kind: "staff" | "logist
   try {
     await interactionCallback(interaction, { type: 5, data: { flags: 64 } });
     const report = await buildPerformanceReport(kind);
-    const header = report.ai ? "🤖 AI Performance Analysis" : "📊 Performance Analysis — AI API pending";
     const title = kind === "staff" ? "Staff Performance Report" : "Logistics Performance Report";
     const header = report.ai ? "🤖 AI analysis completed." : "📊 Data analysis completed (AI unavailable).";
     const filename = `QUSM_${kind === "staff" ? "Staff" : "Logistics"}_Performance_Report_${new Date().toISOString().slice(0, 10)}.txt`;

@@ -135,8 +135,8 @@ export async function getAndValidateReviewMessage(messageId: string, requestId: 
   const values = Object.fromEntries(fields.map((field: any) => [String(field.name), String(field.value || "")]));
   const member = String(values.Member || "");
   const userId = member.match(/^<@(\d+)>/)?.[1];
-  const username = member.match(/^<@\d+>\s*\(([^
-]*)\)$/)?.[1]?.trim() || "";
+  const usernameMatch = member.match(/^<@\d+>\s*\(([^)]*)\)$/);
+  const username = usernameMatch?.[1]?.trim() || "";
   const quota = Number(String(values["Quota (minutes)"] || "").replace(/\s*min(?:utes?)?\s*$/i, ""));
   const proofField = String(values.Proof || "");
   const proof = proofField.match(/\((https?:\/\/[^)]+)\)/i)?.[1] || proofField;

@@ -73,6 +73,7 @@ async function sendReminder(request: PendingQuota) {
   return true;
 }
 
+// Vercel redeploy trigger: keep this file intentionally unchanged in behavior.
 export async function scanPendingQuotaReminders(reason: "startup" | "periodic") {
   await initReminderState();
   const q = sql();

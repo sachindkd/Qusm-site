@@ -1,5 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { getStaffDatabaseSnapshot } from "@/lib/quota-sheets";
+import { ensureQuotaState } from "@/lib/quota-state";
+import { ensureTicketState } from "@/lib/ticket-state";
 
 type RequestRow = {
   request_id: string;
@@ -76,6 +78,7 @@ async function getRequestRows(): Promise<{ quota: RequestRow[]; tickets: Request
 }
 
 export async function collectPerformanceData() {
+  await Promise.all([ensureQuotaState(), ensureTicketState()]);
   const [{ quota, tickets }, sheetRows] = await Promise.all([getRequestRows(), getStaffDatabaseSnapshot()]);
   const byUser = new Map<string, StaffMetric>();
 

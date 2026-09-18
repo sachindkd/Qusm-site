@@ -6,6 +6,12 @@ export const TESTER_ROLE_ID = "1540499074061439006";
 export const QUOTA_CHANNEL_ID = "1545116182858965046";
 export const QUOTA_LOG_CHANNEL_ID = "1539785260923879505";
 
+// During development, only this Discord user may use the Staff bot commands.
+// Set DEV_COMMAND_USER_ID to the designated special user on Vercel.
+export function developmentCommandUserId() {
+  return process.env.DEV_COMMAND_USER_ID?.trim() || "";
+}
+
 export function botToken() {
   const value = process.env.DISCORD_BOT_TOKEN?.trim();
   if (!value) throw new Error("DISCORD_BOT_TOKEN is not configured");

@@ -55,8 +55,8 @@ export async function createQuotaRequest(input: {
 }) {
   await initQuotaState();
   const q = sql();
-  await q`INSERT INTO quota_requests (request_id, user_id, username, minutes, signature, status, reminder_sent_at)
-    VALUES (${input.requestId}, ${input.userId}, ${input.username}, ${input.minutes}, ${input.signature}, 'pending', NULL, NULL, NULL, ${input.program || null});
+  await q`INSERT INTO quota_requests (request_id, user_id, username, minutes, signature, status, reminder_sent_at, rejected_by, rejected_by_username, program)
+    VALUES (${input.requestId}, ${input.userId}, ${input.username}, ${input.minutes}, ${input.signature}, 'pending', NULL, NULL, NULL, ${input.program || null})`;
 }
 
 export async function attachQuotaMessage(requestId: string, messageId: string) {

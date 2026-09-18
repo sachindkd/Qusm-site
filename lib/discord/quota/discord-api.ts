@@ -18,9 +18,7 @@ export async function discordApi(path: string, init: RequestInit = {}) {
       cache: "no-store",
     });
     const text = await response.text();
-
     if (response.ok) return text ? JSON.parse(text) : {};
-
     if (response.status === 429 && attempt < MAX_429_RETRIES) {
       let retryAfterMs = Number(response.headers.get("Retry-After")) * 1000;
       try {
@@ -31,10 +29,8 @@ export async function discordApi(path: string, init: RequestInit = {}) {
       await sleep(Math.min(Math.max(retryAfterMs + 250, 1000), 15000));
       continue;
     }
-
     throw new Error(`Discord API ${response.status}: ${text.slice(0, 300)}`);
   }
-
   throw new Error("Discord API rate limit retries exhausted");
 }
 
@@ -59,6 +55,18 @@ export async function interactionFollowup(interaction: any, payload: any) {
     cache: "no-store",
   });
   if (!response.ok) throw new Error(`Discord followup ${response.status}: ${(await response.text()).slice(0, 300)}`);
+}
+
+export async function interactionFollowupFile(interaction: any, payload: any, filename: string, content: string) {
+  const form = new FormData();
+  form.append("payload_json", JSON.stringify(payload));
+  form.append("files[0]", new Blob([content], { type: "text/plain; charset=utf-8" }), filename);
+  const response = await fetch(`https://discord.com/api/v10/webhooks/${applicationId()}/${interaction.token}`, {
+    method: "POST",
+    body: form,
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Discord report upload ${response.status}: ${(await response.text()).slice(0, 300)}`);
 }
 
 export function jsonResponse(data: any, status = 200) {

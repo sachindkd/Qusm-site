@@ -44,8 +44,8 @@ async function initTicketState() {
 export async function createTicketRequest(input: { requestId: string; userId: string; username: string; tickets: number; signature: string; program?: string }) {
   await initTicketState();
   const q = sql();
-  await q`INSERT INTO ticket_requests (request_id, user_id, username, tickets, signature, status)
-    VALUES (${input.requestId}, ${input.userId}, ${input.username}, ${input.tickets}, ${input.signature}, 'pending', NULL, NULL, NULL, ${input.program || null})`;
+  await q`INSERT INTO ticket_requests (request_id, user_id, username, tickets, signature, status, rejected_by, rejected_by_username, program)
+    VALUES (${input.requestId}, ${input.userId}, ${input.username}, ${input.tickets}, ${input.signature}, 'pending', NULL, NULL, ${input.program || null})`;
 }
 
 export async function attachTicketMessage(requestId: string, messageId: string) {

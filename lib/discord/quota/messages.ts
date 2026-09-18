@@ -44,7 +44,10 @@ export async function postReviewMessage(request: QuotaRequest, displayName: stri
           { name: "Member", value: `<@${request.userId}> (${request.username})`, inline: true },
           { name: "Display Name", value: displayName || request.username, inline: true },
           ...(internship ? [{ name: "Program", value: "Internship Program", inline: true }] : []),
-          { name: "Quota (minutes)", value: `${request.quota} min`, inline: true },\n          ...(duplicateOf?.length ? [{ name: "Potential Duplicate", value: duplicateOf.map(d => `Request \\`${d.requestId.slice(0, 8)}\\` (${d.status})`).join("\\n") + "\\nReview before approving." }] : []),
+          { name: "Quota (minutes)", value: `${request.quota} min`, inline: true },
+          ...(duplicateOf?.length ? [{ name: "Potential Duplicate", value: duplicateOf.map(d => `Request \\`${d.requestId.slice(0, 8)}\\` (${d.status})`).join("\
+") + "\
+Review before approving." }] : []),
           { name: "Proof", value: `[${request.proofName || "View proof image"}](${request.proof})` },
           { name: "Notes", value: request.notes || "—" },
         ],
@@ -122,7 +125,9 @@ export async function postRejectionLog(request: QuotaRequest, reason: string, re
 
 export async function dmRejection(userId: string, reason: string, minutes: number) {
   const dm = await discordApi("/users/@me/channels", { method: "POST", body: JSON.stringify({ recipient_id: userId }) });
-  await discordApi(`/channels/${dm.id}/messages`, { method: "POST", body: JSON.stringify({ content: `❌ Your **${minutes} minute** quota submission has been rejected by Logistics.\n\n**Reason:** ${reason}` }) });
+  await discordApi(`/channels/${dm.id}/messages`, { method: "POST", body: JSON.stringify({ content: `❌ Your **${minutes} minute** quota submission has been rejected by Logistics.
+
+**Reason:** ${reason}` }) });
 }
 
 export async function getAndValidateReviewMessage(messageId: string, requestId: string, signature: string) {
@@ -132,7 +137,8 @@ export async function getAndValidateReviewMessage(messageId: string, requestId: 
   const values = Object.fromEntries(fields.map((field: any) => [String(field.name), String(field.value || "")]));
   const member = String(values.Member || "");
   const userId = member.match(/^<@(\d+)>/)?.[1];
-  const username = member.match(/^<@\d+>\s*\(([^\n]*)\)$/)?.[1]?.trim() || "";
+  const username = member.match(/^<@\d+>\s*\(([^
+]*)\)$/)?.[1]?.trim() || "";
   const quota = Number(String(values["Quota (minutes)"] || "").replace(/\s*min(?:utes?)?\s*$/i, ""));
   const proofField = String(values.Proof || "");
   const proof = proofField.match(/\((https?:\/\/[^)]+)\)/i)?.[1] || proofField;

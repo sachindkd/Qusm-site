@@ -50,7 +50,7 @@ function key(value: unknown) { return String(value ?? "").trim().toLowerCase(); 
 function day(value: string) { return new Date(value).toISOString().slice(0, 10); }
 
 export function highcomRoleIds() {
-  return String(process.env.STAFF_HIGHCOM_ROLE_IDS || process.env.STAFF_HIGHCOM_ROLE_ID || "")
+  return String(process.env.STAFF_HIGHCOM_ROLE_IDS || process.env.STAFF_HIGHCOM_ROLE_ID || "1539736453016330311")
     .split(",").map(v => v.trim()).filter(Boolean);
 }
 

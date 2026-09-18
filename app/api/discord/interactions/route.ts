@@ -3,7 +3,6 @@ import { handleGet, handlePost } from "@/lib/discord/quota/handler";
 import { jsonResponse } from "@/lib/discord/quota/discord-api";
 import { runQuotaReminderCheck } from "@/lib/discord/quota/reminders";
 import { handleTicketPost } from "@/lib/discord/tickets/handler";
-import { developmentCommandUserId } from "@/lib/discord/quota/config";
 
 export async function GET() {
   try {
@@ -26,20 +25,6 @@ export async function POST(request: Request) {
     // Respond immediately so Discord does not report "The application did not respond".
     if (interaction?.type === 1) {
       return jsonResponse({ type: 1 });
-    }
-
-    // All commands/interactions are intentionally unavailable while QUSM is in development.
-    // Reject them immediately with a visible ephemeral response instead of waiting on DB work.
-    const allowedUserId = developmentCommandUserId();
-    const interactionUserId = String(interaction?.member?.user?.id || interaction?.user?.id || "");
-    if (!allowedUserId || interactionUserId !== allowedUserId) {
-      return jsonResponse({
-        type: 4,
-        data: {
-          content: "⚠️ **QUSM is currently under development.**\n\nYour request has been rejected because the bot is not yet available for general use.",
-          flags: 64
-        }
-      });
     }
 
     try {

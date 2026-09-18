@@ -434,33 +434,53 @@ async function callProvider(provider: AiProvider, prompt: string, data: any) {
   return callCloudflare(prompt, data);
 }
 
+function buildCompleteStaffText(data: any) {
+  const rows = [...data.staff].sort((a:any,b:any) => rankPriority(a.sheetRank) - rankPriority(b.sheetRank) || String(a.sheetRank).localeCompare(String(b.sheetRank)) || String(a.username).localeCompare(String(b.username)));
+  const sections = rows.map((m:any, i:number) => [
+    `### ${i + 1}. ${m.username}`, `Rank: ${m.sheetRank || "Unknown"}`,
+    `Database totals: ${m.sheetMinutes} minutes | ${m.sheetTickets} tickets`,
+    `Quota: ${m.quotaSubmitted} submitted | ${m.quotaApproved} approved | ${m.quotaRejected} rejected | ${m.quotaPending} pending`,
+    `Quota minutes: ${m.quotaMinutesSubmitted} submitted | ${m.quotaMinutesApproved} approved`,
+    `Quota programs: Normal ${m.quotaNormalApproved} | Internship ${m.quotaInternshipApproved}`,
+    `Tickets: ${m.ticketsSubmitted} submitted | ${m.ticketsApproved} approved | ${m.ticketsRejected} rejected | ${m.ticketsPending} pending | ${m.ticketsCompleted} completed`,
+    `Activity: ${m.activeDays} active days | First: ${m.firstActivity || "None"} | Last: ${m.lastActivity || "None"}`,
+    `Rank history: ${m.rankHistory?.length ? m.rankHistory.map((x:any) => x.rank + " (" + x.observedAt + ")").join(" -> ") : "No recorded history"}`,
+    `Promotion recommendation: ${m.promotionRecommendation} — ${m.promotionReason}`,
+    m.concentrationWarning ? `Consistency flag: ${m.concentrationWarning}` : "Consistency flag: None recorded",
+  ].join("\n")).join("\n\n");
+  return [`# QUSM STAFF PERFORMANCE — COMPLETE ROSTER (${rows.length} MEMBERS)`, `Generated: ${data.generatedAt}`, "", sections].join("\n");
+}
+
+function buildCompleteLogisticsText(data: any) {
+  const rows = [...data.logistics].sort((a:any,b:any) => String(a.username).localeCompare(String(b.username)));
+  const sections = rows.map((m:any, i:number) => [
+    `### ${i + 1}. ${m.username}`, `User ID: ${m.userId}`, `Total reviews: ${m.reviewed}`,
+    `Quota: ${m.quotaApprovals} approved | ${m.quotaRejections} rejected | ${m.quotaMinutesApproved} minutes approved`,
+    `Quota programs: Normal ${m.normalQuotaApprovals} | Internship ${m.internshipQuotaApprovals}`,
+    `Tickets: ${m.ticketApprovals} approved | ${m.ticketRejections} rejected | ${m.ticketsApproved} tickets approved`,
+    `Review-day coverage: ${m.reviewDays.length} days${m.reviewDays.length ? " | " + m.reviewDays.join(", ") : ""}`,
+    m.reviewed === 0 ? "Activity note: No recorded reviews in the available database." : "Activity note: Review activity is present in the available database.",
+  ].join("\n")).join("\n\n");
+  return [`# QUSM LOGISTICS PERFORMANCE — COMPLETE ROSTER (${rows.length} MEMBERS)`, `Generated: ${data.generatedAt}`, "", sections].join("\n");
+}
+
 export async function buildPerformanceReport(kind: "staff" | "logistics") {
   const data = addPromotionRecommendation(await collectPerformanceData());
   const compactData = compactDataForAi(data, kind);
   const prompt = kind === "staff"
-    ? "Analyze the supplied QUSM staff performance dataset. Produce a structured report that MUST include EVERY staff member supplied in the dataset exactly once. For each member include rank, database minutes/tickets, quota submitted/approved/rejected/pending, tickets submitted/approved/rejected/pending, active days, rank history/changes, and the supplied promotion recommendation and reason. Do not omit lower-ranked or zero-activity members. Keep the data organized by rank and then username. Cover EVERY staff member, quota submissions/approvals/rejections/pending, normal vs internship quota, tickets, current sheet totals, activity-day consistency, concentration patterns, first/last activity, recorded rank history/rank changes, and missing/uncertain data. Compare activity across the full recorded history; do not judge someone only from a last-minute burst. Only discuss promotion-period patterns if actual rank-change dates in the supplied data support it; rank history is based on snapshots observed by the bot and may not contain older changes. Flag patterns for human review rather than declaring misconduct. Do not invent facts, scores, rankings, motives, or missing data. Use clear sections and actionable observations."
-    : "Analyze the supplied QUSM logistics performance dataset. Produce a structured report that MUST include EVERY Logistics reviewer exactly once, including members with zero recorded reviews. Do not stop, truncate, summarize away, or omit lower-volume reviewers. For each reviewer include username, user ID, total reviews, quota approvals/rejections, internship and normal quota approvals, approved quota minutes, ticket approvals/rejections, approved ticket count, and review-day coverage. Keep reviewers in alphabetical order. Use compact sections/tables so the complete roster fits. Flag patterns for human review and do not invent facts, scores, rankings, motives, or missing data.";
-
+    ? "Analyze the supplied QUSM staff performance dataset. Provide a concise factual analysis only. The complete roster is generated separately; do not reproduce the roster. Highlight patterns, missing data, rank-history evidence, and promotion evidence without inventing facts or ranking people."
+    : "Analyze the supplied QUSM logistics performance dataset. Provide a concise factual analysis only. The complete roster is generated separately; do not reproduce the roster. Highlight review-volume patterns, gaps, and missing data without inventing facts or ranking people.";
   const errors: string[] = [];
   for (const provider of configuredProviders()) {
     try {
-      const text = await callProvider(provider, prompt, compactData);
-      return { text, ai: true, provider, data };
+      const aiText = await callProvider(provider, prompt, compactData);
+      const rosterText = kind === "staff" ? buildCompleteStaffText(data) : buildCompleteLogisticsText(data);
+      return { text: rosterText + "\n\n# AI ANALYSIS\n\n" + aiText, ai: true, provider, data };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      errors.push(provider + ": " + message);
+      const message = error instanceof Error ? error.message : String(error); errors.push(provider + ": " + message);
       console.warn("[performance-ai] " + provider + " failed; trying next provider", error);
     }
   }
-
-  return {
-    text: [
-      kind === "staff" ? fallbackStaffReport(data) : fallbackLogisticsReport(data),
-      "",
-      "⚠️ AI providers were unavailable or rate-limited for this request.",
-      "Providers tried: " + errors.join(" | "),
-      "The report above is the local database analysis and does not contain AI-generated conclusions.",
-    ].join("\n"),
-    ai: false, provider: null, data,
-  };
+  const rosterText = kind === "staff" ? buildCompleteStaffText(data) : buildCompleteLogisticsText(data);
+  return { text: rosterText + "\n\n# ANALYSIS STATUS\n\nAI providers were unavailable or rate-limited. The complete database roster above is still included without truncation.\nProviders tried: " + errors.join(" | "), ai: false, provider: null, data };
 }

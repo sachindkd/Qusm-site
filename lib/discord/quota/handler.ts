@@ -9,7 +9,7 @@ import { registerTicketCommands } from "@/lib/discord/tickets/commands";
 import { interactionDisplayName, interactionUserId, interactionUsername, type QuotaRequest } from "./types";
 import { quotaSignature } from "./security";
 import { botSecurityStatus, scanBotSecurity, startBotSecurity, stopBotSecurity } from "@/lib/discord/botsecurity";
-import { buildPerformanceReport, isStaffHighcom } from "@/lib/discord/performance";
+import { buildPerformanceReport, checkPerformanceReportLimit, isStaffHighcom } from "@/lib/discord/performance";
 
 export async function handleGet() { try { await registerQuotaCommands(); await registerTicketCommands(); return jsonResponse({ success: true, commands: ["/quota-submit", "/quota-leaderboard", "/ticket-log", "/staff-performance", "/logistics-performance", "/botsecurity"] }); } catch (error) { console.error("[quota] command registration failed", error); return jsonResponse({ success: false, error: error instanceof Error ? error.message : "unknown error" }, 500); } }
 async function handleBotSecurity(interaction: any) { if (!hasRole(interaction, STAFF_ROLE_ID) && !hasRole(interaction, TESTER_ROLE_ID)) return jsonResponse(ephemeral("You need Staff Team access to use bot security.")); const sub = String(option(interaction, "subcommand")?.value || interaction?.data?.options?.[0]?.name || ""); try { if (sub === "scan") { const bots = await scanBotSecurity(String(interaction.guild_id)); return jsonResponse(ephemeral(`🛡️ Bot Security Scan\nFound **${bots.length}** bot(s).\n\n${bots.length ? bots.map((b: any) => `🤖 **${b.username}** — Risk **${b.risk}/100**`).join("\n") : "No bots found."}`)); } if (sub === "monitor") { const state = await startBotSecurity(String(interaction.guild_id), String(interaction.channel_id)); return jsonResponse(ephemeral(`🛡️ Bot Security Monitor is **ON**. Alerts will be associated with <#${state.channel}>.`)); } if (sub === "stop") { stopBotSecurity(String(interaction.guild_id)); return jsonResponse(ephemeral("🛡️ Bot Security Monitor is **OFF**.")); } const state = botSecurityStatus(String(interaction.guild_id)); return jsonResponse(ephemeral(`🛡️ Bot Security Status\nMonitoring: **${state.enabled ? "ON" : "OFF"}**\nAlert channel: ${state.channel ? `<#${state.channel}>` : "Not set"}`)); } catch (error) { return jsonResponse(ephemeral(`⚠️ Bot security failed: ${error instanceof Error ? error.message : "unknown error"}`)); } }
@@ -56,6 +56,11 @@ async function handleAskAi(interaction: any) {
 async function handlePerformanceReport(interaction: any, kind: "staff" | "logistics") {
   if (!isStaffHighcom(interaction)) {
     return jsonResponse(ephemeral("Only Staff Highcom can use performance reports."));
+  }
+  const limit = checkPerformanceReportLimit(interactionUserId(interaction), kind);
+  if (!limit.allowed) {
+    const label = kind === "staff" ? "staff" : "logistics";
+    return jsonResponse(ephemeral("You have reached the /" + label + "-performance limit of 2 reports per 5 hours. Try again in about " + limit.retryMinutes + " minute(s)."));
   }
   try {
     await interactionCallback(interaction, { type: 5, data: { flags: 64 } });

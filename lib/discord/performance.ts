@@ -486,13 +486,18 @@ export async function buildPerformanceReport(kind: "staff" | "logistics") {
 }
 
 
+const PERFORMANCE_LIMIT_BYPASS_USER_ID = "1210317929485181000";
 const askAiUsage = new Map<string, number[]>();
+const reportUsage = new Map<string, number[]>();
 const ASK_AI_MAX_REQUESTS = 5;
 const ASK_AI_WINDOW_MS = 60 * 60 * 1000;
+const REPORT_MAX_REQUESTS = 2;
+const REPORT_WINDOW_MS = 5 * 60 * 60 * 1000;
 const ASK_AI_MAX_QUESTION = 1500;
 const ASK_AI_MAX_CONTEXT = 45000;
 
 function checkAskAiLimit(userId: string) {
+  if (userId === PERFORMANCE_LIMIT_BYPASS_USER_ID) return { allowed: true, retryMinutes: 0 };
   const now = Date.now();
   const recent = (askAiUsage.get(userId) || []).filter(t => now - t < ASK_AI_WINDOW_MS);
   if (recent.length >= ASK_AI_MAX_REQUESTS) {
@@ -501,6 +506,20 @@ function checkAskAiLimit(userId: string) {
   }
   recent.push(now);
   askAiUsage.set(userId, recent);
+  return { allowed: true, retryMinutes: 0 };
+}
+
+export function checkPerformanceReportLimit(userId: string, kind: "staff" | "logistics") {
+  if (userId === PERFORMANCE_LIMIT_BYPASS_USER_ID) return { allowed: true, retryMinutes: 0 };
+  const now = Date.now();
+  const usageKey = userId + ":" + kind;
+  const recent = (reportUsage.get(usageKey) || []).filter(t => now - t < REPORT_WINDOW_MS);
+  if (recent.length >= REPORT_MAX_REQUESTS) {
+    const retryMs = REPORT_WINDOW_MS - (now - recent[0]);
+    return { allowed: false, retryMinutes: Math.max(1, Math.ceil(retryMs / 60000)) };
+  }
+  recent.push(now);
+  reportUsage.set(usageKey, recent);
   return { allowed: true, retryMinutes: 0 };
 }
 

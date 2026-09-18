@@ -266,10 +266,35 @@ export async function collectPerformanceData() {
   };
 }
 
+function rankPriority(rank: string) {
+  const r = key(rank);
+  const order = ["director", "deputy director", "assistant director", "executive director", "highcom", "high command", "lowcom", "low command", "modcom", "moderator command", "senior staff", "staff", "junior staff", "intern", "internship"];
+  const exact = order.findIndex(v => r === v || r.includes(v));
+  return exact >= 0 ? exact : 100;
+}
+
+function addPromotionRecommendation(data: any) {
+  for (const m of data.staff) {
+    const approved = Number(m.quotaApproved) + Number(m.ticketsApproved);
+    const submitted = Number(m.quotaSubmitted) + Number(m.ticketsSubmitted);
+    const rate = submitted ? (approved / submitted) * 100 : 0;
+    if (!Number(m.activeDays)) {
+      m.promotionRecommendation = "Review";
+      m.promotionReason = "No recorded quota/ticket activity; additional evidence is needed.";
+    } else if (approved >= 10 && rate >= 70 && Number(m.activeDays) >= 3) {
+      m.promotionRecommendation = "Yes";
+      m.promotionReason = "Sustained recorded activity with at least 10 approved actions, 70% combined approval rate, and activity across 3+ days.";
+    } else {
+      m.promotionRecommendation = "No";
+      m.promotionReason = "Available recorded activity does not meet the report's evidence threshold for promotion.";
+    }
+  }
+  return data;
+}
 function fallbackStaffReport(data: any) {
-  const rows = [...data.staff].sort((a,b) => (b.quotaMinutesApproved + b.ticketsCompleted) - (a.quotaMinutesApproved + a.ticketsCompleted));
+  const rows = [...data.staff].sort((a,b) => rankPriority(a.sheetRank) - rankPriority(b.sheetRank) || String(a.sheetRank).localeCompare(String(b.sheetRank)) || String(a.username).localeCompare(String(b.username)));
   const lines = rows.map((m:any) =>
-    `• **${m.username}** — ${m.sheetRank || "Rank unknown"} | ${m.quotaMinutesApproved} approved min | ${m.ticketsCompleted} tickets | ${m.activeDays} active days | quota approval ${m.approvalRate ?? 0}%`
+    `• **${m.username}** — ${m.sheetRank || "Rank unknown"} | DB: ${m.sheetMinutes} min / ${m.sheetTickets} tickets | Quota: ${m.quotaSubmitted} submitted, ${m.quotaApproved} approved, ${m.quotaRejected} rejected, ${m.quotaPending} pending | Tickets: ${m.ticketsSubmitted} submitted, ${m.ticketsApproved} approved, ${m.ticketsRejected} rejected, ${m.ticketsPending} pending | Active days: ${m.activeDays} | Promotion: **${m.promotionRecommendation}** — ${m.promotionReason}`
   );
   return [
     "**Staff Performance Report — data analysis mode**",
@@ -322,7 +347,7 @@ function compactDataForAi(data: any, kind: "staff" | "logistics") {
         ticketsSubmitted: m.ticketsSubmitted, ticketsApproved: m.ticketsApproved, ticketsRejected: m.ticketsRejected,
         ticketsPending: m.ticketsPending, ticketsCompleted: m.ticketsCompleted, activeDays: m.activeDays,
         activityDays: m.activityDays, firstActivity: m.firstActivity, lastActivity: m.lastActivity,
-        rankHistory: m.rankHistory, rankChanges: m.rankChanges,
+        rankHistory: m.rankHistory, rankChanges: m.rankChanges, promotionRecommendation: m.promotionRecommendation, promotionReason: m.promotionReason,
         approvalRate: m.approvalRate, ticketApprovalRate: m.ticketApprovalRate, concentrationWarning: m.concentrationWarning,
       })),
     };
@@ -345,7 +370,7 @@ async function callGemini(prompt: string, data: any) {
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: prompt }] },
       contents: [{ role: "user", parts: [{ text: JSON.stringify(data) }] }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 2200 },
+      generationConfig: { temperature: 0.1, maxOutputTokens: 8000 },
     }), cache: "no-store",
   });
   if (!response.ok) throw new Error("Gemini " + response.status);
@@ -364,7 +389,7 @@ async function callGroq(prompt: string, data: any) {
     headers: { "Content-Type": "application/json", Authorization: "Bearer " + apiKey },
     body: JSON.stringify({
       model, messages: [{ role: "system", content: prompt }, { role: "user", content: JSON.stringify(data) }],
-      temperature: 0.1, max_tokens: 2200,
+      temperature: 0.1, max_tokens: 8000,
     }), cache: "no-store",
   });
   if (!response.ok) {
@@ -409,7 +434,7 @@ async function callProvider(provider: AiProvider, prompt: string, data: any) {
 }
 
 export async function buildPerformanceReport(kind: "staff" | "logistics") {
-  const data = await collectPerformanceData();
+  const data = addPromotionRecommendation(await collectPerformanceData());
   const compactData = compactDataForAi(data, kind);
   const prompt = kind === "staff"
     ? "Analyze the supplied QUSM staff performance dataset. Produce a detailed factual report for Staff Highcom. Cover EVERY staff member, quota submissions/approvals/rejections/pending, normal vs internship quota, tickets, current sheet totals, activity-day consistency, concentration patterns, first/last activity, recorded rank history/rank changes, and missing/uncertain data. Compare activity across the full recorded history; do not judge someone only from a last-minute burst. Only discuss promotion-period patterns if actual rank-change dates in the supplied data support it; rank history is based on snapshots observed by the bot and may not contain older changes. Flag patterns for human review rather than declaring misconduct. Do not invent facts, scores, rankings, motives, or missing data. Use clear sections and actionable observations."

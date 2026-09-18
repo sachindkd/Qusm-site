@@ -45,7 +45,7 @@ export async function postReviewMessage(request: QuotaRequest, displayName: stri
           { name: "Display Name", value: displayName || request.username, inline: true },
           ...(internship ? [{ name: "Program", value: "Internship Program", inline: true }] : []),
           { name: "Quota (minutes)", value: `${request.quota} min`, inline: true },
-          ...(duplicateOf?.length ? [{ name: "Potential Duplicate", value: duplicateOf.map(d => "Request `" + d.requestId.slice(0, 8) + "` (" + d.status + ")").join("\n") + "\nReview before approving." }] : []),
+          ...(duplicateOf?.length ? [{ name: "**POTENTIAL DUPLICATE**", value: duplicateOf.map(d => "Request `" + d.requestId.slice(0, 8) + "` (" + d.status + ")").join("\n") + "\n**Review before approving.**" }] : []),
           { name: "Proof", value: `[${request.proofName || "View proof image"}](${request.proof})` },
           { name: "Notes", value: request.notes || "—" },
         ],

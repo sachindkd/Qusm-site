@@ -3,6 +3,7 @@ import { handleGet, handlePost } from "@/lib/discord/quota/handler";
 import { jsonResponse } from "@/lib/discord/quota/discord-api";
 import { runQuotaReminderCheck } from "@/lib/discord/quota/reminders";
 import { handleTicketPost } from "@/lib/discord/tickets/handler";
+import { developmentCommandUserId } from "@/lib/discord/quota/config";
 
 export async function GET() {
   try {
@@ -21,6 +22,11 @@ export async function POST(request: Request) {
   try {
     await runQuotaReminderCheck("startup");
     const interaction = JSON.parse(body);
+    const allowedUserId = developmentCommandUserId();
+    const interactionUserId = String(interaction?.member?.user?.id || interaction?.user?.id || "");
+    if (!allowedUserId || interactionUserId !== allowedUserId) {
+      return jsonResponse({ type: 4, data: { content: "⚠️ The QUSM bot is currently in development and cannot be used by anyone except the designated development user.", flags: 64 } });
+    }
     const customId = String(interaction?.data?.custom_id || "");
     const commandName = String(interaction?.data?.name || "");
     const isTicket = commandName === "ticket-log" || customId.startsWith("ticket:") || customId.startsWith("tac:") || customId.startsWith("trj:");

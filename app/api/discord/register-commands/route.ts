@@ -50,46 +50,70 @@ async function discordRequest(url: string, init: RequestInit = {}) {
 }
 
 export async function GET(request: Request) {
-  if (!APPLICATION_ID || !BOT_TOKEN) return Response.json({ success: false, error: "Discord application credentials are not configured" }, { status: 500 });
+  if (!APPLICATION_ID || !BOT_TOKEN) {
+    return Response.json(
+      { success: false, error: "Discord application credentials are not configured" },
+      { status: 500 }
+    );
+  }
 
-  const currentResponse = await discordRequest(discordBase);
-  const currentText = await currentResponse.text();
-  if (!currentResponse.ok) return Response.json({ success: false, error: currentText.slice(0, 500) }, { status: currentResponse.status });
+  // Use Discord's bulk guild-command overwrite endpoint so registration is a
+  // single API request instead of GET + one PATCH/POST per command. This
+  // avoids unnecessary Discord rate limits and also removes stale commands.
+  const response = await discordRequest(discordBase, {
+    method: "PUT",
+    body: JSON.stringify(activeCommands)
+  });
 
-  let currentCommands: Array<{ id?: string; name?: string }> = [];
+  const responseText = await response.text();
+
+  if (!response.ok) {
+    let details: unknown = responseText.slice(0, 1000);
+    try {
+      details = JSON.parse(responseText);
+    } catch {}
+
+    const retryAfter =
+      response.headers.get("retry-after") ||
+      (typeof details === "object" && details !== null && "retry_after" in details
+        ? String((details as { retry_after?: unknown }).retry_after ?? "")
+        : "");
+
+    return Response.json(
+      {
+        success: false,
+        status: response.status,
+        error: details,
+        ...(retryAfter ? { retry_after: retryAfter } : {})
+      },
+      { status: response.status }
+    );
+  }
+
+  let commands: unknown = [];
   try {
-    const parsed = JSON.parse(currentText);
-    if (Array.isArray(parsed)) currentCommands = parsed;
+    commands = JSON.parse(responseText);
   } catch {
-    return Response.json({ success: false, error: "Discord returned invalid command data" }, { status: 502 });
+    commands = { raw: responseText.slice(0, 1000) };
   }
 
   const url = new URL(request.url);
-  const requestedRemovals = [...new Set(url.searchParams.getAll("remove").map((name) => name.trim()).filter(Boolean))];
-  const removed: string[] = [];
-
-  for (const command of currentCommands) {
-    if (!command.id || !command.name || !requestedRemovals.includes(command.name)) continue;
-    const response = await discordRequest(`${discordBase}/${command.id}`, { method: "DELETE" });
-    if (!response.ok) return Response.json({ success: false, error: `Failed to remove ${command.name}: ${(await response.text()).slice(0, 300)}` }, { status: response.status });
-    removed.push(command.name);
-  }
-
-  const registered: unknown[] = [];
-  for (const command of activeCommands) {
-    const existing = currentCommands.find((item) => item.name === command.name);
-    const response = existing?.id
-      ? await discordRequest(`${discordBase}/${existing.id}`, { method: "PATCH", body: JSON.stringify(command) })
-      : await discordRequest(discordBase, { method: "POST", body: JSON.stringify(command) });
-    const text = await response.text();
-    if (!response.ok) return Response.json({ success: false, error: text.slice(0, 500) }, { status: response.status });
-    try { registered.push(JSON.parse(text)); } catch { registered.push({ name: command.name }); }
-  }
+  const requestedRemovals = [
+    ...new Set(
+      url.searchParams
+        .getAll("remove")
+        .map((name) => name.trim())
+        .filter(Boolean)
+    )
+  ];
 
   return Response.json({
     success: true,
-    message: "All active QUSM commands were ensured.",
-    removed,
-    commands: registered
+    message: "All active QUSM guild commands were bulk-registered.",
+    registered: Array.isArray(commands) ? commands.map((command) => ({
+      id: command?.id,
+      name: command?.name
+    })) : commands,
+    removed: requestedRemovals
   });
 }

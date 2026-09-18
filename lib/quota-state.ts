@@ -26,11 +26,17 @@ async function initQuotaState() {
       status TEXT NOT NULL DEFAULT 'pending',
       approved_by TEXT,
       approved_by_username TEXT,
+      rejected_by TEXT,
+      rejected_by_username TEXT,
+      program TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       reminder_sent_at TIMESTAMPTZ
     )`;
     await q`ALTER TABLE quota_requests ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ`;
+    await q`ALTER TABLE quota_requests ADD COLUMN IF NOT EXISTS rejected_by TEXT`;
+    await q`ALTER TABLE quota_requests ADD COLUMN IF NOT EXISTS rejected_by_username TEXT`;
+    await q`ALTER TABLE quota_requests ADD COLUMN IF NOT EXISTS program TEXT`;
     await q`CREATE INDEX IF NOT EXISTS quota_requests_status_idx ON quota_requests(status)`;
     await q`CREATE INDEX IF NOT EXISTS quota_requests_pending_created_idx ON quota_requests(status, created_at)`;
     await q`CREATE INDEX IF NOT EXISTS quota_requests_reminder_idx ON quota_requests(status, reminder_sent_at)`;
@@ -45,11 +51,12 @@ export async function createQuotaRequest(input: {
   username: string;
   minutes: number;
   signature: string;
+  program?: string;
 }) {
   await initQuotaState();
   const q = sql();
   await q`INSERT INTO quota_requests (request_id, user_id, username, minutes, signature, status, reminder_sent_at)
-    VALUES (${input.requestId}, ${input.userId}, ${input.username}, ${input.minutes}, ${input.signature}, 'pending', NULL)`;
+    VALUES (${input.requestId}, ${input.userId}, ${input.username}, ${input.minutes}, ${input.signature}, 'pending', NULL, NULL, NULL, ${input.program || null});
 }
 
 export async function attachQuotaMessage(requestId: string, messageId: string) {
@@ -113,10 +120,10 @@ export async function markQuotaApproved(requestId: string) {
     WHERE request_id = ${requestId} AND status = 'processing'`;
 }
 
-export async function markQuotaRejected(requestId: string) {
+export async function markQuotaRejected(requestId: string, rejectedBy = '', rejectedByUsername = '') {
   await initQuotaState();
   const q = sql();
-  const rows = await q`UPDATE quota_requests SET status = 'rejected', updated_at = NOW()
+  const rows = await q`UPDATE quota_requests SET status = 'rejected', rejected_by = ${rejectedBy || null}, rejected_by_username = ${rejectedByUsername || null}, updated_at = NOW()
     WHERE request_id = ${requestId} AND status = 'pending' RETURNING request_id`;
   return Boolean(rows.length);
 }

@@ -29,7 +29,7 @@ export function rejectModal(requestId: string, signature: string, messageId: str
   };
 }
 
-export async function postReviewMessage(request: QuotaRequest, displayName: string) {
+export async function postReviewMessage(request: QuotaRequest, displayName: string, duplicateOf?: { requestId: string; status: string }[]) {
   const signature = quotaSignature(request);
   const internship = isInternship(request);
   return discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages`, {
@@ -44,7 +44,7 @@ export async function postReviewMessage(request: QuotaRequest, displayName: stri
           { name: "Member", value: `<@${request.userId}> (${request.username})`, inline: true },
           { name: "Display Name", value: displayName || request.username, inline: true },
           ...(internship ? [{ name: "Program", value: "Internship Program", inline: true }] : []),
-          { name: "Quota (minutes)", value: `${request.quota} min`, inline: true },
+          { name: "Quota (minutes)", value: `${request.quota} min`, inline: true },\n          ...(duplicateOf?.length ? [{ name: "Potential Duplicate", value: duplicateOf.map(d => `Request \\`${d.requestId.slice(0, 8)}\\` (${d.status})`).join("\\n") + "\\nReview before approving." }] : []),
           { name: "Proof", value: `[${request.proofName || "View proof image"}](${request.proof})` },
           { name: "Notes", value: request.notes || "—" },
         ],

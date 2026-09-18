@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getQuotaLeaderboard, processInternshipQuotaDirect, processQuotaDirect } from "@/lib/quota-sheets";
 import { attachQuotaMessage, claimQuotaApproval, createQuotaRequest, getQuotaRequestState, markQuotaApproved, markQuotaRejected, releaseQuotaApproval } from "@/lib/quota-state";
 import { INTERNSHIP_ROLE_ID, LOGISTICS_ROLE_ID, QUOTA_CHANNEL_ID, STAFF_GUILD_ID, STAFF_ROLE_ID, TESTER_ROLE_ID } from "./config";
-import { discordApi, ephemeral, getGuildMember, hasMemberRole, hasRole, interactionCallback, interactionFollowup, jsonResponse, modalValues, option } from "./discord-api";
+import { discordApi, ephemeral, getGuildMember, hasMemberRole, hasRole, interactionCallback, interactionFollowup, interactionFollowupFile, jsonResponse, modalValues, option } from "./discord-api";
 import { approveModal, dmRejection, getAndValidateReviewMessage, postApprovalLog, postRejectionLog, postReviewMessage, rejectModal } from "./messages";
 import { registerQuotaCommands } from "./commands";
 import { registerTicketCommands } from "@/lib/discord/tickets/commands";
@@ -29,23 +29,21 @@ async function handlePerformanceReport(interaction: any, kind: "staff" | "logist
     await interactionCallback(interaction, { type: 5, data: { flags: 64 } });
     const report = await buildPerformanceReport(kind);
     const header = report.ai ? "🤖 AI Performance Analysis" : "📊 Performance Analysis — AI API pending";
-    const raw = `**${header}**\\n\\n${report.text}`;
-    const chunks: string[] = [];
-    let remaining = raw;
-    while (remaining.length > 1900) {
-      let cut = remaining.lastIndexOf("\\n", 1900);
-      if (cut < 500) cut = 1900;
-      chunks.push(remaining.slice(0, cut));
-      remaining = remaining.slice(cut).replace(/^\\n+/, "");
-    }
-    if (remaining) chunks.push(remaining);
-    for (let i = 0; i < chunks.length; i++) {
-      await interactionFollowup(interaction, {
-        content: chunks[i],
-        flags: 64,
-        ...(i > 0 ? { allowed_mentions: { parse: [] } } : {}),
-      });
-    }
+    const title = kind === "staff" ? "Staff Performance Report" : "Logistics Performance Report";
+    const header = report.ai ? "🤖 AI analysis completed." : "📊 Data analysis completed (AI unavailable).";
+    const filename = `QUSM_${kind === "staff" ? "Staff" : "Logistics"}_Performance_Report_${new Date().toISOString().slice(0, 10)}.txt`;
+    const fileContent = [
+      `QUSM ${title.toUpperCase()}`,
+      `Generated: ${report.data.generatedAt}`,
+      `Analysis: ${report.ai ? `AI (${report.provider}) + database data` : "Database data only"}`,
+      "",
+      report.text.replace(/\\*\\*/g, ""),
+    ].join("\\n");
+    await interactionFollowupFile(interaction, {
+      content: `✅ **${title} generated.** ${header}\\n📄 Full report attached as \`${filename}\`.`,
+      flags: 64,
+      allowed_mentions: { parse: [] },
+    }, filename, fileContent);
   } catch (error) {
     console.error("[performance] report failed", { kind, interactionId: interaction.id, error });
     try {

@@ -180,11 +180,8 @@ export async function collectPerformanceData() {
       ...m,
       approvalRate: m.quotaSubmitted ? Number((m.quotaApproved / m.quotaSubmitted * 100).toFixed(1)) : null,
       ticketApprovalRate: m.ticketsSubmitted ? Number((m.ticketsApproved / m.ticketsSubmitted * 100).toFixed(1)) : null,
-      concentrationWarning: m.activeDays > 0 && m.activityDays.length > 0
-        ? (() => {
-            const recent = m.activityDays.slice(-3);
-            return recent.length === 1 ? "Activity is concentrated on one recorded day." : null;
-          })()
+      concentrationWarning: m.activeDays === 1 && (m.quotaSubmitted + m.ticketsSubmitted) >= 3
+        ? "All recorded activity is concentrated on one day."
         : null,
     })),
     logistics: logisticMetrics,
@@ -193,7 +190,7 @@ export async function collectPerformanceData() {
 
 function fallbackStaffReport(data: any) {
   const rows = [...data.staff].sort((a,b) => (b.quotaMinutesApproved + b.ticketsCompleted) - (a.quotaMinutesApproved + a.ticketsCompleted));
-  const lines = rows.slice(0, 40).map((m:any) =>
+  const lines = rows.map((m:any) =>
     `• **${m.username}** — ${m.sheetRank || "Rank unknown"} | ${m.quotaMinutesApproved} approved min | ${m.ticketsCompleted} tickets | ${m.activeDays} active days | quota approval ${m.approvalRate ?? 0}%`
   );
   return [

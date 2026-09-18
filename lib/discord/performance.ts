@@ -2,6 +2,8 @@ import { neon } from "@neondatabase/serverless";
 import { getStaffDatabaseSnapshot } from "@/lib/quota-sheets";
 import { ensureQuotaState } from "@/lib/quota-state";
 import { ensureTicketState } from "@/lib/ticket-state";
+import { discordApi } from "@/lib/discord/quota/discord-api";
+import { LOGISTICS_ROLE_ID, STAFF_GUILD_ID } from "@/lib/discord/quota/config";
 
 type RequestRow = {
   request_id: string;
@@ -60,6 +62,70 @@ export function isStaffHighcom(interaction: any) {
   return ids.length > 0 && ids.some(id => roles.includes(id));
 }
 
+async function ensureRankHistory() {
+  const q = sql();
+  await q`CREATE TABLE IF NOT EXISTS staff_rank_history (
+    id BIGSERIAL PRIMARY KEY,
+    username TEXT NOT NULL,
+    rank TEXT NOT NULL,
+    observed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`;
+  await q`CREATE INDEX IF NOT EXISTS staff_rank_history_user_idx ON staff_rank_history(username, observed_at DESC)`;
+}
+
+async function recordRankSnapshot(sheetRows: any[]) {
+  await ensureRankHistory();
+  const q = sql();
+  for (const row of sheetRows) {
+    const username = String(row.username || "").trim();
+    const rank = String(row.rank || "").trim();
+    if (!username) continue;
+    const previous = await q`
+      SELECT rank FROM staff_rank_history
+      WHERE lower(username) = lower(${username})
+      ORDER BY observed_at DESC LIMIT 1
+    `;
+    if (!previous.length || String(previous[0].rank || "") !== rank) {
+      await q`INSERT INTO staff_rank_history (username, rank) VALUES (${username}, ${rank})`;
+    }
+  }
+}
+
+async function getRankHistory() {
+  await ensureRankHistory();
+  const q = sql();
+  const rows = await q`
+    SELECT username, rank, observed_at::text
+    FROM staff_rank_history
+    ORDER BY observed_at ASC
+  `;
+  const history = new Map<string, { observedAt: string; rank: string }[]>();
+  for (const row of rows as any[]) {
+    const k = key(row.username);
+    const list = history.get(k) || [];
+    list.push({ observedAt: String(row.observed_at), rank: String(row.rank || "") });
+    history.set(k, list);
+  }
+  return history;
+}
+
+async function getLogisticsMembers() {
+  const members: any[] = [];
+  let after = "";
+  for (let page = 0; page < 10; page++) {
+    const query = after ? `?limit=1000&after=${encodeURIComponent(after)}` : "?limit=1000";
+    const rows = await discordApi(`/guilds/${STAFF_GUILD_ID}/members${query}`);
+    if (!Array.isArray(rows) || !rows.length) break;
+    members.push(...rows);
+    if (rows.length < 1000) break;
+    after = String(rows[rows.length - 1]?.user?.id || "");
+    if (!after) break;
+  }
+  return members.filter(member => Array.isArray(member?.roles) && member.roles.map(String).includes(LOGISTICS_ROLE_ID))
+    .map(member => ({ userId: String(member?.user?.id || ""), username: String(member?.user?.global_name || member?.user?.username || member?.user?.id || "Unknown") }))
+    .filter(member => member.userId);
+}
+
 async function getRequestRows(): Promise<{ quota: RequestRow[]; tickets: RequestRow[] }> {
   const q = sql();
   const [quota, tickets] = await Promise.all([
@@ -79,7 +145,9 @@ async function getRequestRows(): Promise<{ quota: RequestRow[]; tickets: Request
 
 export async function collectPerformanceData() {
   await Promise.all([ensureQuotaState(), ensureTicketState()]);
-  const [{ quota, tickets }, sheetRows] = await Promise.all([getRequestRows(), getStaffDatabaseSnapshot()]);
+  const [{ quota, tickets }, sheetRows, logisticsMembers] = await Promise.all([getRequestRows(), getStaffDatabaseSnapshot(), getLogisticsMembers()]);
+  await recordRankSnapshot(sheetRows);
+  const rankHistory = await getRankHistory();
   const byUser = new Map<string, StaffMetric>();
 
   const ensure = (username: string, userId = "") => {
@@ -166,6 +234,14 @@ export async function collectPerformanceData() {
     logistics.set(k, r);
   };
   quota.forEach(r => addReviewer(r, "quota")); tickets.forEach(r => addReviewer(r, "ticket"));
+  for (const member of logisticsMembers) {
+    if (!logistics.has(member.userId)) logistics.set(member.userId, {
+      userId: member.userId, username: member.username,
+      quotaApprovals: 0, quotaRejections: 0, quotaMinutesApproved: 0,
+      internshipQuotaApprovals: 0, normalQuotaApprovals: 0,
+      ticketApprovals: 0, ticketRejections: 0, ticketsApproved: 0, reviewed: 0, reviewDays: [],
+    });
+  }
   const logisticMetrics = [...logistics.values()].map(r => ({ ...r, reviewDays: r.reviewDays.sort() }));
 
   return {
@@ -178,6 +254,8 @@ export async function collectPerformanceData() {
     },
     staff: [...byUser.values()].map(m => ({
       ...m,
+      rankHistory: rankHistory.get(key(m.username)) || [],
+      rankChanges: (rankHistory.get(key(m.username)) || []).slice(1),
       approvalRate: m.quotaSubmitted ? Number((m.quotaApproved / m.quotaSubmitted * 100).toFixed(1)) : null,
       ticketApprovalRate: m.ticketsSubmitted ? Number((m.ticketsApproved / m.ticketsSubmitted * 100).toFixed(1)) : null,
       concentrationWarning: m.activeDays === 1 && (m.quotaSubmitted + m.ticketsSubmitted) >= 3
@@ -244,6 +322,7 @@ function compactDataForAi(data: any, kind: "staff" | "logistics") {
         ticketsSubmitted: m.ticketsSubmitted, ticketsApproved: m.ticketsApproved, ticketsRejected: m.ticketsRejected,
         ticketsPending: m.ticketsPending, ticketsCompleted: m.ticketsCompleted, activeDays: m.activeDays,
         activityDays: m.activityDays, firstActivity: m.firstActivity, lastActivity: m.lastActivity,
+        rankHistory: m.rankHistory, rankChanges: m.rankChanges,
         approvalRate: m.approvalRate, ticketApprovalRate: m.ticketApprovalRate, concentrationWarning: m.concentrationWarning,
       })),
     };
@@ -333,8 +412,8 @@ export async function buildPerformanceReport(kind: "staff" | "logistics") {
   const data = await collectPerformanceData();
   const compactData = compactDataForAi(data, kind);
   const prompt = kind === "staff"
-    ? "Analyze the supplied QUSM staff performance dataset. Produce a detailed factual report for Staff Highcom. Cover EVERY staff member, quota submissions/approvals/rejections/pending, normal vs internship quota, tickets, current sheet totals, activity-day consistency, concentration patterns, first/last activity, and missing/uncertain data. Compare activity across the full recorded history; do not judge someone only from a last-minute burst. Only discuss promotion-period patterns if actual dates in the supplied data support it. Flag patterns for human review rather than declaring misconduct. Do not invent facts, scores, rankings, motives, or missing data. Use clear sections and actionable observations."
-    : "Analyze the supplied QUSM logistics performance dataset. Produce a detailed factual report for Staff Highcom. Cover EVERY Logistics reviewer, normal vs internship quota approvals, quota rejections, ticket approvals/rejections, review volume, review-day consistency, and gaps in the records. Flag patterns for human review rather than inventing motives or misconduct. Do not invent facts, scores, rankings, or missing data. Use clear sections and actionable observations.";
+    ? "Analyze the supplied QUSM staff performance dataset. Produce a detailed factual report for Staff Highcom. Cover EVERY staff member, quota submissions/approvals/rejections/pending, normal vs internship quota, tickets, current sheet totals, activity-day consistency, concentration patterns, first/last activity, recorded rank history/rank changes, and missing/uncertain data. Compare activity across the full recorded history; do not judge someone only from a last-minute burst. Only discuss promotion-period patterns if actual rank-change dates in the supplied data support it; rank history is based on snapshots observed by the bot and may not contain older changes. Flag patterns for human review rather than declaring misconduct. Do not invent facts, scores, rankings, motives, or missing data. Use clear sections and actionable observations."
+    : "Analyze the supplied QUSM logistics performance dataset. Produce a detailed factual report for Staff Highcom. Cover EVERY Logistics reviewer, including members with zero recorded reviews, normal vs internship quota approvals, quota rejections, ticket approvals/rejections, review volume, review-day consistency, and gaps in the records. Flag patterns for human review rather than inventing motives or misconduct. Do not invent facts, scores, rankings, or missing data. Use clear sections and actionable observations.";
 
   const errors: string[] = [];
   for (const provider of configuredProviders()) {

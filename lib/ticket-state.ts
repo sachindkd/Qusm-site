@@ -41,6 +41,8 @@ async function initTicketState() {
   try { await initializing; } finally { initializing = null; }
 }
 
+export async function ensureTicketState() { await initTicketState(); }
+
 export async function createTicketRequest(input: { requestId: string; userId: string; username: string; tickets: number; signature: string; program?: string }) {
   await initTicketState();
   const q = sql();

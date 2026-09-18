@@ -32,6 +32,15 @@ const activeCommands = [
     ]
   },
   {
+    name: "quota-review",
+    description: "Jump to a quota request and review it",
+    type: 1,
+    default_member_permissions: null,
+    options: [
+      { type: 3, name: "request_id", description: "Full quota request ID", required: true, min_length: 8, max_length: 64 }
+    ]
+  },
+  {
     name: "quota-summary",
     description: "Show the current daily pending quota review summary",
     type: 1,

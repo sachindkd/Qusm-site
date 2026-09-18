@@ -25,7 +25,7 @@ async function handleSubmit(interaction: any) {
     const contentType = String(attachment?.content_type || "").toLowerCase();
     if (!Number.isInteger(tickets) || tickets <= 0 || tickets > 100000 || !proof || (contentType && !contentType.startsWith("image/"))) return interactionFollowup(interaction, { content: "Invalid ticket log. Tickets must be a positive whole number and proof must be an image.", flags: 64 });
     const request: TicketRequest = { id: randomUUID(), userId: interactionUserId(interaction), username: interactionUsername(interaction), tickets, proof, proofName, notes, createdAt: new Date().toISOString(), ...(internship ? { program: "internship" as const } : {}) };
-    await createTicketRequest({ requestId: request.id, userId: request.userId, username: request.username, tickets: request.tickets, signature: ticketSignature(request) });
+    await createTicketRequest({ requestId: request.id, userId: request.userId, username: request.username, tickets: request.tickets, signature: ticketSignature(request), program: request.program });
     const message = await postReviewMessage(request, interactionDisplayName(interaction));
     await attachTicketMessage(request.id, String(message.id));
     await interactionFollowup(interaction, { content: internship ? `✅ Your ${request.tickets} Internship Program ticket${request.tickets === 1 ? "" : "s"} were submitted to Logistics for review.` : `✅ Your ${request.tickets} ticket${request.tickets === 1 ? "" : "s"} were submitted to Logistics for review.`, flags: 64 });
@@ -96,7 +96,7 @@ async function finishRejection(interaction: any, match: RegExpMatchArray) {
     if (state !== "pending") return interactionFollowup(interaction, { content: `⚠️ This ticket log is no longer pending (status: ${state || "not found"}).`, flags: 64 });
     const original = await getAndValidateReviewMessage(messageId, requestId, signature);
     if (!original) return interactionFollowup(interaction, { content: "⚠️ This ticket rejection request is invalid, outdated, or no longer pending.", flags: 64 });
-    if (!await markTicketRejected(requestId)) return interactionFollowup(interaction, { content: "⚠️ This ticket log is already being processed or has been completed.", flags: 64 });
+    if (!await markTicketRejected(requestId, interactionUserId(interaction), interactionDisplayName(interaction))) return interactionFollowup(interaction, { content: "⚠️ This ticket log is already being processed or has been completed.", flags: 64 });
     const rejectedBy = interactionUserId(interaction); const rejectedByUsername = interactionDisplayName(interaction) || rejectedBy;
     await postRejectionLog(original.request, reason, rejectedBy, rejectedByUsername);
     await dmRejection(original.request.userId, reason, original.request.tickets);

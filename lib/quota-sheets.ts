@@ -38,3 +38,16 @@ export async function processInternshipTicketDirect(input: TicketDirectInput) { 
 
 async function processTicketsInSheet(input: TicketDirectInput, sheetId: string, sheetName: string, usernameColumn: string, ticketColumn: string) { if (!Number.isInteger(input.tickets) || input.tickets <= 0) throw new Error("Approved tickets must be a positive whole number."); const values = await sheetsFetch(sheetId, `/values/${encodeURIComponent(sheetName + "!A:G")}?valueRenderOption=UNFORMATTED_VALUE`); const rows: unknown[][] = Array.isArray(values.values) ? values.values : []; const wanted = normalize(input.username); const usernameIndex = usernameColumn.charCodeAt(0) - 65; const ticketIndex = ticketColumn.charCodeAt(0) - 65; const matches: { row: number; current: number }[] = []; rows.forEach((cells, index) => { if (normalize(cells?.[usernameIndex]) === wanted) { const raw = Number(cells?.[ticketIndex]); matches.push({ row: index + 1, current: Number.isFinite(raw) ? raw : 0 }); } }); if (!matches.length) throw new Error(`Username "${input.username}" not found in Column ${usernameColumn} of "${sheetName}".`); if (matches.length > 1) throw new Error(`Username "${input.username}" appears in ${matches.length} rows; update blocked to prevent changing the wrong record.`); const match = matches[0]; const newTotal = match.current + input.tickets; await sheetsFetch(sheetId, `/values/${encodeURIComponent(`${sheetName}!${ticketColumn}${match.row}`)}?valueInputOption=USER_ENTERED`, { method: "PUT", body: JSON.stringify({ range: `${sheetName}!${ticketColumn}${match.row}`, majorDimension: "ROWS", values: [[newTotal]] }) }); const verify = await sheetsFetch(sheetId, `/values/${encodeURIComponent(`${sheetName}!${ticketColumn}${match.row}`)}?valueRenderOption=UNFORMATTED_VALUE`); const verified = Number(verify?.values?.[0]?.[0]); if (!Number.isFinite(verified) || verified !== newTotal) throw new Error(`Google Sheets verification failed: expected ${newTotal} tickets, read back ${verified}.`); return { success: true, row: match.row, previousTickets: match.current, addedTickets: input.tickets, totalTickets: newTotal }; }
 export async function processTicketDirect(input: TicketDirectInput) { return processTicketsInSheet(input, SHEET_ID, SHEET_NAME, "B", "G"); }
+
+
+export type StaffDatabaseSnapshotRow = { username: string; rank: string; minutes: number; tickets: number };
+export async function getStaffDatabaseSnapshot(): Promise<StaffDatabaseSnapshotRow[]> {
+  const values = await sheetsFetch(SHEET_ID, `/values/${encodeURIComponent(SHEET_NAME + "!B:G")}?valueRenderOption=UNFORMATTED_VALUE`);
+  const rows: unknown[][] = Array.isArray(values.values) ? values.values : [];
+  return rows.slice(1).map(cells => ({
+    username: String(cells?.[0] ?? "").trim(),
+    rank: String(cells?.[1] ?? "").trim(),
+    minutes: Math.round(durationToMinutes(cells?.[3])),
+    tickets: Math.max(0, Math.round(Number(cells?.[5]) || 0)),
+  })).filter(row => row.username);
+}

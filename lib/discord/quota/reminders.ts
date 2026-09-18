@@ -84,7 +84,7 @@ export async function scanPendingQuotaReminders(reason: "startup" | "periodic") 
       AND created_at <= NOW() - INTERVAL '24 hours'
       AND reminder_sent_at IS NULL
     ORDER BY created_at ASC
-  ` as PendingQuota[];
+  ` as unknown as PendingQuota[];
 
   let sent = 0;
   for (const row of rows) {

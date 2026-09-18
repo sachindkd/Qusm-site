@@ -24,8 +24,8 @@ const activeCommands = [
   { name: "logistics-performance", description: "Generate the detailed Logistics performance report", type: 1, options: [] },
   {
     name: "ask-ai", description: "Ask Highcom AI about staff reports and performance", type: 1, options: [
-      { type: 6, name: "user", description: "Optional staff member to analyze", required: false },
-      { type: 3, name: "question", description: "Ask any question about the available QUSM data", required: true, max_length: 1500 }
+      { type: 3, name: "question", description: "Ask any question about the available QUSM data", required: true, max_length: 1500 },
+      { type: 6, name: "user", description: "Optional staff member to analyze", required: false }
     ]
   },
   {

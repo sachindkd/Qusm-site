@@ -36,9 +36,7 @@ export async function POST(request: Request) {
       return jsonResponse({
         type: 4,
         data: {
-          content: "⚠️ **QUSM is currently under development.**
-
-Your request has been rejected because the bot is not yet available for general use.",
+          content: "⚠️ **QUSM is currently under development.**\n\nYour request has been rejected because the bot is not yet available for general use.",
           flags: 64
         }
       });

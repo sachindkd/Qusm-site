@@ -83,7 +83,7 @@ export async function scanPendingQuotaReminders(reason: "startup" | "periodic") 
     FROM quota_requests
     WHERE status = 'pending'
       AND created_at <= NOW() - INTERVAL '24 hours'
-      AND reminder_sent_at IS NULL
+      AND (reminder_sent_at IS NULL OR reminder_sent_at <= NOW() - INTERVAL '24 hours')
     ORDER BY created_at ASC
   ` as unknown as PendingQuota[];
 
@@ -106,7 +106,7 @@ export async function scanPendingQuotaReminders(reason: "startup" | "periodic") 
         SET reminder_sent_at = NOW(), updated_at = NOW()
         WHERE request_id = ${row.request_id}
           AND status = 'pending'
-          AND reminder_sent_at IS NULL
+          AND (reminder_sent_at IS NULL OR reminder_sent_at <= NOW() - INTERVAL '24 hours')
           AND message_id IS NOT NULL
         RETURNING request_id
       `;

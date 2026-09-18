@@ -1,7 +1,7 @@
 import { STAFF_GUILD_ID, botToken, applicationId } from "./config";
 import { discordApi } from "./discord-api";
 
-const ALLOWED_COMMANDS = new Set(["quota-submit", "quota-leaderboard", "ticket-log", "botsecurity"]);
+const ALLOWED_COMMANDS = new Set(["quota-submit", "quota-leaderboard", "ticket-log", "botsecurity", "staff-performance", "logistics-performance"]);
 
 async function deleteAllCommands(base: string) {
   const existing = await discordApi(base);
@@ -39,6 +39,8 @@ export async function registerQuotaCommands() {
       { type: 11, name: "proof", description: "Attach the ticket proof image directly", required: true },
       { type: 3, name: "notes", description: "Optional notes for Logistics", required: false, max_length: 1000 },
     ]},
+    { name: "staff-performance", description: "Generate the detailed Staff Highcom performance report", type: 1, default_member_permissions: null, options: [] },
+    { name: "logistics-performance", description: "Generate the detailed Logistics performance report", type: 1, default_member_permissions: null, options: [] },
     { name: "botsecurity", description: "Scan bots and monitor for bot/raid security threats", type: 1, default_member_permissions: "32", options: [
       { type: 1, name: "scan", description: "Scan every bot currently in the server", options: [] },
       { type: 1, name: "monitor", description: "Start security monitoring in this channel", options: [] },

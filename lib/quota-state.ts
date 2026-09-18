@@ -47,14 +47,7 @@ async function initQuotaState() {
 
 export async function ensureQuotaState() { await initQuotaState(); }
 
-export async function createQuotaRequest(input: {
-  requestId: string;
-  userId: string;
-  username: string;
-  minutes: number;
-  signature: string;
-  program?: string;
-}) {
+export async function createQuotaRequest(input: { requestId: string; userId: string; username: string; minutes: number; signature: string; program?: string; }) {
   await initQuotaState();
   const q = sql();
   await q`INSERT INTO quota_requests (request_id, user_id, username, minutes, signature, status, reminder_sent_at, rejected_by, rejected_by_username, program)
@@ -67,6 +60,14 @@ export async function attachQuotaMessage(requestId: string, messageId: string) {
   const rows = await q`UPDATE quota_requests SET message_id = ${messageId}, updated_at = NOW()
     WHERE request_id = ${requestId} AND status = 'pending' RETURNING request_id`;
   if (!rows.length) throw new Error("Quota request is no longer pending while attaching its Discord message.");
+}
+
+export async function getQuotaReviewById(requestId: string) {
+  await initQuotaState();
+  const q = sql();
+  const rows = await q`SELECT request_id, user_id, username, minutes, signature, message_id, status, program, created_at, updated_at
+    FROM quota_requests WHERE request_id = ${requestId} LIMIT 1`;
+  return rows[0] || null;
 }
 
 export async function getQuotaRequestState(requestId: string): Promise<QuotaApprovalState | undefined> {
@@ -91,12 +92,7 @@ export async function getQuotaRequestState(requestId: string): Promise<QuotaAppr
   return status;
 }
 
-export async function claimQuotaApproval(
-  requestId: string,
-  interactionId = "unknown",
-  approvedBy = "unknown",
-  approvedByUsername = "unknown"
-) {
+export async function claimQuotaApproval(requestId: string, interactionId = "unknown", approvedBy = "unknown", approvedByUsername = "unknown") {
   await initQuotaState();
   const q = sql();
   const rows = await q`UPDATE quota_requests
@@ -122,7 +118,7 @@ export async function markQuotaApproved(requestId: string) {
     WHERE request_id = ${requestId} AND status = 'processing'`;
 }
 
-export async function markQuotaRejected(requestId: string, rejectedBy = '', rejectedByUsername = '') {
+export async function markQuotaRejected(requestId: string, rejectedBy = "", rejectedByUsername = "") {
   await initQuotaState();
   const q = sql();
   const rows = await q`UPDATE quota_requests SET status = 'rejected', rejected_by = ${rejectedBy || null}, rejected_by_username = ${rejectedByUsername || null}, updated_at = NOW()

@@ -26,20 +26,26 @@ async function initTicketState() {
       status TEXT NOT NULL DEFAULT 'pending',
       approved_by TEXT,
       approved_by_username TEXT,
+      rejected_by TEXT,
+      rejected_by_username TEXT,
+      program TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`;
+    await q`ALTER TABLE ticket_requests ADD COLUMN IF NOT EXISTS rejected_by TEXT`;
+    await q`ALTER TABLE ticket_requests ADD COLUMN IF NOT EXISTS rejected_by_username TEXT`;
+    await q`ALTER TABLE ticket_requests ADD COLUMN IF NOT EXISTS program TEXT`;
     await q`CREATE INDEX IF NOT EXISTS ticket_requests_status_idx ON ticket_requests(status)`;
     initialized = true;
   })();
   try { await initializing; } finally { initializing = null; }
 }
 
-export async function createTicketRequest(input: { requestId: string; userId: string; username: string; tickets: number; signature: string }) {
+export async function createTicketRequest(input: { requestId: string; userId: string; username: string; tickets: number; signature: string; program?: string }) {
   await initTicketState();
   const q = sql();
   await q`INSERT INTO ticket_requests (request_id, user_id, username, tickets, signature, status)
-    VALUES (${input.requestId}, ${input.userId}, ${input.username}, ${input.tickets}, ${input.signature}, 'pending')`;
+    VALUES (${input.requestId}, ${input.userId}, ${input.username}, ${input.tickets}, ${input.signature}, 'pending', NULL, NULL, NULL, ${input.program || null})`;
 }
 
 export async function attachTicketMessage(requestId: string, messageId: string) {
@@ -98,10 +104,10 @@ export async function markTicketApproved(requestId: string) {
     WHERE request_id = ${requestId} AND status = 'processing'`;
 }
 
-export async function markTicketRejected(requestId: string) {
+export async function markTicketRejected(requestId: string, rejectedBy = '', rejectedByUsername = '') {
   await initTicketState();
   const q = sql();
-  const rows = await q`UPDATE ticket_requests SET status = 'rejected', updated_at = NOW()
+  const rows = await q`UPDATE ticket_requests SET status = 'rejected', rejected_by = ${rejectedBy || null}, rejected_by_username = ${rejectedByUsername || null}, updated_at = NOW()
     WHERE request_id = ${requestId} AND status = 'pending' RETURNING request_id`;
   return Boolean(rows.length);
 }

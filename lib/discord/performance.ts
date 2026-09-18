@@ -223,25 +223,139 @@ function fallbackLogisticsReport(data: any) {
   ].join("\n");
 }
 
+type AiProvider = "gemini" | "groq" | "cloudflare";
+
+function configuredProviders(): AiProvider[] {
+  const requested = String(process.env.PERFORMANCE_AI_PROVIDERS || "gemini,groq,cloudflare")
+    .split(",").map(v => v.trim().toLowerCase())
+    .filter((v): v is AiProvider => v === "gemini" || v === "groq" || v === "cloudflare");
+  return requested.length ? requested : ["gemini", "groq", "cloudflare"];
+}
+
+function compactDataForAi(data: any, kind: "staff" | "logistics") {
+  if (kind === "staff") {
+    return {
+      generatedAt: data.generatedAt, sourceCoverage: data.sourceCoverage,
+      staff: data.staff.map((m: any) => ({
+        username: m.username, rank: m.sheetRank, sheetMinutes: m.sheetMinutes, sheetTickets: m.sheetTickets,
+        quotaSubmitted: m.quotaSubmitted, quotaApproved: m.quotaApproved, quotaRejected: m.quotaRejected, quotaPending: m.quotaPending,
+        quotaMinutesSubmitted: m.quotaMinutesSubmitted, quotaMinutesApproved: m.quotaMinutesApproved,
+        quotaInternshipApproved: m.quotaInternshipApproved, quotaNormalApproved: m.quotaNormalApproved,
+        ticketsSubmitted: m.ticketsSubmitted, ticketsApproved: m.ticketsApproved, ticketsRejected: m.ticketsRejected,
+        ticketsPending: m.ticketsPending, ticketsCompleted: m.ticketsCompleted, activeDays: m.activeDays,
+        activityDays: m.activityDays, firstActivity: m.firstActivity, lastActivity: m.lastActivity,
+        approvalRate: m.approvalRate, ticketApprovalRate: m.ticketApprovalRate, concentrationWarning: m.concentrationWarning,
+      })),
+    };
+  }
+  return { generatedAt: data.generatedAt, sourceCoverage: data.sourceCoverage, logistics: data.logistics };
+}
+
+function extractOpenAiText(body: any) {
+  return String(body?.choices?.[0]?.message?.content || body?.output_text || body?.text || "").trim();
+}
+
+async function callGemini(prompt: string, data: any) {
+  const apiKey = process.env.PERFORMANCE_GEMINI_API_KEY?.trim() || process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey) throw new Error("Gemini API key is not configured");
+  const model = process.env.PERFORMANCE_GEMINI_MODEL?.trim() || "gemini-2.5-flash-lite";
+  const endpoint = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) +
+    ":generateContent?key=" + encodeURIComponent(apiKey);
+  const response = await fetch(endpoint, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: prompt }] },
+      contents: [{ role: "user", parts: [{ text: JSON.stringify(data) }] }],
+      generationConfig: { temperature: 0.1, maxOutputTokens: 2200 },
+    }), cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Gemini " + response.status);
+  const body = await response.json();
+  const text = String(body?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || "").join("") || "").trim();
+  if (!text) throw new Error("Gemini returned an empty report");
+  return text;
+}
+
+async function callGroq(prompt: string, data: any) {
+  const apiKey = process.env.PERFORMANCE_GROQ_API_KEY?.trim() || process.env.GROQ_API_KEY?.trim();
+  if (!apiKey) throw new Error("Groq API key is not configured");
+  const model = process.env.PERFORMANCE_GROQ_MODEL?.trim() || "openai/gpt-oss-20b";
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + apiKey },
+    body: JSON.stringify({
+      model, messages: [{ role: "system", content: prompt }, { role: "user", content: JSON.stringify(data) }],
+      temperature: 0.1, max_tokens: 2200,
+    }), cache: "no-store",
+  });
+  if (!response.ok) {
+    const retryAfter = response.headers.get("retry-after");
+    throw new Error("Groq " + response.status + (retryAfter ? " retry-after=" + retryAfter : ""));
+  }
+  const remainingRequests = response.headers.get("x-ratelimit-remaining-requests");
+  const remainingTokens = response.headers.get("x-ratelimit-remaining-tokens");
+  if (remainingRequests) console.info("[performance-ai] Groq remaining requests: " + remainingRequests);
+  if (remainingTokens) console.info("[performance-ai] Groq remaining tokens: " + remainingTokens);
+  const text = extractOpenAiText(await response.json());
+  if (!text) throw new Error("Groq returned an empty report");
+  return text;
+}
+
+async function callCloudflare(prompt: string, data: any) {
+  const accountId = process.env.PERFORMANCE_CLOUDFLARE_ACCOUNT_ID?.trim() || process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
+  const apiToken = process.env.PERFORMANCE_CLOUDFLARE_API_TOKEN?.trim() || process.env.CLOUDFLARE_API_TOKEN?.trim();
+  if (!accountId || !apiToken) throw new Error("Cloudflare Workers AI credentials are not configured");
+  const model = process.env.PERFORMANCE_CLOUDFLARE_MODEL?.trim() || "@cf/meta/llama-3.1-8b-instruct";
+  const endpoint = "https://api.cloudflare.com/client/v4/accounts/" + encodeURIComponent(accountId) +
+    "/ai/run/" + model.split("/").map(encodeURIComponent).join("/");
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + apiToken },
+    body: JSON.stringify({
+      messages: [{ role: "system", content: prompt }, { role: "user", content: JSON.stringify(data) }],
+      max_tokens: 2200, temperature: 0.1,
+    }), cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Cloudflare " + response.status);
+  const body = await response.json();
+  const text = String(body?.result?.response || body?.result?.choices?.[0]?.message?.content || "").trim();
+  if (!text) throw new Error("Cloudflare returned an empty report");
+  return text;
+}
+
+async function callProvider(provider: AiProvider, prompt: string, data: any) {
+  if (provider === "gemini") return callGemini(prompt, data);
+  if (provider === "groq") return callGroq(prompt, data);
+  return callCloudflare(prompt, data);
+}
+
 export async function buildPerformanceReport(kind: "staff" | "logistics") {
   const data = await collectPerformanceData();
-  const apiUrl = process.env.PERFORMANCE_AI_API_URL?.trim();
-  const apiKey = process.env.PERFORMANCE_AI_API_KEY?.trim();
-  const model = process.env.PERFORMANCE_AI_MODEL?.trim() || "default";
-  if (!apiUrl || !apiKey) return { text: kind === "staff" ? fallbackStaffReport(data) : fallbackLogisticsReport(data), ai: false, data };
-
+  const compactData = compactDataForAi(data, kind);
   const prompt = kind === "staff"
-    ? "Analyze the supplied QUSM staff performance dataset. Produce a detailed factual report for Staff Highcom. Cover every staff member, quota submissions/approvals/rejections/pending, normal vs internship quota, tickets, current sheet totals, activity-day consistency, concentration of activity near promotion periods when the dates support that conclusion, and missing/uncertain data. Flag patterns for human review rather than declaring misconduct. Do not invent facts, scores, rankings, or motives."
-    : "Analyze the supplied QUSM logistics performance dataset. Produce a detailed factual report for Staff Highcom. Cover every Logistics reviewer, normal vs internship quota approvals, quota rejections, ticket approvals/rejections, review volume, review-day consistency, and gaps in the records. Flag patterns for human review rather than inventing motives or misconduct. Do not invent facts or scores.";
-  const response = await fetch(apiUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages: [{ role: "system", content: prompt }, { role: "user", content: JSON.stringify(data) }], temperature: 0.1 }),
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error(`Performance AI API failed (${response.status})`);
-  const body = await response.json();
-  const text = String(body?.choices?.[0]?.message?.content || body?.output_text || body?.text || "").trim();
-  if (!text) throw new Error("Performance AI API returned an empty report.");
-  return { text, ai: true, data };
+    ? "Analyze the supplied QUSM staff performance dataset. Produce a detailed factual report for Staff Highcom. Cover EVERY staff member, quota submissions/approvals/rejections/pending, normal vs internship quota, tickets, current sheet totals, activity-day consistency, concentration patterns, first/last activity, and missing/uncertain data. Compare activity across the full recorded history; do not judge someone only from a last-minute burst. Only discuss promotion-period patterns if actual dates in the supplied data support it. Flag patterns for human review rather than declaring misconduct. Do not invent facts, scores, rankings, motives, or missing data. Use clear sections and actionable observations."
+    : "Analyze the supplied QUSM logistics performance dataset. Produce a detailed factual report for Staff Highcom. Cover EVERY Logistics reviewer, normal vs internship quota approvals, quota rejections, ticket approvals/rejections, review volume, review-day consistency, and gaps in the records. Flag patterns for human review rather than inventing motives or misconduct. Do not invent facts, scores, rankings, or missing data. Use clear sections and actionable observations.";
+
+  const errors: string[] = [];
+  for (const provider of configuredProviders()) {
+    try {
+      const text = await callProvider(provider, prompt, compactData);
+      return { text, ai: true, provider, data };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(provider + ": " + message);
+      console.warn("[performance-ai] " + provider + " failed; trying next provider", error);
+    }
+  }
+
+  return {
+    text: [
+      kind === "staff" ? fallbackStaffReport(data) : fallbackLogisticsReport(data),
+      "",
+      "⚠️ AI providers were unavailable or rate-limited for this request.",
+      "Providers tried: " + errors.join(" | "),
+      "The report above is the local database analysis and does not contain AI-generated conclusions.",
+    ].join("\n"),
+    ai: false, provider: null, data,
+  };
 }

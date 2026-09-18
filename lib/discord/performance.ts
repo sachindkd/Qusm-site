@@ -312,8 +312,9 @@ function fallbackStaffReport(data: any) {
 }
 
 function fallbackLogisticsReport(data: any) {
-  const lines = data.logistics.map((m:any) =>
-    `• **${m.username}** — reviewed ${m.reviewed} | quota: ${m.quotaApprovals} approved / ${m.quotaRejections} rejected | tickets: ${m.ticketApprovals} approved / ${m.ticketRejections} rejected | ${m.reviewDays.length} review days`
+  const rows = [...data.logistics].sort((a,b) => String(a.username).localeCompare(String(b.username)));
+  const lines = rows.map((m:any) =>
+    `• **${m.username}** (${m.userId}) | Reviews: ${m.reviewed} | Quota: ${m.quotaApprovals} approved / ${m.quotaRejections} rejected | Internship quota: ${m.internshipQuotaApprovals} | Normal quota: ${m.normalQuotaApprovals} | Quota minutes approved: ${m.quotaMinutesApproved} | Tickets: ${m.ticketApprovals} approved / ${m.ticketRejections} rejected | Ticket count approved: ${m.ticketsApproved} | Review days: ${m.reviewDays.length}`
   );
   return [
     "**Logistics Performance Report — data analysis mode**",
@@ -438,7 +439,7 @@ export async function buildPerformanceReport(kind: "staff" | "logistics") {
   const compactData = compactDataForAi(data, kind);
   const prompt = kind === "staff"
     ? "Analyze the supplied QUSM staff performance dataset. Produce a structured report that MUST include EVERY staff member supplied in the dataset exactly once. For each member include rank, database minutes/tickets, quota submitted/approved/rejected/pending, tickets submitted/approved/rejected/pending, active days, rank history/changes, and the supplied promotion recommendation and reason. Do not omit lower-ranked or zero-activity members. Keep the data organized by rank and then username. Cover EVERY staff member, quota submissions/approvals/rejections/pending, normal vs internship quota, tickets, current sheet totals, activity-day consistency, concentration patterns, first/last activity, recorded rank history/rank changes, and missing/uncertain data. Compare activity across the full recorded history; do not judge someone only from a last-minute burst. Only discuss promotion-period patterns if actual rank-change dates in the supplied data support it; rank history is based on snapshots observed by the bot and may not contain older changes. Flag patterns for human review rather than declaring misconduct. Do not invent facts, scores, rankings, motives, or missing data. Use clear sections and actionable observations."
-    : "Analyze the supplied QUSM logistics performance dataset. Produce a detailed factual report for Staff Highcom. Cover EVERY Logistics reviewer, including members with zero recorded reviews, normal vs internship quota approvals, quota rejections, ticket approvals/rejections, review volume, review-day consistency, and gaps in the records. Flag patterns for human review rather than inventing motives or misconduct. Do not invent facts, scores, rankings, or missing data. Use clear sections and actionable observations.";
+    : "Analyze the supplied QUSM logistics performance dataset. Produce a structured report that MUST include EVERY Logistics reviewer exactly once, including members with zero recorded reviews. Do not stop, truncate, summarize away, or omit lower-volume reviewers. For each reviewer include username, user ID, total reviews, quota approvals/rejections, internship and normal quota approvals, approved quota minutes, ticket approvals/rejections, approved ticket count, and review-day coverage. Keep reviewers in alphabetical order. Use compact sections/tables so the complete roster fits. Flag patterns for human review and do not invent facts, scores, rankings, motives, or missing data.";
 
   const errors: string[] = [];
   for (const provider of configuredProviders()) {

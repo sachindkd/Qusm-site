@@ -41,7 +41,11 @@ export async function registerQuotaCommands() {
     ]},
     { name: "staff-performance", description: "Generate the detailed Staff Highcom performance report", type: 1, default_member_permissions: null, options: [] },
     { name: "logistics-performance", description: "Generate the detailed Logistics performance report", type: 1, default_member_permissions: null, options: [] },
-    { name: "quota-status", description: "View a staff member quota request status", type: 1, default_member_permissions: null, options: [\n      { type: 6, name: "user", description: "Staff member to check", required: true },\n    ] },\n    { name: "quota-summary", description: "Show the current daily pending quota review summary", type: 1, default_member_permissions: null, options: [] },\n    { name: "ask-ai", description: "Ask Highcom AI about staff reports and performance", type: 1, default_member_permissions: null, options: [
+    { name: "quota-status", description: "View a staff member quota request status", type: 1, default_member_permissions: null, options: [
+      { type: 6, name: "user", description: "Staff member to check", required: true },
+    ] },
+    { name: "quota-summary", description: "Show the current daily pending quota review summary", type: 1, default_member_permissions: null, options: [] },
+    { name: "ask-ai", description: "Ask Highcom AI about staff reports and performance", type: 1, default_member_permissions: null, options: [
       { type: 6, name: "user", description: "Optional staff member to analyze", required: false },
       { type: 3, name: "question", description: "Ask any question about the available QUSM data", required: true, max_length: 1500 },
     ] },

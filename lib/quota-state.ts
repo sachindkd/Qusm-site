@@ -45,6 +45,8 @@ async function initQuotaState() {
   try { await initializing; } finally { initializing = null; }
 }
 
+export async function ensureQuotaState() { await initQuotaState(); }
+
 export async function createQuotaRequest(input: {
   requestId: string;
   userId: string;

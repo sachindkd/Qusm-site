@@ -14,7 +14,7 @@ type PendingQuota = {
   reminder_sent_at: string | null;
 };
 
-const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
+const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const REMINDER_AFTER_MS = 24 * 60 * 60 * 1000;
 let lastPeriodicCheckAt = 0;
 let startupCheckDone = false;
@@ -32,48 +32,35 @@ async function initReminderState() {
   await q`CREATE INDEX IF NOT EXISTS quota_requests_reminder_idx ON quota_requests(status, reminder_sent_at)`;
 }
 
-function ageText(createdAt: string, now = Date.now()) {
-  const ageMs = Math.max(0, now - new Date(createdAt).getTime());
-  const totalMinutes = Math.floor(ageMs / 60000);
-  const days = Math.floor(totalMinutes / 1440);
-  const hours = Math.floor((totalMinutes % 1440) / 60);
-  const minutes = totalMinutes % 60;
-  return `${days ? `${days}d ` : ""}${hours}h ${minutes}m`;
+function waitingHours(createdAt: string, now = Date.now()) {
+  return Math.max(0, Math.floor((now - new Date(createdAt).getTime()) / 3600000));
 }
 
-async function sendReminder(request: PendingQuota) {
-  if (!request.message_id) {
-    console.warn("[quota-reminder] pending request has no Discord message", { requestId: request.request_id });
-    return false;
-  }
-
-  const age = ageText(request.created_at);
+async function sendDailySummary(rows: PendingQuota[]) {
+  if (!rows.length) return false;
+  const now = Date.now();
+  const lines = rows.slice(0, 40).map((r) =>
+    `• <@${r.user_id}> — **${r.minutes} min** — waiting **${waitingHours(r.created_at, now)}h** — \`${r.request_id.slice(0, 8)}\``
+  ).join("\n");
+  const extra = rows.length > 40 ? `\n…and **${rows.length - 40}** more pending requests.` : "";
   await discordApi(`/channels/${QUOTA_CHANNEL_ID}/messages`, {
     method: "POST",
     body: JSON.stringify({
       content: `<@&${LOGISTICS_ROLE_ID}>`,
       embeds: [{
-        title: "⏰ Quota Review Reminder",
-        description: `This quota submission has been **pending for more than 24 hours** and still requires Logistics review.`,
+        title: "Daily Quota Review Summary",
+        description: `There are **${rows.length} quota request(s)** pending for more than 24 hours. Please review them when required.`,
         color: 0xfee75c,
-        fields: [
-          { name: "Staff Member", value: `<@${request.user_id}> (${request.username})`, inline: true },
-          { name: "Quota", value: `${request.minutes} min`, inline: true },
-          { name: "Pending Since", value: `<t:${Math.floor(new Date(request.created_at).getTime() / 1000)}:F>`, inline: true },
-          { name: "Waiting", value: age, inline: true },
-          { name: "Request ID", value: request.request_id },
-          { name: "Review Message", value: `https://discord.com/channels/${process.env.DISCORD_GUILD_ID || "@me"}/${QUOTA_CHANNEL_ID}/${request.message_id}` },
-        ],
-        footer: { text: "QUSM Quota System • 24-hour review reminder" },
+        fields: [{ name: "Pending Over 24 Hours", value: lines + extra }],
+        footer: { text: "QUSM Quota System • Daily Reminder" },
         timestamp: new Date().toISOString(),
       }],
-      allowed_mentions: { roles: [LOGISTICS_ROLE_ID], users: [request.user_id] },
+      allowed_mentions: { roles: [LOGISTICS_ROLE_ID], users: rows.slice(0, 40).map(r => r.user_id) },
     }),
   });
   return true;
 }
 
-// Vercel redeploy trigger: keep this file intentionally unchanged in behavior.
 export async function scanPendingQuotaReminders(reason: "startup" | "periodic") {
   await initReminderState();
   const q = sql();
@@ -82,55 +69,48 @@ export async function scanPendingQuotaReminders(reason: "startup" | "periodic") 
     SELECT request_id, user_id, username, minutes, message_id, created_at, updated_at, status, reminder_sent_at
     FROM quota_requests
     WHERE status = 'pending'
+      AND message_id IS NOT NULL
       AND created_at <= NOW() - INTERVAL '24 hours'
       AND (reminder_sent_at IS NULL OR reminder_sent_at <= NOW() - INTERVAL '24 hours')
     ORDER BY created_at ASC
   ` as unknown as PendingQuota[];
 
-  let sent = 0;
-  for (const row of rows) {
-    try {
-      const current = await q`
-        SELECT status, reminder_sent_at, message_id
-        FROM quota_requests
-        WHERE request_id = ${row.request_id}
-      `;
-      const latest = current[0] as { status: string; reminder_sent_at: string | null; message_id: string | null } | undefined;
-      if (!latest || latest.status !== "pending" || latest.reminder_sent_at || !latest.message_id) continue;
-
-      const ageMs = now - new Date(row.created_at).getTime();
-      if (!Number.isFinite(ageMs) || ageMs < REMINDER_AFTER_MS) continue;
-
-      const claimed = await q`
-        UPDATE quota_requests
-        SET reminder_sent_at = NOW(), updated_at = NOW()
-        WHERE request_id = ${row.request_id}
-          AND status = 'pending'
-          AND (reminder_sent_at IS NULL OR reminder_sent_at <= NOW() - INTERVAL '24 hours')
-          AND message_id IS NOT NULL
-        RETURNING request_id
-      `;
-      if (!claimed.length) continue;
-
-      try {
-        await sendReminder(row);
-        sent += 1;
-      } catch (error) {
-        await q`
-          UPDATE quota_requests
-          SET reminder_sent_at = NULL, updated_at = NOW()
-          WHERE request_id = ${row.request_id}
-            AND status = 'pending'
-        `;
-        throw error;
-      }
-    } catch (error) {
-      console.error("[quota-reminder] failed", { reason, requestId: row.request_id, error });
-    }
+  const eligible = rows.filter((row) => {
+    const ageMs = now - new Date(row.created_at).getTime();
+    return Number.isFinite(ageMs) && ageMs >= REMINDER_AFTER_MS;
+  });
+  if (!eligible.length) {
+    console.info("[quota-reminder] no overdue quotas", { reason });
+    return { checked: rows.length, sent: 0 };
   }
 
-  console.info("[quota-reminder] scan complete", { reason, pendingOver24h: rows.length, remindersSent: sent });
-  return { checked: rows.length, sent };
+  const ids = eligible.map(r => r.request_id);
+  const claimed = await q`
+    UPDATE quota_requests
+    SET reminder_sent_at = NOW(), updated_at = NOW()
+    WHERE request_id = ANY(${ids})
+      AND status = 'pending'
+      AND message_id IS NOT NULL
+      AND (reminder_sent_at IS NULL OR reminder_sent_at <= NOW() - INTERVAL '24 hours')
+    RETURNING request_id
+  `;
+  if (!claimed.length) return { checked: rows.length, sent: 0 };
+
+  const claimedIds = new Set(claimed.map((r: any) => String(r.request_id)));
+  const claimedRows = eligible.filter(r => claimedIds.has(r.request_id));
+  try {
+    await sendDailySummary(claimedRows);
+    console.info("[quota-reminder] daily summary sent", { reason, count: claimedRows.length });
+    return { checked: rows.length, sent: claimedRows.length };
+  } catch (error) {
+    await q`
+      UPDATE quota_requests
+      SET reminder_sent_at = NULL, updated_at = NOW()
+      WHERE request_id = ANY(${Array.from(claimedIds)})
+        AND status = 'pending'
+    `;
+    throw error;
+  }
 }
 
 export async function runQuotaReminderCheck(mode: "startup" | "periodic" = "periodic") {
@@ -139,7 +119,6 @@ export async function runQuotaReminderCheck(mode: "startup" | "periodic" = "peri
     startupCheckDone = true;
     return scanPendingQuotaReminders("startup");
   }
-
   const now = Date.now();
   if (now - lastPeriodicCheckAt < CHECK_INTERVAL_MS) return { checked: 0, sent: 0, skipped: true };
   lastPeriodicCheckAt = now;

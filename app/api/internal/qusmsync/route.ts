@@ -8,6 +8,7 @@ export async function GET(request: Request) {
     const result = await syncQusmWebsiteFromDiscord();
     return Response.json(result);
   } catch (error) {
+    console.error("[qusmsync] failed", error);
     return Response.json({ error: error instanceof Error ? error.message : "Sync failed" }, { status: 500 });
   }
 }

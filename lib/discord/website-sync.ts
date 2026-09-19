@@ -44,7 +44,7 @@ export async function syncQusmWebsiteFromDiscord() {
   const prompt = `You are the QUSM website synchronization AI. Transform the Discord snapshot into a proposed update for the existing website CMS. Do NOT invent facts. Preserve existing information unless Discord clearly provides a replacement. Only change sections supported by evidence. You may update announcements, leadership, cocLeadership, divisions, rules, government, ranks, news, media, applications, org, and customSections. Return ONLY JSON with keys: summary (string), changes (array of strings), content (object). The content object must be a complete website content object based on the CURRENT content below, with only evidence-backed changes. Keep private application data unless explicitly evidenced; never copy secrets, tokens, emails, phone numbers, or personal data.\n\nCURRENT CONTENT:\n${JSON.stringify(current)}\n\nDISCORD SNAPSHOT:\n${JSON.stringify(snapshot)}`;
   const result = await aiJson(prompt);
   if (!result?.content || typeof result.content !== "object") throw new Error("AI returned invalid website content");
-  const next: any = result.content;
+  const next = result.content as Awaited<ReturnType<typeof getContent>>;
   await saveContent(next);
   return { guildId, guildName: guild?.name || guildId, channelsScanned: textChannels.length, rolesScanned: Array.isArray(snapshot.roles)?snapshot.roles.length:0, messagesScanned: channelData.reduce((n,c)=>n+c.messages.length,0), summary:String(result.summary||""), changes:Array.isArray(result.changes)?result.changes.slice(0,30):[] };
 }

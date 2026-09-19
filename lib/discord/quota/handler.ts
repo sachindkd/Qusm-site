@@ -19,16 +19,21 @@ async function handleWebsiteSync(interaction: any) {
   if (!isStaffHighcom(interaction)) return jsonResponse(ephemeral("Only COS+ can synchronize the QUSM website."));
   try {
     const result = await syncQusmWebsiteFromDiscord();
-    return jsonResponse(ephemeral(`✅ **QUSM website synchronization complete.**
+    const changes = result.changes.length ? result.changes.map((x: string) => `• ${x}`).join("\n") : "• No evidence-backed changes were required.";
+    return jsonResponse(ephemeral(`🤖 **QUSM AI Website Sync Complete**
 
 Server: **${result.guildName}**
 Channels scanned: **${result.channelsScanned}**
-Public channels processed: **${result.publicChannelsScanned}**
 Roles scanned: **${result.rolesScanned}**
-Public messages synchronized: **${result.messagesImported}**`));
+Messages analyzed: **${result.messagesScanned}**
+
+**AI summary:** ${result.summary || "Synchronization completed."}
+
+**Changes:**
+${changes}`));
   } catch (error) {
     console.error("[website-sync] failed", { error });
-    return jsonResponse(ephemeral(`⚠️ Website synchronization failed: ${error instanceof Error ? error.message : "unknown error"}`));
+    return jsonResponse(ephemeral(`⚠️ AI website synchronization failed: ${error instanceof Error ? error.message : "unknown error"}`));
   }
 }
 async function handleBotSecurity(interaction: any) { if (!hasRole(interaction, STAFF_ROLE_ID) && !hasRole(interaction, TESTER_ROLE_ID)) return jsonResponse(ephemeral("You need Staff Team access to use bot security.")); const sub = String(option(interaction, "subcommand")?.value || interaction?.data?.options?.[0]?.name || ""); try { if (sub === "scan") { const bots = await scanBotSecurity(String(interaction.guild_id)); return jsonResponse(ephemeral(`🛡️ Bot Security Scan\nFound **${bots.length}** bot(s).\n\n${bots.length ? bots.map((b: any) => `🤖 **${b.username}** — Risk **${b.risk}/100**`).join("\n") : "No bots found."}`)); } if (sub === "monitor") { const state = await startBotSecurity(String(interaction.guild_id), String(interaction.channel_id)); return jsonResponse(ephemeral(`🛡️ Bot Security Monitor is **ON**. Alerts will be associated with <#${state.channel}>.`)); } if (sub === "stop") { stopBotSecurity(String(interaction.guild_id)); return jsonResponse(ephemeral("🛡️ Bot Security Monitor is **OFF**.")); } const state = botSecurityStatus(String(interaction.guild_id)); return jsonResponse(ephemeral(`🛡️ Bot Security Status\nMonitoring: **${state.enabled ? "ON" : "OFF"}**\nAlert channel: ${state.channel ? `<#${state.channel}>` : "Not set"}`)); } catch (error) { return jsonResponse(ephemeral(`⚠️ Bot security failed: ${error instanceof Error ? error.message : "unknown error"}`)); } }

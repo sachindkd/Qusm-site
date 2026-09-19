@@ -1,4 +1,4 @@
-import { getContent, saveContent, type Content } from "@/lib/content";
+import { getContent, saveContent } from "@/lib/content";
 import { FBMRP_GUILD_ID } from "@/lib/discord-roles";
 
 const API = "https://discord.com/api/v10";
@@ -74,7 +74,7 @@ export async function syncQusmWebsiteFromDiscord() {
   ).slice(0, 120);
 
   const roleBody = roleRows.map((r: any) => `• ${r.name}`).join("\n") || "No public roles discovered.";
-  const syncSection = {
+  const syncSection: any = {
     id: "discord-live-sync",
     slug: "discord-live-sync",
     eyebrow: "LIVE DISCORD SYNC",
@@ -93,7 +93,7 @@ export async function syncQusmWebsiteFromDiscord() {
 
   const current = await getContent();
   const customSections = (current.customSections || []).filter((s: any) => s.id !== "discord-live-sync");
-  const next: Content = {
+  const next: any = {
     ...current,
     org: { ...current.org, name: "QUSM", fullName: current.org?.fullName || "Quavy's United States Military" },
     customSections: [...customSections, syncSection],

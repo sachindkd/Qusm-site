@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getQuotaLeaderboard, processInternshipQuotaDirect, processQuotaDirect } from "@/lib/quota-sheets";
 import { attachQuotaMessage, claimQuotaApproval, createQuotaRequest, getQuotaRequestState, getQuotaReviewById, markQuotaApproved, markQuotaRejected, releaseQuotaApproval } from "@/lib/quota-state";
@@ -93,35 +94,38 @@ async function handleQuotaSummary(interaction: any) {
   return new Response(null, { status: 204 });
 }
 async function handleAskAi(interaction: any) {
-  if (!isStaffHighcom(interaction)) {
-    return jsonResponse(ephemeral("Only COS+ can use /ask-ai."));
-  }
+  if (!isStaffHighcom(interaction)) return jsonResponse(ephemeral("Only COS+ can use /ask-ai."));
   const question = String(option(interaction, "question")?.value || "").trim();
   const targetUserId = String(option(interaction, "user")?.value || "").trim();
   const resolvedUser = targetUserId ? interaction?.data?.resolved?.users?.[targetUserId] : null;
   const targetUsername = resolvedUser?.global_name || resolvedUser?.username || "";
   if (!question) return jsonResponse(ephemeral("Please provide a question."));
   if (question.length > 1500) return jsonResponse(ephemeral("Question is too long. Maximum is 1,500 characters."));
-  try {
-    await interactionCallback(interaction, { type: 5, data: { flags: 64 } });
-    const { askPerformanceAI } = await import("@/lib/discord/performance");
-    const result = await askPerformanceAI(interactionUserId(interaction), question, targetUserId || undefined, targetUsername || undefined);
-    const targetLabel = targetUsername ? ` about **${targetUsername}**` : "";
-    await interactionFollowup(interaction, {
-      content: `🤖 **QUSM Highcom AI**${targetLabel}\\n\\n${result.answer}\\n\\n*Source: current QUSM staff/report data · AI: ${result.provider}*`,
-      flags: 64,
-      allowed_mentions: { parse: [] },
-    });
-  } catch (error) {
-    console.error("[ask-ai] failed", { interactionId: interaction.id, error });
+
+  after(async () => {
     try {
+      const { askPerformanceAI } = await import("@/lib/discord/performance");
+      const result = await askPerformanceAI(interactionUserId(interaction), question, targetUserId || undefined, targetUsername || undefined);
+      const targetLabel = targetUsername ? ` about **${targetUsername}**` : "";
       await interactionFollowup(interaction, {
-        content: `⚠️ /ask-ai could not answer: ${error instanceof Error ? error.message : "unknown error"}`,
+        content: `🤖 **QUSM COS+ AI**${targetLabel}\\n\\n${result.answer}\\n\\n*Source: current QUSM staff/report data · AI: ${result.provider}*`,
         flags: 64,
+        allowed_mentions: { parse: [] },
       });
-    } catch {}
-  }
-  return new Response(null, { status: 204 });
+    } catch (error) {
+      console.error("[ask-ai] failed", { interactionId: interaction.id, error });
+      try {
+        await interactionFollowup(interaction, {
+          content: `⚠️ /ask-ai could not answer: ${error instanceof Error ? error.message : "unknown error"}`,
+          flags: 64,
+        });
+      } catch (followupError) {
+        console.error("[ask-ai] followup failed", { interactionId: interaction.id, error: followupError });
+      }
+    }
+  });
+
+  return jsonResponse({ type: 5, data: { flags: 64 } });
 }
 
 async function handlePerformanceReport(interaction: any, kind: "staff" | "logistics") {

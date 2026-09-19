@@ -1,0 +1,41 @@
+name: QUSM Discord AI Sync
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/qusm-discord-sync.yml"
+      - "sync-trigger.txt"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trigger Discord AI sync
+        run: |
+          curl --fail --silent --show-error --max-time 120             "https://qusm-sitev1.vercel.app/api/internal/qusmsync?key=qsync_9f4c71e2b8a64d5f"             | tee /tmp/sync.json
+          cat /tmp/sync.json
+      - name: Pull AI-updated public content
+        run: |
+          curl --fail --silent --show-error --max-time 30             "https://qusm-sitev1.vercel.app/api/content"             -o data/content.json
+          python - <<'PY'
+          import json
+          with open("data/content.json") as f:
+              json.load(f)
+          print("Valid JSON content received.")
+          PY
+      - name: Commit website changes
+        run: |
+          git config user.name "QUSM AI Sync"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/content.json
+          if git diff --cached --quiet; then
+            echo "No GitHub content changes."
+          else
+            git commit -m "AI sync QUSM website from Discord"
+            git push
+          fi

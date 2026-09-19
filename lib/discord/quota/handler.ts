@@ -94,7 +94,7 @@ async function handleQuotaSummary(interaction: any) {
 }
 async function handleAskAi(interaction: any) {
   if (!isStaffHighcom(interaction)) {
-    return jsonResponse(ephemeral("Only Staff Highcom can use /ask-ai."));
+    return jsonResponse(ephemeral("Only COS+ can use /ask-ai."));
   }
   const question = String(option(interaction, "question")?.value || "").trim();
   const targetUserId = String(option(interaction, "user")?.value || "").trim();
@@ -126,7 +126,7 @@ async function handleAskAi(interaction: any) {
 
 async function handlePerformanceReport(interaction: any, kind: "staff" | "logistics") {
   if (!isStaffHighcom(interaction)) {
-    return jsonResponse(ephemeral("Only Staff Highcom can use performance reports."));
+    return jsonResponse(ephemeral("Only COS+ can use performance reports."));
   }
   const limit = checkPerformanceReportLimit(interactionUserId(interaction), kind);
   if (!limit.allowed) {

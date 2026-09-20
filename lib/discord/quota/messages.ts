@@ -161,3 +161,26 @@ export async function getAndValidateReviewMessage(messageId: string, requestId: 
   if (!pending && !pendingReject) return null;
   return { message, request };
 }
+
+
+export async function postOperationsHaltLog(input: { halted: boolean; userId: string; username: string; reason?: string | null }) {
+  return discordApi(`/channels/${QUOTA_LOG_CHANNEL_ID}/messages`, {
+    method: "POST",
+    body: JSON.stringify({
+      content: `<@&${LOGISTICS_ROLE_ID}>`,
+      embeds: [{
+        title: `QUSM Operations ${input.halted ? "HALTED" : "RESUMED"}`,
+        description: input.halted ? "All staff quota and ticket operations have been halted by COS+." : "All staff quota and ticket operations have been resumed by COS+.",
+        color: input.halted ? 0xed4245 : 0x57f287,
+        fields: [
+          { name: "Action", value: input.halted ? "Operations Halt" : "Operations Resume", inline: true },
+          { name: "Performed By", value: `<@${input.userId}> (${input.username})`, inline: true },
+          ...(input.halted && input.reason ? [{ name: "Reason", value: input.reason }] : []),
+        ],
+        footer: { text: "QUSM • Operations Control Log" },
+        timestamp: new Date().toISOString(),
+      }],
+      allowed_mentions: { users: [input.userId], roles: [LOGISTICS_ROLE_ID] },
+    }),
+  });
+}

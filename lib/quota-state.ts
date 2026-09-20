@@ -40,6 +40,17 @@ async function initQuotaState() {
     await q`CREATE INDEX IF NOT EXISTS quota_requests_status_idx ON quota_requests(status)`;
     await q`CREATE INDEX IF NOT EXISTS quota_requests_pending_created_idx ON quota_requests(status, created_at)`;
     await q`CREATE INDEX IF NOT EXISTS quota_requests_reminder_idx ON quota_requests(status, reminder_sent_at)`;
+    await q`CREATE TABLE IF NOT EXISTS operation_controls (
+      control_key TEXT PRIMARY KEY,
+      halted BOOLEAN NOT NULL DEFAULT FALSE,
+      halted_by TEXT,
+      halted_by_username TEXT,
+      reason TEXT,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`;
+    await q`INSERT INTO operation_controls (control_key, halted)
+      VALUES ('staff_quota', FALSE)
+      ON CONFLICT (control_key) DO NOTHING`;
     initialized = true;
   })();
   try { await initializing; } finally { initializing = null; }
@@ -124,4 +135,20 @@ export async function markQuotaRejected(requestId: string, rejectedBy = "", reje
   const rows = await q`UPDATE quota_requests SET status = 'rejected', rejected_by = ${rejectedBy || null}, rejected_by_username = ${rejectedByUsername || null}, updated_at = NOW()
     WHERE request_id = ${requestId} AND status = 'pending' RETURNING request_id`;
   return Boolean(rows.length);
+}
+
+
+export async function getStaffQuotaOperationsHalted(): Promise<{ halted: boolean; haltedBy: string | null; haltedByUsername: string | null; reason: string | null; updatedAt: string | null }> {
+  await initQuotaState();
+  const q = sql();
+  const rows = await q`SELECT halted, halted_by, halted_by_username, reason, updated_at::text FROM operation_controls WHERE control_key = 'staff_quota' LIMIT 1`;
+  const row = rows[0];
+  return { halted: Boolean(row?.halted), haltedBy: row?.halted_by ? String(row.halted_by) : null, haltedByUsername: row?.halted_by_username ? String(row.halted_by_username) : null, reason: row?.reason ? String(row.reason) : null, updatedAt: row?.updated_at ? String(row.updated_at) : null };
+}
+
+export async function setStaffQuotaOperationsHalted(input: { halted: boolean; userId: string; username: string; reason?: string }) {
+  await initQuotaState();
+  const q = sql();
+  const rows = await q`UPDATE operation_controls SET halted = ${input.halted}, halted_by = ${input.userId}, halted_by_username = ${input.username}, reason = ${input.reason?.trim() || null}, updated_at = NOW() WHERE control_key = 'staff_quota' RETURNING halted, halted_by, halted_by_username, reason, updated_at::text`;
+  return rows[0];
 }

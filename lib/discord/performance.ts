@@ -482,6 +482,9 @@ function buildCompleteStaffText(data: any) {
   const sections = rows.map((m:any, i:number) => [
     `### ${i + 1}. ${m.username}`, `Rank: ${m.sheetRank || "Unknown"}`,
     `Database totals: ${m.sheetMinutes} minutes | ${m.sheetTickets} tickets`,
+    `Requirements: quota ${m.requirements?.quotaMinutes ?? "N/A"} min | tickets ${m.requirements?.tickets ?? "N/A"} | quota met: ${m.requirements?.quotaMet == null ? "N/A" : m.requirements.quotaMet ? "Yes" : "No"} | tickets met: ${m.requirements?.ticketsMet == null ? "N/A" : m.requirements.ticketsMet ? "Yes" : "No"}`,
+    `Missing requirements: ${m.requirements?.missingRequirements?.length ? m.requirements.missingRequirements.join("; ") : "None"}`,
+    `Responsibilities baseline: ${m.requirements?.responsibilities || "Not defined in supplied policy"}`,
     `Quota: ${m.quotaSubmitted} submitted | ${m.quotaApproved} approved | ${m.quotaRejected} rejected | ${m.quotaPending} pending`,
     `Quota minutes: ${m.quotaMinutesSubmitted} submitted | ${m.quotaMinutesApproved} approved`,
     `Quota programs: Normal ${m.quotaNormalApproved} | Internship ${m.quotaInternshipApproved}`,

@@ -194,11 +194,22 @@ async function handlePerformanceReport(interaction: any, kind: "staff" | "logist
       "",
       report.text.replace(/\\*\\*/g, ""),
     ].join("\\n");
-    await interactionFollowupFile(interaction, {
+    const deliveryPayload = {
       content: `✅ **${title} generated.** ${header}\\n📄 Full report attached as \`${filename}\`.`,
       flags: 64,
       allowed_mentions: { parse: [] },
-    }, filename, fileContent);
+    };
+    try {
+      await interactionFollowupFile(interaction, deliveryPayload, filename, fileContent);
+    } catch (deliveryError) {
+      const message = deliveryError instanceof Error ? deliveryError.message : String(deliveryError);
+      if (!/Discord report upload 404.*Unknown Webhook|Discord report upload 404/i.test(message)) throw deliveryError;
+      console.warn("[performance] interaction webhook unavailable; delivering report by DM", { kind, interactionId: interaction.id });
+      await sendUserFile(interactionUserId(interaction), {
+        content: `📄 Your **${title}** is ready. The interaction webhook expired before the file could be attached here, so the full report is attached to this DM.`,
+        allowed_mentions: { parse: [] },
+      }, filename, fileContent);
+    }
   } catch (error) {
     console.error("[performance] report failed", { kind, interactionId: interaction.id, error });
     try {

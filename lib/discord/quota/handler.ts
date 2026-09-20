@@ -140,7 +140,7 @@ async function handleAskAi(interaction: any) {
   const resolvedUser = targetUserId ? interaction?.data?.resolved?.users?.[targetUserId] : null;
   const targetUsername = resolvedUser?.global_name || resolvedUser?.username || "";
   if (!question) return jsonResponse(ephemeral("Please provide a question."));
-  const longChannel = String(interaction?.channel_id || "") === ASK_AI_LONG_CHANNEL_ID;\n  if (!longChannel && question.length > 1500) return jsonResponse(ephemeral("Question is too long. Maximum is 1,500 characters."));
+  const longUser = interactionUserId(interaction) === ASK_AI_LONG_USER_ID;\n  if (!longUser && question.length > 1500) return jsonResponse(ephemeral("Question is too long. Maximum is 1,500 characters."));
 
   after(async () => {
     try {
@@ -148,7 +148,7 @@ async function handleAskAi(interaction: any) {
       const result = await askPerformanceAI(interactionUserId(interaction), question, targetUserId || undefined, targetUsername || undefined);
       const targetLabel = targetUsername ? ` about **${targetUsername}**` : "";
       const responseContent = `🤖 **QUSM COS+ AI**${targetLabel}\\n\\n${result.answer}\\n\\n*Source: current QUSM staff/report data · AI: ${result.provider}*`;
-      if (longChannel) {
+      if (longUser) {
         for (const chunk of splitDiscordContent(responseContent)) {
           await interactionFollowup(interaction, { content: chunk, flags: 64, allowed_mentions: { parse: [] } });
         }

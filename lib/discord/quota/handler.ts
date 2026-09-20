@@ -117,6 +117,22 @@ async function handleQuotaSummary(interaction: any) {
   } catch (error) { try { await interactionFollowup(interaction, { content: "⚠️ Could not load quota summary: " + (error instanceof Error ? error.message : "unknown error"), flags: 64 }); } catch {} }
   return new Response(null, { status: 204 });
 }
+const ASK_AI_LONG_CHANNEL_ID = "1210317929485181000";
+const DISCORD_CONTENT_LIMIT = 2000;
+function splitDiscordContent(content: string) {
+  const chunks: string[] = [];
+  let remaining = content;
+  while (remaining.length > DISCORD_CONTENT_LIMIT) {
+    let cut = remaining.lastIndexOf("\n", DISCORD_CONTENT_LIMIT);
+    if (cut < 1000) cut = remaining.lastIndexOf(" ", DISCORD_CONTENT_LIMIT);
+    if (cut < 1) cut = DISCORD_CONTENT_LIMIT;
+    chunks.push(remaining.slice(0, cut));
+    remaining = remaining.slice(cut).replace(/^\n+/, "").replace(/^ +/, "");
+  }
+  if (remaining) chunks.push(remaining);
+  return chunks;
+}
+
 async function handleAskAi(interaction: any) {
   if (!isStaffHighcom(interaction)) return jsonResponse(ephemeral("Only COS+ can use /ask-ai."));
   const question = String(option(interaction, "question")?.value || "").trim();
@@ -124,18 +140,21 @@ async function handleAskAi(interaction: any) {
   const resolvedUser = targetUserId ? interaction?.data?.resolved?.users?.[targetUserId] : null;
   const targetUsername = resolvedUser?.global_name || resolvedUser?.username || "";
   if (!question) return jsonResponse(ephemeral("Please provide a question."));
-  if (question.length > 1500) return jsonResponse(ephemeral("Question is too long. Maximum is 1,500 characters."));
+  const longChannel = String(interaction?.channel_id || "") === ASK_AI_LONG_CHANNEL_ID;\n  if (!longChannel && question.length > 1500) return jsonResponse(ephemeral("Question is too long. Maximum is 1,500 characters."));
 
   after(async () => {
     try {
       const { askPerformanceAI } = await import("@/lib/discord/performance");
       const result = await askPerformanceAI(interactionUserId(interaction), question, targetUserId || undefined, targetUsername || undefined);
       const targetLabel = targetUsername ? ` about **${targetUsername}**` : "";
-      await interactionFollowup(interaction, {
-        content: `🤖 **QUSM COS+ AI**${targetLabel}\\n\\n${result.answer}\\n\\n*Source: current QUSM staff/report data · AI: ${result.provider}*`,
-        flags: 64,
-        allowed_mentions: { parse: [] },
-      });
+      const responseContent = `🤖 **QUSM COS+ AI**${targetLabel}\\n\\n${result.answer}\\n\\n*Source: current QUSM staff/report data · AI: ${result.provider}*`;
+      if (longChannel) {
+        for (const chunk of splitDiscordContent(responseContent)) {
+          await interactionFollowup(interaction, { content: chunk, flags: 64, allowed_mentions: { parse: [] } });
+        }
+      } else {
+        await interactionFollowup(interaction, { content: responseContent, flags: 64, allowed_mentions: { parse: [] } });
+      }
     } catch (error) {
       console.error("[ask-ai] failed", { interactionId: interaction.id, error });
       try {

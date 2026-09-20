@@ -1,7 +1,7 @@
 import { STAFF_GUILD_ID, botToken, applicationId } from "./config";
 import { discordApi } from "./discord-api";
 
-const ALLOWED_COMMANDS = new Set(["quota-submit", "quota-leaderboard", "ticket-log", "botsecurity", "staff-performance", "logistics-performance", "ask-ai", "quota-status", "quota-summary", "quota-review", "sync-website"]);
+const ALLOWED_COMMANDS = new Set(["quota-submit", "quota-leaderboard", "ticket-log", "botsecurity", "staff-performance", "logistics-performance", "ask-ai", "quota-status", "quota-summary", "quota-review", "sync-website", "operations-halt"]);
 
 async function deleteAllCommands(base: string) {
   const existing = await discordApi(base);
@@ -53,6 +53,11 @@ export async function registerQuotaCommands() {
       { type: 3, name: "question", description: "Ask any question about the available QUSM data", required: true, max_length: 6000 },
     ]},
     { name: "sync-website", description: "Scan QUSM Discord and synchronize the main QUSM website", type: 1, default_member_permissions: null, options: [] },
+    { name: "operations-halt", description: "COS+ control for all staff quota and ticket operations", type: 1, default_member_permissions: null, options: [
+      { type: 1, name: "halt", description: "Halt all staff quota and ticket operations", options: [{ type: 3, name: "reason", description: "Reason for the operational halt", required: false, max_length: 1000 }] },
+      { type: 1, name: "resume", description: "Resume all staff quota and ticket operations", options: [] },
+      { type: 1, name: "status", description: "View the current operations status", options: [] },
+    ] },
     { name: "botsecurity", description: "Scan bots and monitor for bot/raid security threats", type: 1, default_member_permissions: "32", options: [
       { type: 1, name: "scan", description: "Scan every bot currently in the server", options: [] },
       { type: 1, name: "monitor", description: "Start security monitoring in this channel", options: [] },

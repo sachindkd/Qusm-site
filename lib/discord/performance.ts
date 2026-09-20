@@ -274,9 +274,7 @@ function rankPriority(rank: string) {
   return exact >= 0 ? exact : 100;
 }
 
-type StaffRequirement = { quotaMinutes: number | null; tickets: number | null; responsibilities: string };
-
-const STAFF_REQUIREMENTS: Record<string, StaffRequirement> = {
+const STAFF_REQUIREMENTS: Record<string, { quotaMinutes: number | null; tickets: number | null; responsibilities: string }> = {
   "senior administrator": { quotaMinutes: 100, tickets: 4, responsibilities: "Assist LOWCOM with tasks." },
   "administrator": { quotaMinutes: 50, tickets: 4, responsibilities: "Game moderation, supervision, and LOWCOM guidance." },
   "junior administrator": { quotaMinutes: 60, tickets: 4, responsibilities: "Discord and game moderation." },
@@ -286,11 +284,15 @@ const STAFF_REQUIREMENTS: Record<string, StaffRequirement> = {
   "intern": { quotaMinutes: null, tickets: null, responsibilities: "Pass trial, complete assigned tasks, handle tickets, and pass the staff moderation examination. No moderation/punishment without higher-ranking approval." },
 };
 
-function getStaffRequirement(rank: string): StaffRequirement | null {
+function getStaffRequirement(rank: string) {
   const normalized = key(rank);
-  for (const [name, requirement] of Object.entries(STAFF_REQUIREMENTS).sort((a, b) => b[0].length - a[0].length)) {
-    if (normalized === name || normalized.includes(name)) return requirement;
-  }
+  if (normalized.includes("senior administrator")) return STAFF_REQUIREMENTS["senior administrator"];
+  if (normalized.includes("junior administrator")) return STAFF_REQUIREMENTS["junior administrator"];
+  if (normalized.includes("administrator")) return STAFF_REQUIREMENTS["administrator"];
+  if (normalized.includes("senior moderator")) return STAFF_REQUIREMENTS["senior moderator"];
+  if (normalized.includes("junior moderator")) return STAFF_REQUIREMENTS["junior moderator"];
+  if (normalized.includes("moderator")) return STAFF_REQUIREMENTS["moderator"];
+  if (normalized.includes("intern")) return STAFF_REQUIREMENTS["intern"];
   return null;
 }
 
@@ -302,14 +304,14 @@ function addPromotionRecommendation(data: any) {
     const requirement = getStaffRequirement(m.sheetRank);
     const minutes = Number(m.sheetMinutes) || 0;
     const tickets = Number(m.sheetTickets) || 0;
-    const quotaMet = requirement?.quotaMinutes == null ? null : minutes >= requirement.quotaMinutes;
-    const ticketsMet = requirement?.tickets == null ? null : tickets >= requirement.tickets;
+    const quotaMet = requirement && requirement.quotaMinutes != null ? minutes >= requirement.quotaMinutes : null;
+    const ticketsMet = requirement && requirement.tickets != null ? tickets >= requirement.tickets : null;
     const missingRequirements: string[] = [];
-    if (quotaMet === false) missingRequirements.push("quota " + minutes + "/" + requirement!.quotaMinutes + " min");
-    if (ticketsMet === false) missingRequirements.push("tickets " + tickets + "/" + requirement!.tickets);
-    const materiallyAboveQuota = requirement?.quotaMinutes != null && minutes >= requirement.quotaMinutes * 2;
+    if (quotaMet === false && requirement) missingRequirements.push("quota " + minutes + "/" + requirement.quotaMinutes + " min");
+    if (ticketsMet === false && requirement) missingRequirements.push("tickets " + tickets + "/" + requirement.tickets);
+    const materiallyAboveQuota = !!(requirement && requirement.quotaMinutes != null && minutes >= requirement.quotaMinutes * 2);
     const strongEvidence = approved >= 10 && rate >= 70 && Number(m.activeDays) >= 3;
-    const exceptionEligible = Boolean(missingRequirements.length && materiallyAboveQuota && strongEvidence);
+    const exceptionEligible = missingRequirements.length > 0 && materiallyAboveQuota && strongEvidence;
 
     if (!Number(m.activeDays)) {
       m.promotionRecommendation = "Review";
@@ -319,13 +321,15 @@ function addPromotionRecommendation(data: any) {
       m.promotionReason = "No fixed quota/ticket requirement is defined for this rank in the supplied staff policy. Recommendation is based on recorded performance evidence only.";
     } else if (!missingRequirements.length && strongEvidence) {
       m.promotionRecommendation = "Yes";
-      m.promotionReason = "All defined baseline requirements are met (quota " + minutes + "/" + (requirement.quotaMinutes ?? "N/A") + " min; tickets " + tickets + "/" + (requirement.tickets ?? "N/A") + ") with sustained supporting activity.";
+      m.promotionReason = "All defined baseline requirements are met (quota " + minutes + "/" + (requirement.quotaMinutes == null ? "N/A" : requirement.quotaMinutes) + " min; tickets " + tickets + "/" + (requirement.tickets == null ? "N/A" : requirement.tickets) + ") with sustained supporting activity.";
     } else if (exceptionEligible) {
-      m.promotionRecommendation = "Consider — Exception";
+      m.promotionRecommendation = "Consider - Exception";
       m.promotionReason = "Baseline gap: " + missingRequirements.join(", ") + ". However, quota is materially above the baseline and the record shows sustained supporting evidence; leadership may consider an exception.";
     } else {
       m.promotionRecommendation = "Review";
-      m.promotionReason = missingRequirements.length ? "Baseline requirement(s) not met: " + missingRequirements.join(", ") + ". Additional documented evidence is needed before recommending an exception." : "The available recorded activity does not yet provide enough evidence for a promotion recommendation.";
+      m.promotionReason = missingRequirements.length
+        ? "Baseline requirement(s) not met: " + missingRequirements.join(", ") + ". Additional documented evidence is needed before recommending an exception."
+        : "The available recorded activity does not yet provide enough evidence for a promotion recommendation.";
     }
 
     m.requirements = requirement

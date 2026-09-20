@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getQuotaLeaderboard, processInternshipQuotaDirect, processQuotaDirect } from "@/lib/quota-sheets";
 import { attachQuotaMessage, claimQuotaApproval, createQuotaRequest, getQuotaRequestState, getQuotaReviewById, markQuotaApproved, markQuotaRejected, releaseQuotaApproval } from "@/lib/quota-state";
 import { INTERNSHIP_ROLE_ID, LOGISTICS_ROLE_ID, QUOTA_CHANNEL_ID, STAFF_GUILD_ID, STAFF_ROLE_ID, TESTER_ROLE_ID } from "./config";
-import { discordApi, ephemeral, getGuildMember, hasMemberRole, hasRole, interactionCallback, interactionFollowup, interactionFollowupFile, jsonResponse, modalValues, option } from "./discord-api";
+import { discordApi, ephemeral, getGuildMember, hasMemberRole, hasRole, interactionCallback, interactionFollowup, interactionFollowupFile, jsonResponse, sendUserFile, modalValues, option } from "./discord-api";
 import { approveModal, dmRejection, getAndValidateReviewMessage, postApprovalLog, postRejectionLog, postReviewMessage, rejectModal } from "./messages";
 import { registerQuotaCommands } from "./commands";
 import { registerTicketCommands } from "@/lib/discord/tickets/commands";

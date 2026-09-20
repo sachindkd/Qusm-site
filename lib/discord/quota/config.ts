@@ -5,6 +5,7 @@ export const LOGISTICS_ROLE_ID = "1539908119067492427";
 export const TESTER_ROLE_ID = "1540499074061439006";
 export const QUOTA_CHANNEL_ID = "1545116182858965046";
 export const QUOTA_LOG_CHANNEL_ID = "1539785260923879505";
+export const QUOTA_ANNOUNCEMENT_CHANNEL_ID = "1539736453712445592";
 
 // During development, only this Discord user may use the Staff bot commands.
 // Set DEV_COMMAND_USER_ID to the designated special user on Vercel.

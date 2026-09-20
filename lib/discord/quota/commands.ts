@@ -49,8 +49,8 @@ export async function registerQuotaCommands() {
       { type: 3, name: "request_id", description: "Full quota request ID", required: true, min_length: 8, max_length: 64 },
     ]},
     { name: "ask-ai", description: "Ask Highcom AI about staff reports and performance", type: 1, default_member_permissions: null, options: [
-      { type: 6, name: "user", description: "Optional staff member to analyze", required: false },
       { type: 3, name: "question", description: "Ask any question about the available QUSM data", required: true, max_length: 6000 },
+      { type: 6, name: "user", description: "Optional staff member to analyze", required: false },
     ]},
     { name: "sync-website", description: "Scan QUSM Discord and synchronize the main QUSM website", type: 1, default_member_permissions: null, options: [] },
     { name: "operations-halt", description: "COS+ control for all staff quota and ticket operations", type: 1, default_member_permissions: null, options: [

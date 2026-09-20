@@ -1,10 +1,10 @@
 import { after } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getQuotaLeaderboard, processInternshipQuotaDirect, processQuotaDirect } from "@/lib/quota-sheets";
-import { attachQuotaMessage, claimQuotaApproval, createQuotaRequest, getQuotaRequestState, getQuotaReviewById, markQuotaApproved, markQuotaRejected, releaseQuotaApproval } from "@/lib/quota-state";
+import { attachQuotaMessage, claimQuotaApproval, createQuotaRequest, getQuotaRequestState, getQuotaReviewById, markQuotaApproved, markQuotaRejected, releaseQuotaApproval, getStaffQuotaOperationsHalted, setStaffQuotaOperationsHalted } from "@/lib/quota-state";
 import { INTERNSHIP_ROLE_ID, LOGISTICS_ROLE_ID, QUOTA_CHANNEL_ID, STAFF_GUILD_ID, STAFF_ROLE_ID, TESTER_ROLE_ID } from "./config";
 import { discordApi, ephemeral, getGuildMember, hasMemberRole, hasRole, interactionCallback, interactionFollowup, interactionFollowupFile, jsonResponse, sendUserFile, modalValues, option } from "./discord-api";
-import { approveModal, dmRejection, getAndValidateReviewMessage, postApprovalLog, postRejectionLog, postReviewMessage, rejectModal } from "./messages";
+import { approveModal, dmRejection, getAndValidateReviewMessage, postApprovalLog, postRejectionLog, postReviewMessage, rejectModal, postOperationsHaltLog } from "./messages";
 import { registerQuotaCommands } from "./commands";
 import { registerTicketCommands } from "@/lib/discord/tickets/commands";
 import { interactionDisplayName, interactionUserId, interactionUsername, type QuotaRequest } from "./types";
@@ -15,6 +15,33 @@ import { buildPerformanceReport, checkPerformanceReportLimit, isStaffHighcom } f
 import { syncQusmWebsiteFromDiscord } from "@/lib/discord/website-sync";
 
 export async function handleGet() { try { await registerQuotaCommands(); await registerTicketCommands(); return jsonResponse({ success: true, commands: ["/quota-submit", "/quota-leaderboard", "/ticket-log", "/staff-performance", "/logistics-performance", "/botsecurity"] }); } catch (error) { console.error("[quota] command registration failed", error); return jsonResponse({ success: false, error: error instanceof Error ? error.message : "unknown error" }, 500); } }
+async function handleOperationsHalt(interaction: any) {
+  if (!isStaffHighcom(interaction)) return jsonResponse(ephemeral("Only COS+ can control staff operations."));
+  const sub = String(interaction?.data?.options?.[0]?.name || "");
+  const reason = String(interaction?.data?.options?.[0]?.options?.find((x: any) => x?.name === "reason")?.value || "").trim();
+  try {
+    if (sub === "halt") {
+      const current = await getStaffQuotaOperationsHalted();
+      if (current.halted) return jsonResponse(ephemeral("⚠️ Staff quota and ticket operations are already halted."));
+      await setStaffQuotaOperationsHalted({ halted: true, userId: interactionUserId(interaction), username: interactionUsername(interaction), reason });
+      await postOperationsHaltLog({ halted: true, userId: interactionUserId(interaction), username: interactionDisplayName(interaction) || interactionUsername(interaction), reason });
+      return jsonResponse(ephemeral("🛑 All staff quota and ticket operations are now HALTED. A public bot log was posted."));
+    }
+    if (sub === "resume") {
+      const current = await getStaffQuotaOperationsHalted();
+      if (!current.halted) return jsonResponse(ephemeral("ℹ️ Staff quota and ticket operations are already active."));
+      await setStaffQuotaOperationsHalted({ halted: false, userId: interactionUserId(interaction), username: interactionUsername(interaction) });
+      await postOperationsHaltLog({ halted: false, userId: interactionUserId(interaction), username: interactionDisplayName(interaction) || interactionUsername(interaction) });
+      return jsonResponse(ephemeral("✅ All staff quota and ticket operations have been RESUMED. A public bot log was posted."));
+    }
+    const state = await getStaffQuotaOperationsHalted();
+    return jsonResponse(ephemeral(`QUSM Operations: **${state.halted ? "HALTED" : "ACTIVE"}**${state.reason ? `\\nReason: ${state.reason}` : ""}`));
+  } catch (error) {
+    console.error("[operations-halt] failed", { error });
+    return jsonResponse(ephemeral(`⚠️ Operations control failed: ${error instanceof Error ? error.message : "unknown error"}`));
+  }
+}
+
 async function handleWebsiteSync(interaction: any) {
   if (!isStaffHighcom(interaction)) return jsonResponse(ephemeral("Only COS+ can synchronize the QUSM website."));
   try {
@@ -222,6 +249,11 @@ async function handlePerformanceReport(interaction: any, kind: "staff" | "logist
   return new Response(null, { status: 204 });
 }
 
-export async function handlePost(interaction: any) { if (interaction.type === 1) return jsonResponse({ type: 1 }); if (interaction.type === 2 && interaction.data?.name === "sync-website") return handleWebsiteSync(interaction); if (interaction.guild_id !== STAFF_GUILD_ID) return jsonResponse(ephemeral("This quota system is only available in the Staff Team server.")); if (interaction.type === 2 && interaction.data?.name === "quota-status") return handleQuotaStatus(interaction); if (interaction.type === 2 && interaction.data?.name === "quota-summary") return handleQuotaSummary(interaction); if (interaction.type === 2 && interaction.data?.name === "quota-review") return handleQuotaReview(interaction); if (interaction.type === 2 && interaction.data?.name === "ask-ai") return handleAskAi(interaction); if (interaction.type === 2 && interaction.data?.name === "staff-performance") return handlePerformanceReport(interaction, "staff");
+export async function handlePost(interaction: any) { if (interaction.type === 1) return jsonResponse({ type: 1 }); if (interaction.type === 2 && interaction.data?.name === "operations-halt") return handleOperationsHalt(interaction);
+  if (interaction.type === 2 && interaction.data?.name === "sync-website") return handleWebsiteSync(interaction); if (interaction.guild_id !== STAFF_GUILD_ID) return jsonResponse(ephemeral("This quota system is only available in the Staff Team server."));
+  if (interaction.type === 2 && interaction.data?.name !== "operations-halt" && interaction.data?.name !== "sync-website") {
+    const operations = await getStaffQuotaOperationsHalted();
+    if (operations.halted) return jsonResponse(ephemeral(`🛑 Staff operations are currently HALTED by COS+.${operations.reason ? `\\nReason: ${operations.reason}` : ""}\\nNo quota or ticket operation can be processed until COS+ resumes operations.`));
+  } if (interaction.type === 2 && interaction.data?.name === "quota-status") return handleQuotaStatus(interaction); if (interaction.type === 2 && interaction.data?.name === "quota-summary") return handleQuotaSummary(interaction); if (interaction.type === 2 && interaction.data?.name === "quota-review") return handleQuotaReview(interaction); if (interaction.type === 2 && interaction.data?.name === "ask-ai") return handleAskAi(interaction); if (interaction.type === 2 && interaction.data?.name === "staff-performance") return handlePerformanceReport(interaction, "staff");
   if (interaction.type === 2 && interaction.data?.name === "logistics-performance") return handlePerformanceReport(interaction, "logistics");
   if (interaction.type === 2 && interaction.data?.name === "botsecurity") return handleBotSecurity(interaction); if (interaction.type === 2 && interaction.data?.name === "quota-leaderboard") return handleLeaderboard(interaction); if (interaction.type === 2 && interaction.data?.name === "quota-submit") return handleSubmit(interaction); if (interaction.type === 3) return handleButton(interaction); if (interaction.type === 5) { const customId = String(interaction?.data?.custom_id || ""); const approval = customId.match(/^qac:([0-9a-f-]{36}):([0-9a-f]{24}):(\d+)$/i); if (approval) return finishApproval(interaction, approval); const rejection = customId.match(/^qrj:([0-9a-f-]{36}):([0-9a-f]{24}):(\d+)$/i); if (rejection) return finishRejection(interaction, rejection); } return jsonResponse(ephemeral("Unsupported quota interaction.")); }

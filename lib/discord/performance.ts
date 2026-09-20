@@ -288,7 +288,7 @@ const STAFF_REQUIREMENTS: Record<string, StaffRequirement> = {
 
 function getStaffRequirement(rank: string): StaffRequirement | null {
   const normalized = key(rank);
-  for (const [name, requirement] of Object.entries(STAFF_REQUIREMENTS)) {
+  for (const [name, requirement] of Object.entries(STAFF_REQUIREMENTS).sort((a, b) => b[0].length - a[0].length)) {
     if (normalized === name || normalized.includes(name)) return requirement;
   }
   return null;

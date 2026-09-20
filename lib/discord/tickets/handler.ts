@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { processInternshipTicketDirect, processTicketDirect } from "@/lib/quota-sheets";
 import { attachTicketMessage, claimTicketApproval, createTicketRequest, getTicketRequestState, markTicketApproved, markTicketRejected, releaseTicketApproval } from "@/lib/ticket-state";
+import { getStaffQuotaOperationsHalted } from "@/lib/quota-state";
 import { INTERNSHIP_ROLE_ID, LOGISTICS_ROLE_ID, STAFF_GUILD_ID, STAFF_ROLE_ID, TESTER_ROLE_ID } from "@/lib/discord/quota/config";
 import { discordApi, ephemeral, hasRole, interactionCallback, interactionFollowup, jsonResponse, modalValues, option } from "@/lib/discord/quota/discord-api";
 import { TICKET_CHANNEL_ID } from "./config";
@@ -110,6 +111,8 @@ async function finishRejection(interaction: any, match: RegExpMatchArray) {
 }
 
 export async function handleTicketPost(interaction: any) {
+  const operations = await getStaffQuotaOperationsHalted();
+  if (operations.halted) return jsonResponse(ephemeral(`🛑 Staff operations are currently HALTED by COS+.${operations.reason ? `\\nReason: ${operations.reason}` : ""}\\nTicket operations cannot be processed until COS+ resumes operations.`));
   if (interaction.guild_id !== STAFF_GUILD_ID) return jsonResponse(ephemeral("This ticket system is only available in the Staff Team server."));
   if (interaction.type === 2 && interaction.data?.name === "ticket-log") return handleSubmit(interaction);
   if (interaction.type === 3) return handleButton(interaction);

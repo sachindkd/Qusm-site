@@ -1,4 +1,4 @@
-import { QUOTA_CHANNEL_ID, QUOTA_LOG_CHANNEL_ID, LOGISTICS_ROLE_ID } from "./config";
+import { QUOTA_ANNOUNCEMENT_CHANNEL_ID, QUOTA_CHANNEL_ID, QUOTA_LOG_CHANNEL_ID, LOGISTICS_ROLE_ID } from "./config";
 import { discordApi } from "./discord-api";
 import { quotaSignature } from "./security";
 import type { QuotaRequest } from "./types";
@@ -162,6 +162,18 @@ export async function getAndValidateReviewMessage(messageId: string, requestId: 
   return { message, request };
 }
 
+
+export async function postOperationsHaltAnnouncement(input: { halted: boolean; reason?: string | null }) {
+  return discordApi(`/channels/${QUOTA_ANNOUNCEMENT_CHANNEL_ID}/messages`, {
+    method: "POST",
+    body: JSON.stringify({
+      content: input.halted
+        ? `🛑 **QUOTA HAS BEEN HALTED**\\n\\nAll quota operations are temporarily halted. Please do not submit, review, approve, or process quota requests until further notice.${input.reason ? `\\n\\n**Reason:** ${input.reason}` : ""}`
+        : "✅ **QUOTA HAS BEEN RESUMED**\\n\\nQuota operations are now active again. You may resume normal quota submissions and processing.",
+      allowed_mentions: { parse: [] },
+    }),
+  });
+}
 
 export async function postOperationsHaltLog(input: { halted: boolean; userId: string; username: string; reason?: string | null }) {
   return discordApi(`/channels/${QUOTA_LOG_CHANNEL_ID}/messages`, {

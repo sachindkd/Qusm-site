@@ -4,7 +4,7 @@ import { getQuotaLeaderboard, processInternshipQuotaDirect, processQuotaDirect }
 import { attachQuotaMessage, claimQuotaApproval, createQuotaRequest, getQuotaRequestState, getQuotaReviewById, markQuotaApproved, markQuotaRejected, releaseQuotaApproval, getStaffQuotaOperationsHalted, setStaffQuotaOperationsHalted } from "@/lib/quota-state";
 import { INTERNSHIP_ROLE_ID, LOGISTICS_ROLE_ID, QUOTA_CHANNEL_ID, STAFF_GUILD_ID, STAFF_ROLE_ID, TESTER_ROLE_ID } from "./config";
 import { discordApi, ephemeral, getGuildMember, hasMemberRole, hasRole, interactionCallback, interactionFollowup, interactionFollowupFile, jsonResponse, sendUserFile, modalValues, option } from "./discord-api";
-import { approveModal, dmRejection, getAndValidateReviewMessage, postApprovalLog, postRejectionLog, postReviewMessage, rejectModal, postOperationsHaltLog } from "./messages";
+import { approveModal, dmRejection, getAndValidateReviewMessage, postApprovalLog, postRejectionLog, postReviewMessage, rejectModal, postOperationsHaltAnnouncement, postOperationsHaltLog } from "./messages";
 import { registerQuotaCommands } from "./commands";
 import { registerTicketCommands } from "@/lib/discord/tickets/commands";
 import { interactionDisplayName, interactionUserId, interactionUsername, type QuotaRequest } from "./types";
@@ -25,6 +25,7 @@ async function handleOperationsHalt(interaction: any) {
       if (current.halted) return jsonResponse(ephemeral("⚠️ Staff quota and ticket operations are already halted."));
       await setStaffQuotaOperationsHalted({ halted: true, userId: interactionUserId(interaction), username: interactionUsername(interaction), reason });
       await postOperationsHaltLog({ halted: true, userId: interactionUserId(interaction), username: interactionDisplayName(interaction) || interactionUsername(interaction), reason });
+      await postOperationsHaltAnnouncement({ halted: true, reason });
       return jsonResponse(ephemeral("🛑 All staff quota and ticket operations are now HALTED. A public bot log was posted."));
     }
     if (sub === "resume") {
@@ -32,6 +33,7 @@ async function handleOperationsHalt(interaction: any) {
       if (!current.halted) return jsonResponse(ephemeral("ℹ️ Staff quota and ticket operations are already active."));
       await setStaffQuotaOperationsHalted({ halted: false, userId: interactionUserId(interaction), username: interactionUsername(interaction) });
       await postOperationsHaltLog({ halted: false, userId: interactionUserId(interaction), username: interactionDisplayName(interaction) || interactionUsername(interaction) });
+      await postOperationsHaltAnnouncement({ halted: false });
       return jsonResponse(ephemeral("✅ All staff quota and ticket operations have been RESUMED. A public bot log was posted."));
     }
     const state = await getStaffQuotaOperationsHalted();

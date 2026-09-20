@@ -140,7 +140,8 @@ async function handleAskAi(interaction: any) {
   const resolvedUser = targetUserId ? interaction?.data?.resolved?.users?.[targetUserId] : null;
   const targetUsername = resolvedUser?.global_name || resolvedUser?.username || "";
   if (!question) return jsonResponse(ephemeral("Please provide a question."));
-  const longUser = interactionUserId(interaction) === ASK_AI_LONG_USER_ID;\n  if (!longUser && question.length > 1500) return jsonResponse(ephemeral("Question is too long. Maximum is 1,500 characters."));
+  const longUser = interactionUserId(interaction) === ASK_AI_LONG_USER_ID;
+  if (!longUser && question.length > 1500) return jsonResponse(ephemeral("Question is too long. Maximum is 1,500 characters."));
 
   after(async () => {
     try {

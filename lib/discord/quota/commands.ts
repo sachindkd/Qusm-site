@@ -50,7 +50,7 @@ export async function registerQuotaCommands() {
     ]},
     { name: "ask-ai", description: "Ask Highcom AI about staff reports and performance", type: 1, default_member_permissions: null, options: [
       { type: 6, name: "user", description: "Optional staff member to analyze", required: false },
-      { type: 3, name: "question", description: "Ask any question about the available QUSM data", required: true, max_length: 1500 },
+      { type: 3, name: "question", description: "Ask any question about the available QUSM data", required: true, max_length: 6000 },
     ]},
     { name: "sync-website", description: "Scan QUSM Discord and synchronize the main QUSM website", type: 1, default_member_permissions: null, options: [] },
     { name: "botsecurity", description: "Scan bots and monitor for bot/raid security threats", type: 1, default_member_permissions: "32", options: [

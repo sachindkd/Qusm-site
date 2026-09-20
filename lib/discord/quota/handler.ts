@@ -117,7 +117,7 @@ async function handleQuotaSummary(interaction: any) {
   } catch (error) { try { await interactionFollowup(interaction, { content: "⚠️ Could not load quota summary: " + (error instanceof Error ? error.message : "unknown error"), flags: 64 }); } catch {} }
   return new Response(null, { status: 204 });
 }
-const ASK_AI_LONG_CHANNEL_ID = "1210317929485181000";
+const ASK_AI_LONG_USER_ID = "1210317929485181000";
 const DISCORD_CONTENT_LIMIT = 2000;
 function splitDiscordContent(content: string) {
   const chunks: string[] = [];

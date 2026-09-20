@@ -57,6 +57,23 @@ export async function interactionFollowup(interaction: any, payload: any) {
   if (!response.ok) throw new Error(`Discord followup ${response.status}: ${(await response.text()).slice(0, 300)}`);
 }
 
+export async function sendUserFile(userId: string, payload: any, filename: string, content: string) {
+  const dm = await discordApi("/users/@me/channels", {
+    method: "POST",
+    body: JSON.stringify({ recipient_id: userId }),
+  });
+  const form = new FormData();
+  form.append("payload_json", JSON.stringify(payload));
+  form.append("files[0]", new Blob([content], { type: "text/plain; charset=utf-8" }), filename);
+  const response = await fetch(`https://discord.com/api/v10/channels/${dm.id}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bot ${botToken()}` },
+    body: form,
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Discord DM report upload ${response.status}: ${(await response.text()).slice(0, 300)}`);
+}
+
 export async function interactionFollowupFile(interaction: any, payload: any, filename: string, content: string) {
   const form = new FormData();
   form.append("payload_json", JSON.stringify(payload));

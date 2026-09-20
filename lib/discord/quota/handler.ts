@@ -251,7 +251,7 @@ async function handlePerformanceReport(interaction: any, kind: "staff" | "logist
 
 export async function handlePost(interaction: any) { if (interaction.type === 1) return jsonResponse({ type: 1 }); if (interaction.type === 2 && interaction.data?.name === "operations-halt") return handleOperationsHalt(interaction);
   if (interaction.type === 2 && interaction.data?.name === "sync-website") return handleWebsiteSync(interaction); if (interaction.guild_id !== STAFF_GUILD_ID) return jsonResponse(ephemeral("This quota system is only available in the Staff Team server."));
-  if (interaction.type === 2 && interaction.data?.name !== "operations-halt" && interaction.data?.name !== "sync-website") {
+  if (!(interaction.type === 2 && (interaction.data?.name === "operations-halt" || interaction.data?.name === "sync-website"))) {
     const operations = await getStaffQuotaOperationsHalted();
     if (operations.halted) return jsonResponse(ephemeral(`🛑 Staff operations are currently HALTED by COS+.${operations.reason ? `\\nReason: ${operations.reason}` : ""}\\nNo quota or ticket operation can be processed until COS+ resumes operations.`));
   } if (interaction.type === 2 && interaction.data?.name === "quota-status") return handleQuotaStatus(interaction); if (interaction.type === 2 && interaction.data?.name === "quota-summary") return handleQuotaSummary(interaction); if (interaction.type === 2 && interaction.data?.name === "quota-review") return handleQuotaReview(interaction); if (interaction.type === 2 && interaction.data?.name === "ask-ai") return handleAskAi(interaction); if (interaction.type === 2 && interaction.data?.name === "staff-performance") return handlePerformanceReport(interaction, "staff");

@@ -20,8 +20,13 @@ const activeCommands = [
       { type: 3, name: "notes", description: "Optional notes for Logistics", required: false, max_length: 1000 }
     ]
   },
-  { name: "staff-performance", description: "Generate the detailed Staff Highcom performance report", type: 1, options: [] },
-  { name: "logistics-performance", description: "Generate the detailed Logistics performance report", type: 1, options: [] },
+  {
+    name: "staff-panel", description: "Open the COS+/HighCOM Staff Management Panel", type: 1,
+    options: [
+      { type: 3, name: "username", description: "Exact Discord username to open", required: true, min_length: 1, max_length: 100 }
+    ]
+  },
+  { name: "profile-sync", description: "Synchronize the Staff Database with QUSM Staff Profiles", type: 1, options: [] },
   {
     name: "quota-status",
     description: "View a staff member quota request status",
@@ -82,9 +87,6 @@ export async function GET(request: Request) {
     );
   }
 
-  // Use Discord's bulk guild-command overwrite endpoint so registration is a
-  // single API request instead of GET + one PATCH/POST per command. This
-  // avoids unnecessary Discord rate limits and also removes stale commands.
   const response = await discordRequest(discordBase, {
     method: "PUT",
     body: JSON.stringify(activeCommands)

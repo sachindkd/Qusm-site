@@ -3,7 +3,7 @@ import { handleGet, handlePost } from "@/lib/discord/quota/handler";
 import { jsonResponse } from "@/lib/discord/quota/discord-api";
 import { runQuotaReminderCheck } from "@/lib/discord/quota/reminders";
 import { handleTicketPost } from "@/lib/discord/tickets/handler";
-import { handleStaffCommand, handleStaffComponent, handleStaffModal, handleStaffApproval, handleProfileSync } from "@/lib/discord/staff-management";
+import { handleStaffCommand, handleStaffComponent, handleStaffModal, handleStaffApproval, handleProfileSync, handleStaffRoleSelection, handleStaffRankModal } from "@/lib/discord/staff-management";
 import { handleStaffAskAi } from "@/lib/discord/staff-ai";
 export async function GET(){try{await runQuotaReminderCheck("startup")}catch(error){console.error("[quota-reminder] startup scan failed",error)}return handleGet()}
 export async function POST(request:Request){const body=await request.text();const timestamp=request.headers.get("x-signature-timestamp")||"";const signature=request.headers.get("x-signature-ed25519")||"";if(!verifyDiscordSignature(body,timestamp,signature))return jsonResponse({error:"invalid signature"},401);try{const interaction=JSON.parse(body);if(interaction?.type===1)return jsonResponse({type:1});const customId=String(interaction?.data?.custom_id||"");const commandName=String(interaction?.data?.name||"");
@@ -11,6 +11,8 @@ export async function POST(request:Request){const body=await request.text();cons
  if(commandName==="profile-sync")return handleProfileSync(interaction);
  if(commandName==="ask-ai")return handleStaffAskAi(interaction);
  if(customId.startsWith("staffcase:"))return handleStaffApproval(interaction);
+ if(customId.startsWith("staffrankmodal:"))return handleStaffRankModal(interaction);
+ if(customId.startsWith("staffrole:"))return handleStaffRoleSelection(interaction);
  if(customId.startsWith("staffmodal:"))return handleStaffModal(interaction);
  if(customId.startsWith("staff:"))return handleStaffComponent(interaction);
  if(commandName==="operations-halt"){console.info("[operations-halt] interaction received",{interactionId:interaction.id});return handlePost(interaction)}

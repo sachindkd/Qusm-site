@@ -33,10 +33,10 @@ export async function POST(request:Request): Promise<Response>{
     if(customId.startsWith("staffrole:"))return interactionResult(handleStaffRoleSelection(interaction));
     if(customId.startsWith("staffmodal:"))return interactionResult(handleStaffModal(interaction));
     if(customId.startsWith("staff:"))return interactionResult(handleStaffComponent(interaction));
-    if(commandName==="operations-halt"){console.info("[operations-halt] interaction received",{interactionId:interaction.id});return handlePost(interaction)}
+    if(commandName==="operations-halt"){console.info("[operations-halt] interaction received",{interactionId:interaction.id});return interactionResult(handlePost(interaction))}
     try{await runQuotaReminderCheck("startup")}catch(error){console.error("[quota-reminder] startup scan failed",error)}
     const isTicket=commandName==="ticket-log"||customId.startsWith("ticket:")||customId.startsWith("tac:")||customId.startsWith("trj:");
     console.info(isTicket?"[ticket] interaction received":"[quota] interaction received",{interactionId:interaction.id,interactionType:interaction.type,userId:interaction?.member?.user?.id||interaction?.user?.id,customId});
-    return isTicket?handleTicketPost(interaction):handlePost(interaction)
+    return interactionResult(isTicket?handleTicketPost(interaction):handlePost(interaction));
   }catch{return jsonResponse({error:"invalid json"},400)}
 }

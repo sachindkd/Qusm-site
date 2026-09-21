@@ -8,7 +8,9 @@ import { handleStaffAskAi } from "@/lib/discord/staff-ai";
 
 async function interactionResult(value: any): Promise<Response> {
   const result = await value;
-  return result instanceof Response ? result : jsonResponse(result);
+  if (result instanceof Response) return result;
+  if (result == null) return new Response(null, { status: 204 });
+  return jsonResponse(result);
 }
 
 export async function GET(){try{await runQuotaReminderCheck("startup")}catch(error){console.error("[quota-reminder] startup scan failed",error)}return handleGet()}

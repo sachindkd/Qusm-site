@@ -27,14 +27,24 @@ export async function POST(request: Request) {
       return jsonResponse({ type: 1 });
     }
 
+    const customId = String(interaction?.data?.custom_id || "");
+    const commandName = String(interaction?.data?.name || "");
+
+    // Operations control must be dispatched immediately. The quota reminder scan performs
+    // database schema/index work and can exceed Discord's interaction response window.
+    // Running it before the command handler was causing /operations-halt to show
+    // "The application did not respond". Keep this control path fast and independent.
+    if (commandName === "operations-halt") {
+      console.info("[operations-halt] interaction received", { interactionId: interaction.id });
+      return handlePost(interaction);
+    }
+
     try {
       await runQuotaReminderCheck("startup");
     } catch (error) {
       console.error("[quota-reminder] startup scan failed", error);
     }
 
-    const customId = String(interaction?.data?.custom_id || "");
-    const commandName = String(interaction?.data?.name || "");
     const isTicket = commandName === "ticket-log" || customId.startsWith("ticket:") || customId.startsWith("tac:") || customId.startsWith("trj:");
     console.info(isTicket ? "[ticket] interaction received" : "[quota] interaction received", { interactionId: interaction.id, interactionType: interaction.type, userId: interaction?.member?.user?.id || interaction?.user?.id, customId });
     return isTicket ? handleTicketPost(interaction) : handlePost(interaction);

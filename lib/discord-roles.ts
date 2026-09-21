@@ -12,6 +12,16 @@ export const ROLE_IDS = {
   developerPosts: "1506466679100801196", ofcAdmin: process.env.DISCORD_OFC_ADMIN_ROLE_ID || "", member: MEMBER_ROLE_ID,
 } as const;
 
+/**
+ * Staff discipline roles intentionally hardcoded as requested.
+ * These are used by the staff action/review system for Strike 1/2/3.
+ */
+export const STRIKE_ROLE_IDS = {
+  1: "1539736452999549007",
+  2: "1539736452999549006",
+  3: "1539736452999549005",
+} as const;
+
 export type AccessLevel = "special-user" | "owner" | "ownership" | "senior-leadership" | "developer" | "aide" | "staff" | "member";
 export type Permission = "site:read" | "site:edit" | "leadership:edit" | "divisions:edit" | "announcements:manage" | "audit:read" | "calendar:manage" | "developer:publish" | "applications:manage" | "media:manage" | "shop:manage" | "admin:all";
 export type DiscordGuildRole = { id: string; name: string; position: number; managed?: boolean };

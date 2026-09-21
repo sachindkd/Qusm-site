@@ -1,0 +1,33 @@
+name: Staff Debug
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Typecheck
+        continue-on-error: true
+        run: npm run typecheck > typecheck.log 2>&1
+      - name: Upload typecheck
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staff-typecheck
+          path: typecheck.log
+      - name: Build
+        continue-on-error: true
+        run: npm run build > build.log 2>&1
+      - name: Upload build
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staff-build
+          path: build.log

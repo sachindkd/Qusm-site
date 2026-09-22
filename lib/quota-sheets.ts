@@ -1,4 +1,5 @@
 import { createSign } from "node:crypto";
+import { neon } from "@neondatabase/serverless";
 
 const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -40,15 +41,32 @@ async function processTicketsInSheet(input: TicketDirectInput, sheetId: string, 
 export async function processTicketDirect(input: TicketDirectInput) { return processTicketsInSheet(input, SHEET_ID, SHEET_NAME, "B", "G"); }
 
 export type StaffDatabaseSnapshotRow = { username: string; rank: string; minutes: number; tickets: number };
+
+async function syncStaffRanksToProfiles(rows: StaffDatabaseSnapshotRow[]) {
+  const databaseUrl = env("DATABASE_URL");
+  if (!databaseUrl) return;
+  try {
+    const q = neon(databaseUrl);
+    for (const staff of rows) {
+      if (!staff.username || !staff.rank) continue;
+      await q`UPDATE staff_profiles SET username=${staff.username},rank=${staff.rank},updated_at=NOW() WHERE LOWER(username)=LOWER(${staff.username})`;
+    }
+  } catch (error) {
+    console.warn("[quota-sheets] Staff profile rank sync skipped:", error);
+  }
+}
+
 export async function getStaffDatabaseSnapshot(): Promise<StaffDatabaseSnapshotRow[]> {
   const values = await sheetsFetch(SHEET_ID, `/values/${encodeURIComponent(SHEET_NAME + "!B:G")}?valueRenderOption=UNFORMATTED_VALUE`);
   const rows: unknown[][] = Array.isArray(values.values) ? values.values : [];
-  return rows.slice(1).map(cells => ({
+  const snapshot = rows.slice(1).map(cells => ({
     username: String(cells?.[0] ?? "").trim(),
     rank: String(cells?.[1] ?? "").trim(),
     minutes: Math.round(durationToMinutes(cells?.[3])),
     tickets: Math.max(0, Math.round(Number(cells?.[5]) || 0)),
   })).filter(row => row.username);
+  await syncStaffRanksToProfiles(snapshot);
+  return snapshot;
 }
 
 export async function updateStaffRankInDatabase(username: string, newRank: string) {
